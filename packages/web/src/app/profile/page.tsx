@@ -1,8 +1,14 @@
 "use client";
 
 import { useState } from "react";
+import { Layout, Card, Button, Form, Input, InputNumber, DatePicker, Row, Col, Statistic, Typography, Space, Divider, List } from "antd";
+import { UserOutlined, ClockCircleOutlined, TrophyOutlined, LineChartOutlined, FireOutlined, BellOutlined, SettingOutlined, DownloadOutlined, QuestionCircleOutlined, RightOutlined, EditOutlined, SaveOutlined, CloseOutlined } from "@ant-design/icons";
 import Navbar from "@/components/shared/Navbar";
 import BottomNav from "@/components/shared/BottomNav";
+import dayjs from "dayjs";
+
+const { Title, Text } = Typography;
+const { Content } = Layout;
 
 export default function ProfilePage() {
   const [profile, setProfile] = useState({
@@ -37,274 +43,208 @@ export default function ProfilePage() {
     return diffDays > 0 ? diffDays : 0;
   };
 
+  const settings = [
+    { icon: <BellOutlined />, title: "通知设置", description: "管理学习提醒和通知" },
+    { icon: <SettingOutlined />, title: "主题设置", description: "切换深色/浅色主题" },
+    { icon: <DownloadOutlined />, title: "数据导出", description: "导出学习数据" },
+    { icon: <QuestionCircleOutlined />, title: "帮助与反馈", description: "获取帮助或提交反馈" },
+  ];
+
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
       <Navbar />
-      <main className="pb-20 md:pb-0 pt-4 md:pt-20">
-        <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-3xl font-bold mb-6">个人中心</h1>
+      <Content style={{ padding: "16px", paddingBottom: 80 }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <Title level={2} style={{ marginBottom: 24 }}>个人中心</Title>
 
-          <div className="bg-gradient-to-r from-primary to-secondary rounded-xl p-8 text-white mb-6">
-            <div className="flex items-center gap-6">
-              <div className="w-20 h-20 bg-white bg-opacity-20 rounded-full flex items-center justify-center text-4xl">
-                👤
+          <Card
+            style={{
+              background: "linear-gradient(135deg, #3b82f6 0%, #6366f1 100%)",
+              marginBottom: 24,
+              borderRadius: 12,
+            }}
+            bodyStyle={{ padding: 32 }}
+          >
+            <Space size={24} align="center">
+              <div style={{
+                width: 80,
+                height: 80,
+                borderRadius: "50%",
+                background: "rgba(255, 255, 255, 0.2)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                fontSize: 40,
+              }}>
+                <UserOutlined />
               </div>
               <div>
-                <h2 className="text-2xl font-bold mb-1">{profile.nickname}</h2>
-                <p className="text-white text-opacity-80">考公备考中</p>
+                <Title level={3} style={{ color: "#fff", marginBottom: 4 }}>
+                  {profile.nickname}
+                </Title>
+                <Text style={{ color: "rgba(255, 255, 255, 0.8)" }}>
+                  考公备考中
+                </Text>
               </div>
-            </div>
-          </div>
+            </Space>
+          </Card>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-            <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-md">
-              <div className="text-4xl font-bold text-primary mb-2">
-                {getDaysUntilExam()}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">距离考试</div>
-            </div>
-            <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-md">
-              <div className="text-4xl font-bold text-secondary mb-2">
-                {profile.targetScore}
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">目标分数</div>
-            </div>
-          </div>
+          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+            <Col xs={24} sm={12}>
+              <Card>
+                <Statistic
+                  title="距离考试"
+                  value={getDaysUntilExam()}
+                  suffix="天"
+                  valueStyle={{ color: "#3b82f6", fontSize: 32 }}
+                  prefix={<ClockCircleOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={12}>
+              <Card>
+                <Statistic
+                  title="目标分数"
+                  value={profile.targetScore}
+                  valueStyle={{ color: "#6366f1", fontSize: 32 }}
+                  prefix={<TrophyOutlined />}
+                />
+              </Card>
+            </Col>
+          </Row>
 
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md mb-6">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800">
-              <div className="flex items-center justify-between">
-                <h2 className="text-xl font-semibold">个人档案</h2>
-                {!isEditing ? (
-                  <button
-                    onClick={handleEdit}
-                    className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+          <Card style={{ marginBottom: 24 }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+              <Title level={3} style={{ margin: 0 }}>个人档案</Title>
+              {!isEditing ? (
+                <Button
+                  type="primary"
+                  icon={<EditOutlined />}
+                  onClick={handleEdit}
+                >
+                  编辑
+                </Button>
+              ) : (
+                <Space>
+                  <Button
+                    icon={<CloseOutlined />}
+                    onClick={handleCancel}
                   >
-                    编辑
-                  </button>
-                ) : (
-                  <div className="flex gap-2">
-                    <button
-                      onClick={handleCancel}
-                      className="px-4 py-2 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-lg text-sm font-medium hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
-                    >
-                      取消
-                    </button>
-                    <button
-                      onClick={handleSave}
-                      className="px-4 py-2 bg-primary text-white rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
-                    >
-                      保存
-                    </button>
-                  </div>
-                )}
-              </div>
+                    取消
+                  </Button>
+                  <Button
+                    type="primary"
+                    icon={<SaveOutlined />}
+                    onClick={handleSave}
+                  >
+                    保存
+                  </Button>
+                </Space>
+              )}
             </div>
 
-            <div className="p-6 space-y-6">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  昵称
-                </label>
+            <Form layout="vertical">
+              <Form.Item label="昵称">
                 {isEditing ? (
-                  <input
-                    type="text"
+                  <Input
                     value={editForm.nickname}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, nickname: e.target.value })
-                    }
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary"
+                    onChange={(e) => setEditForm({ ...editForm, nickname: e.target.value })}
+                    size="large"
                   />
                 ) : (
-                  <div className="text-gray-900 dark:text-gray-100">
-                    {profile.nickname}
-                  </div>
+                  <Text style={{ fontSize: 16 }}>{profile.nickname}</Text>
                 )}
-              </div>
+              </Form.Item>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  目标分数
-                </label>
+              <Form.Item label="目标分数">
                 {isEditing ? (
-                  <input
-                    type="number"
+                  <InputNumber
                     value={editForm.targetScore}
-                    onChange={(e) =>
-                      setEditForm({
-                        ...editForm,
-                        targetScore: parseInt(e.target.value) || 0,
-                      })
-                    }
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary"
+                    onChange={(value) => setEditForm({ ...editForm, targetScore: value || 0 })}
+                    size="large"
+                    style={{ width: "100%" }}
                   />
                 ) : (
-                  <div className="text-gray-900 dark:text-gray-100">
-                    {profile.targetScore}分
-                  </div>
+                  <Text style={{ fontSize: 16 }}>{profile.targetScore}分</Text>
                 )}
-              </div>
+              </Form.Item>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  考试日期
-                </label>
+              <Form.Item label="考试日期">
                 {isEditing ? (
-                  <input
-                    type="date"
-                    value={editForm.examDate}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, examDate: e.target.value })
-                    }
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100 focus:outline-none focus:ring-2 focus:ring-primary"
+                  <DatePicker
+                    value={dayjs(editForm.examDate)}
+                    onChange={(date) => setEditForm({ ...editForm, examDate: date?.format("YYYY-MM-DD") || "" })}
+                    size="large"
+                    style={{ width: "100%" }}
                   />
                 ) : (
-                  <div className="text-gray-900 dark:text-gray-100">
+                  <Text style={{ fontSize: 16 }}>
                     {new Date(profile.examDate).toLocaleDateString("zh-CN", {
                       year: "numeric",
                       month: "long",
                       day: "numeric",
                     })}
-                  </div>
+                  </Text>
                 )}
-              </div>
+              </Form.Item>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                  已学习天数
-                </label>
-                <div className="text-gray-900 dark:text-gray-100">
-                  {profile.totalStudyDays}天
-                </div>
-              </div>
-            </div>
-          </div>
+              <Form.Item label="已学习天数">
+                <Text style={{ fontSize: 16 }}>{profile.totalStudyDays}天</Text>
+              </Form.Item>
+            </Form>
+          </Card>
 
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md mb-6">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800">
-              <h2 className="text-xl font-semibold">学习数据总览</h2>
-            </div>
-            <div className="p-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-primary mb-1">120</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">总学习时长(小时)</div>
-                </div>
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-secondary mb-1">45</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">总学习天数</div>
-                </div>
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-success mb-1">78%</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">平均正确率</div>
-                </div>
-                <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4 text-center">
-                  <div className="text-2xl font-bold text-warning mb-1">7</div>
-                  <div className="text-sm text-gray-600 dark:text-gray-400">连续天数</div>
-                </div>
-              </div>
-            </div>
-          </div>
+          <Card style={{ marginBottom: 24 }}>
+            <Title level={3} style={{ marginBottom: 24 }}>学习数据总览</Title>
+            <Row gutter={16}>
+              <Col xs={12} sm={6}>
+                <Card size="small" style={{ background: "#f5f5f5", border: "none", textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#3b82f6", marginBottom: 4 }}>120</div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>总学习时长(小时)</Text>
+                </Card>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Card size="small" style={{ background: "#f5f5f5", border: "none", textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#6366f1", marginBottom: 4 }}>45</div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>总学习天数</Text>
+                </Card>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Card size="small" style={{ background: "#f5f5f5", border: "none", textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#10b981", marginBottom: 4 }}>78%</div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>平均正确率</Text>
+                </Card>
+              </Col>
+              <Col xs={12} sm={6}>
+                <Card size="small" style={{ background: "#f5f5f5", border: "none", textAlign: "center" }}>
+                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#f59e0b", marginBottom: 4 }}>7</div>
+                  <Text type="secondary" style={{ fontSize: 12 }}>连续天数</Text>
+                </Card>
+              </Col>
+            </Row>
+          </Card>
 
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800">
-              <h2 className="text-xl font-semibold">设置</h2>
-            </div>
-            <div className="p-6">
-              <div className="space-y-4">
-                <button className="w-full flex items-center justify-between p-4 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="text-2xl">🔔</div>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      通知设置
-                    </span>
-                  </div>
-                  <svg
-                    className="w-5 h-5 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </button>
-
-                <button className="w-full flex items-center justify-between p-4 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="text-2xl">🎨</div>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      主题设置
-                    </span>
-                  </div>
-                  <svg
-                    className="w-5 h-5 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </button>
-
-                <button className="w-full flex items-center justify-between p-4 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="text-2xl">📊</div>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      数据导出
-                    </span>
-                  </div>
-                  <svg
-                    className="w-5 h-5 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </button>
-
-                <button className="w-full flex items-center justify-between p-4 bg-gray-100 dark:bg-gray-800 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition-colors">
-                  <div className="flex items-center gap-3">
-                    <div className="text-2xl">❓</div>
-                    <span className="font-medium text-gray-900 dark:text-gray-100">
-                      帮助与反馈
-                    </span>
-                  </div>
-                  <svg
-                    className="w-5 h-5 text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
+          <Card>
+            <Title level={3} style={{ marginBottom: 24 }}>设置</Title>
+            <List
+              dataSource={settings}
+              renderItem={(item) => (
+                <List.Item
+                  style={{ cursor: "pointer", padding: "16px 0" }}
+                  extra={<RightOutlined style={{ color: "#999" }} />}
+                >
+                  <List.Item.Meta
+                    avatar={<div style={{ fontSize: 24, color: "#3b82f6" }}>{item.icon}</div>}
+                    title={<Text strong style={{ fontSize: 16 }}>{item.title}</Text>}
+                    description={<Text type="secondary">{item.description}</Text>}
+                  />
+                </List.Item>
+              )}
+            />
+          </Card>
         </div>
-      </main>
+      </Content>
       <BottomNav />
-    </div>
+    </Layout>
   );
 }

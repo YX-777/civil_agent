@@ -1,9 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { Layout, Card, Button, Row, Col, Modal, Spin, Badge, Typography, Space, Statistic } from "antd";
+import { LeftOutlined, RightOutlined, CloseOutlined, FireOutlined, ClockCircleOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import { CalendarDay } from "@/types";
 import Navbar from "@/components/shared/Navbar";
 import BottomNav from "@/components/shared/BottomNav";
+
+const { Title, Text } = Typography;
+const { Content } = Layout;
 
 export default function CalendarPage() {
   const [calendarDays, setCalendarDays] = useState<CalendarDay[]>([]);
@@ -87,204 +92,191 @@ export default function CalendarPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
         <Navbar />
-        <main className="pb-20 md:pb-0 pt-4 md:pt-20">
-          <div className="max-w-7xl mx-auto px-4">
-            <div className="flex items-center justify-center h-64">
-              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <Content style={{ padding: "16px", paddingBottom: 80 }}>
+          <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 400 }}>
+              <Spin size="large" />
             </div>
           </div>
-        </main>
+        </Content>
         <BottomNav />
-      </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
       <Navbar />
-      <main className="pb-20 md:pb-0 pt-4 md:pt-20">
-        <div className="max-w-7xl mx-auto px-4">
-          <h1 className="text-3xl font-bold mb-6">学习日历</h1>
+      <Content style={{ padding: "16px", paddingBottom: 80 }}>
+        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+          <Title level={2} style={{ marginBottom: 24 }}>学习日历</Title>
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-            <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-md">
-              <div className="text-3xl font-bold text-primary mb-2">
-                {getConsecutiveDays()}天
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">连续学习</div>
-            </div>
-            <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-md">
-              <div className="text-3xl font-bold text-secondary mb-2">
-                {getTotalLearningHours()}小时
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">本月学习</div>
-            </div>
-            <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-md">
-              <div className="text-3xl font-bold text-success mb-2">
-                {calendarDays.filter((day) => day.completed).length}天
-              </div>
-              <div className="text-sm text-gray-600 dark:text-gray-400">打卡天数</div>
-            </div>
-          </div>
+          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+            <Col xs={24} sm={8}>
+              <Card>
+                <Statistic
+                  title="连续学习"
+                  value={getConsecutiveDays()}
+                  suffix="天"
+                  valueStyle={{ color: "#3b82f6", fontSize: 32 }}
+                  prefix={<FireOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card>
+                <Statistic
+                  title="本月学习"
+                  value={getTotalLearningHours()}
+                  suffix="小时"
+                  valueStyle={{ color: "#6366f1", fontSize: 32 }}
+                  prefix={<ClockCircleOutlined />}
+                />
+              </Card>
+            </Col>
+            <Col xs={24} sm={8}>
+              <Card>
+                <Statistic
+                  title="打卡天数"
+                  value={calendarDays.filter((day) => day.completed).length}
+                  suffix="天"
+                  valueStyle={{ color: "#10b981", fontSize: 32 }}
+                  prefix={<CheckCircleOutlined />}
+                />
+              </Card>
+            </Col>
+          </Row>
 
-          <div className="bg-white dark:bg-gray-900 rounded-xl shadow-md mb-6">
-            <div className="p-6 border-b border-gray-200 dark:border-gray-800">
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={goToPreviousMonth}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
+          <Card style={{ marginBottom: 24 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+              <Button icon={<LeftOutlined />} onClick={goToPreviousMonth}>
+                上个月
+              </Button>
+              <Title level={3} style={{ margin: 0 }}>
+                {getMonthName()}
+              </Title>
+              <Button icon={<RightOutlined />} onClick={goToNextMonth}>
+                下个月
+              </Button>
+            </div>
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8, marginBottom: 16 }}>
+              {["日", "一", "二", "三", "四", "五", "六"].map((day) => (
+                <div
+                  key={day}
+                  style={{
+                    textAlign: "center",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    color: "#666",
+                    padding: "8px 0",
+                  }}
                 >
-                  <svg
-                    className="w-6 h-6 text-gray-600 dark:text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M15 19l-7-7 7-7"
-                    />
-                  </svg>
-                </button>
-                <h2 className="text-xl font-semibold">{getMonthName()}</h2>
-                <button
-                  onClick={goToNextMonth}
-                  className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                >
-                  <svg
-                    className="w-6 h-6 text-gray-600 dark:text-gray-400"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 5l7 7-7 7"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
-
-            <div className="p-6">
-              <div className="grid grid-cols-7 gap-2 mb-4">
-                {["日", "一", "二", "三", "四", "五", "六"].map((day) => (
-                  <div
-                    key={day}
-                    className="text-center text-sm font-medium text-gray-600 dark:text-gray-400 py-2"
-                  >
-                    {day}
-                  </div>
-                ))}
-              </div>
-
-              <div className="grid grid-cols-7 gap-2">
-                {Array.from({ length: startDayOfWeek }).map((_, index) => (
-                  <div key={`empty-${index}`} className="aspect-square" />
-                ))}
-
-                {calendarDays.map((day, index) => {
-                  const dayNumber = index + 1;
-                  const isToday = new Date().toISOString().split("T")[0] === day.date;
-
-                  return (
-                    <button
-                      key={day.date}
-                      onClick={() => handleDayClick(day)}
-                      className={`aspect-square rounded-lg flex flex-col items-center justify-center transition-all ${
-                        day.completed
-                          ? "bg-primary text-white hover:bg-blue-600"
-                          : "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700"
-                      } ${isToday ? "ring-2 ring-offset-2 ring-primary" : ""}`}
-                    >
-                      <span className="text-sm font-medium">{dayNumber}</span>
-                      {day.completed && day.learningHours > 0 && (
-                        <span className="text-xs mt-1">{day.learningHours}h</span>
-                      )}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </div>
-
-          {selectedDate && (
-            <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-              <div className="bg-white dark:bg-gray-900 rounded-xl max-w-md w-full p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-xl font-semibold">
-                    {new Date(selectedDate.date).toLocaleDateString("zh-CN", {
-                      month: "long",
-                      day: "numeric",
-                    })}
-                  </h3>
-                  <button
-                    onClick={closeDetail}
-                    className="p-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg transition-colors"
-                  >
-                    <svg
-                      className="w-6 h-6 text-gray-600 dark:text-gray-400"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M6 18L18 6M6 6l12 12"
-                      />
-                    </svg>
-                  </button>
+                  {day}
                 </div>
-
-                <div className="space-y-4">
-                  <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                      学习时长
-                    </div>
-                    <div className="text-2xl font-bold">
-                      {selectedDate.learningHours}小时
-                    </div>
-                  </div>
-
-                  <div className="bg-gray-100 dark:bg-gray-800 rounded-lg p-4">
-                    <div className="text-sm text-gray-600 dark:text-gray-400 mb-1">
-                      打卡状态
-                    </div>
-                    <div className="text-lg font-semibold">
-                      {selectedDate.completed ? "✅ 已打卡" : "❌ 未打卡"}
-                    </div>
-                  </div>
-
-                  {selectedDate.completed && (
-                    <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
-                      <div className="text-green-800 dark:text-green-200 font-medium">
-                        太棒了！继续保持！
-                      </div>
-                    </div>
-                  )}
-
-                  {!selectedDate.completed && (
-                    <div className="bg-yellow-50 dark:bg-yellow-900/20 border border-yellow-200 dark:border-yellow-800 rounded-lg p-4">
-                      <div className="text-yellow-800 dark:text-yellow-200 font-medium">
-                        还没有打卡，记得学习哦！
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
+              ))}
             </div>
-          )}
+
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: 8 }}>
+              {Array.from({ length: startDayOfWeek }).map((_, index) => (
+                <div key={`empty-${index}`} style={{ aspectRatio: 1 }} />
+              ))}
+
+              {calendarDays.map((day, index) => {
+                const dayNumber = index + 1;
+                const isToday = new Date().toISOString().split("T")[0] === day.date;
+
+                return (
+                  <Button
+                    key={day.date}
+                    onClick={() => handleDayClick(day)}
+                    type={day.completed ? "primary" : "default"}
+                    style={{
+                      aspectRatio: 1,
+                      height: "auto",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 4,
+                      border: isToday ? "2px solid #3b82f6" : "1px solid #d9d9d9",
+                    }}
+                  >
+                    <span style={{ fontSize: 14, fontWeight: 500 }}>{dayNumber}</span>
+                    {day.completed && day.learningHours > 0 && (
+                      <span style={{ fontSize: 10 }}>{day.learningHours}h</span>
+                    )}
+                  </Button>
+                );
+              })}
+            </div>
+          </Card>
+
+          <Modal
+            open={!!selectedDate}
+            onCancel={closeDetail}
+            title={
+              selectedDate
+                ? new Date(selectedDate.date).toLocaleDateString("zh-CN", {
+                    month: "long",
+                    day: "numeric",
+                  })
+                : ""
+            }
+            footer={null}
+            width={400}
+          >
+            {selectedDate && (
+              <Space direction="vertical" size={16} style={{ width: "100%" }}>
+                <Card size="small" style={{ background: "#f5f5f5", border: "none" }}>
+                  <Text type="secondary">学习时长</Text>
+                  <div style={{ fontSize: 24, fontWeight: "bold", marginTop: 8 }}>
+                    {selectedDate.learningHours}小时
+                  </div>
+                </Card>
+
+                <Card size="small" style={{ background: "#f5f5f5", border: "none" }}>
+                  <Text type="secondary">打卡状态</Text>
+                  <div style={{ fontSize: 18, fontWeight: "bold", marginTop: 8 }}>
+                    {selectedDate.completed ? "✅ 已打卡" : "❌ 未打卡"}
+                  </div>
+                </Card>
+
+                {selectedDate.completed && (
+                  <div style={{ 
+                    background: "#f6ffed", 
+                    border: "1px solid #b7eb8f",
+                    borderRadius: 8,
+                    padding: 16,
+                    textAlign: "center"
+                  }}>
+                    <Text style={{ color: "#389e0d", fontSize: 16, fontWeight: 500 }}>
+                      太棒了！继续保持！
+                    </Text>
+                  </div>
+                )}
+
+                {!selectedDate.completed && (
+                  <div style={{ 
+                    background: "#fffbe6", 
+                    border: "1px solid #ffe58f",
+                    borderRadius: 8,
+                    padding: 16,
+                    textAlign: "center"
+                  }}>
+                    <Text style={{ color: "#d46b08", fontSize: 16, fontWeight: 500 }}>
+                      还没有打卡，记得学习哦！
+                    </Text>
+                  </div>
+                )}
+              </Space>
+            )}
+          </Modal>
         </div>
-      </main>
+      </Content>
       <BottomNav />
-    </div>
+    </Layout>
   );
 }

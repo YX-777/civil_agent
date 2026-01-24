@@ -1,6 +1,9 @@
 "use client";
 
+import { Card, Typography } from "antd";
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+
+const { Title } = Typography;
 
 interface AccuracyChartProps {
   data: Array<{ date: string; accuracy: number }>;
@@ -8,26 +11,31 @@ interface AccuracyChartProps {
 
 export default function AccuracyChart({ data }: AccuracyChartProps) {
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-md">
-      <h3 className="text-lg font-semibold mb-4">正确率趋势</h3>
-      <div className="h-64">
+    <Card
+      style={{ borderRadius: 12 }}
+      bodyStyle={{ padding: 24 }}
+    >
+      <Title level={4} style={{ marginBottom: 16 }}>
+        正确率趋势
+      </Title>
+      <div style={{ height: 256 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" className="stroke-gray-200 dark:stroke-gray-700" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
             <XAxis 
               dataKey="date" 
-              className="text-gray-600 dark:text-gray-400 text-xs"
+              style={{ fontSize: 12, fill: "#666" }}
             />
             <YAxis 
               domain={[0, 100]}
-              className="text-gray-600 dark:text-gray-400 text-xs"
+              style={{ fontSize: 12, fill: "#666" }}
             />
             <Tooltip 
               contentStyle={{
-                backgroundColor: "rgb(31 41 55)",
-                border: "none",
-                borderRadius: "8px",
-                color: "white"
+                backgroundColor: "#fff",
+                border: "1px solid #f0f0f0",
+                borderRadius: 8,
+                boxShadow: "0 2px 8px rgba(0, 0, 0, 0.1)",
               }}
             />
             <Line 
@@ -35,11 +43,12 @@ export default function AccuracyChart({ data }: AccuracyChartProps) {
               dataKey="accuracy" 
               stroke="#3b82f6" 
               strokeWidth={2}
-              dot={{ fill: "#3b82f6" }}
+              dot={{ fill: "#3b82f6", strokeWidth: 2, r: 4 }}
+              activeDot={{ r: 6 }}
             />
           </LineChart>
         </ResponsiveContainer>
       </div>
-    </div>
+    </Card>
   );
 }

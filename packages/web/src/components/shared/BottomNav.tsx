@@ -1,35 +1,72 @@
+"use client";
+
+import { Tabs } from "antd";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { MessageOutlined, ClockCircleOutlined, DashboardOutlined, CheckSquareOutlined, UserOutlined } from "@ant-design/icons";
 
 const navItems = [
-  { href: "/", label: "对话", icon: "💬" },
-  { href: "/focus", label: "专注", icon: "🎯" },
-  { href: "/dashboard", label: "看板", icon: "📊" },
-  { href: "/tasks", label: "任务", icon: "✅" },
-  { href: "/profile", label: "我的", icon: "👤" },
+  { 
+    key: "/", 
+    label: "对话", 
+    icon: <MessageOutlined />,
+    href: "/" 
+  },
+  { 
+    key: "/focus", 
+    label: "专注", 
+    icon: <ClockCircleOutlined />,
+    href: "/focus" 
+  },
+  { 
+    key: "/dashboard", 
+    label: "看板", 
+    icon: <DashboardOutlined />,
+    href: "/dashboard" 
+  },
+  { 
+    key: "/tasks", 
+    label: "任务", 
+    icon: <CheckSquareOutlined />,
+    href: "/tasks" 
+  },
+  { 
+    key: "/profile", 
+    label: "我的", 
+    icon: <UserOutlined />,
+    href: "/profile" 
+  },
 ];
 
 export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-gray-900 border-t border-gray-200 dark:border-gray-800 md:hidden">
-      <div className="flex justify-around py-2">
-        {navItems.map((item) => (
-          <Link
-            key={item.href}
-            href={item.href}
-            className={`flex flex-col items-center px-4 py-2 text-sm ${
-              pathname === item.href
-                ? "text-primary"
-                : "text-gray-600 dark:text-gray-400"
-            }`}
-          >
-            <span className="text-xl mb-1">{item.icon}</span>
-            <span>{item.label}</span>
-          </Link>
-        ))}
-      </div>
-    </nav>
+    <div className="fixed bottom-0 left-0 right-0 md:hidden z-50">
+      <Tabs
+        activeKey={pathname}
+        items={navItems.map((item) => ({
+          key: item.key,
+          label: (
+            <Link href={item.href} style={{ textDecoration: "none" }}>
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
+                {item.icon}
+                <span style={{ fontSize: 12 }}>{item.label}</span>
+              </div>
+            </Link>
+          ),
+        }))}
+        style={{
+          background: "#fff",
+          borderTop: "1px solid #f0f0f0",
+        }}
+        tabBarStyle={{
+          marginBottom: 0,
+          height: 60,
+          display: "flex",
+          alignItems: "center",
+        }}
+      />
+    </div>
   );
 }

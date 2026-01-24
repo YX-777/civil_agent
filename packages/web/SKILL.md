@@ -34,7 +34,7 @@ Web 应用是考公 Agent 的用户界面，提供6个核心页面：
 
 **技术特点**:
 - Next.js 14 App Router
-- TailwindCSS + shadcn/ui
+- Ant Design + Ant Design X
 - 响应式设计
 - 动画效果（Framer Motion）
 
@@ -174,8 +174,8 @@ Web 应用是考公 Agent 的用户界面，提供6个核心页面：
 
 - Next.js 14: React 框架（App Router）
 - TypeScript: 类型系统
-- TailwindCSS: 样式框架
-- shadcn/ui: UI 组件库
+- Ant Design: UI 组件库
+- Ant Design X: AI 对话组件库
 - Framer Motion: 动画库
 - Recharts: 图表库
 - @civil-agent/core: 核心类型

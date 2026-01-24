@@ -1,10 +1,9 @@
-import type { Metadata } from "next";
-import "../styles/globals.css";
+"use client";
 
-export const metadata: Metadata = {
-  title: "考公 Agent - 智能学习助手",
-  description: "基于 AI 的考公学习助手，提供对话、专注模式、数据看板等功能",
-};
+import { ConfigProvider, App as AntdApp } from "antd";
+import zhCN from "antd/locale/zh_CN";
+import { antdTheme } from "@/config/theme";
+import "../styles/globals.css";
 
 export default function RootLayout({
   children,
@@ -13,7 +12,14 @@ export default function RootLayout({
 }) {
   return (
     <html lang="zh-CN">
-      <body>{children}</body>
+      <body>
+        <ConfigProvider
+          theme={antdTheme}
+          locale={zhCN}
+        >
+          <AntdApp>{children}</AntdApp>
+        </ConfigProvider>
+      </body>
     </html>
   );
 }

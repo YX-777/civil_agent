@@ -1,8 +1,13 @@
 "use client";
 
+import { Layout, Card, Button, Progress, Typography, Row, Col, Space } from "antd";
+import { ClockCircleOutlined, TrophyOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import { useFocus } from "@/hooks/use-focus";
 import Navbar from "@/components/shared/Navbar";
 import BottomNav from "@/components/shared/BottomNav";
+
+const { Title, Text } = Typography;
+const { Content } = Layout;
 
 const modules = ["资料分析", "数量关系", "判断推理", "言语理解", "常识判断"];
 const durations = [
@@ -25,135 +30,171 @@ export default function FocusPage() {
 
   if (phase === "setup") {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
         <Navbar />
-        <main className="pb-20 md:pb-0 pt-4 md:pt-20">
-          <div className="max-w-2xl mx-auto px-4">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-8">
-              <h1 className="text-3xl font-bold text-center mb-8">专注模式</h1>
+        <Content style={{ padding: "16px", paddingBottom: 80 }}>
+          <div style={{ maxWidth: 600, margin: "0 auto" }}>
+            <Card style={{ borderRadius: 12 }}>
+              <Title level={2} style={{ textAlign: "center", marginBottom: 32 }}>
+                专注模式
+              </Title>
 
-              <div className="mb-8">
-                <h2 className="text-xl font-semibold mb-4">选择学习时长</h2>
-                <div className="grid grid-cols-3 gap-4">
+              <div style={{ marginBottom: 32 }}>
+                <Title level={4} style={{ marginBottom: 16 }}>
+                  选择学习时长
+                </Title>
+                <Row gutter={[16, 16]}>
                   {durations.map((duration) => (
-                    <button
-                      key={duration.hours}
-                      onClick={() => {}}
-                      className="p-6 bg-gray-100 dark:bg-gray-800 rounded-xl text-center hover:bg-primary hover:text-white transition-colors"
-                    >
-                      <div className="text-3xl font-bold mb-2">{duration.hours}</div>
-                      <div className="text-sm">小时</div>
-                    </button>
+                    <Col span={8} key={duration.hours}>
+                      <Button
+                        size="large"
+                        block
+                        style={{ height: 100, display: "flex", flexDirection: "column", justifyContent: "center" }}
+                      >
+                        <div style={{ fontSize: 32, fontWeight: "bold", marginBottom: 8 }}>
+                          {duration.hours}
+                        </div>
+                        <div style={{ fontSize: 14 }}>小时</div>
+                      </Button>
+                    </Col>
                   ))}
-                </div>
+                </Row>
               </div>
 
-              <div className="mb-8">
-                <h2 className="text-xl font-semibold mb-4">选择学习模块</h2>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
+              <div style={{ marginBottom: 32 }}>
+                <Title level={4} style={{ marginBottom: 16 }}>
+                  选择学习模块
+                </Title>
+                <Row gutter={[12, 12]}>
                   {modules.map((module) => (
-                    <button
-                      key={module}
-                      onClick={() => {}}
-                      className="p-4 bg-gray-100 dark:bg-gray-800 rounded-xl text-center hover:bg-primary hover:text-white transition-colors"
-                    >
-                      {module}
-                    </button>
+                    <Col xs={12} sm={8} md={8} key={module}>
+                      <Button
+                        size="large"
+                        block
+                        style={{ height: 60 }}
+                      >
+                        {module}
+                      </Button>
+                    </Col>
                   ))}
-                </div>
+                </Row>
               </div>
 
-              <button
+              <Button
+                type="primary"
+                size="large"
+                block
                 onClick={() => startSession(2, "资料分析")}
-                className="w-full py-4 bg-primary text-white rounded-xl font-bold text-lg hover:bg-blue-600 transition-colors"
+                style={{ height: 48, fontSize: 16, fontWeight: "bold" }}
               >
                 开始专注
-              </button>
-            </div>
+              </Button>
+            </Card>
           </div>
-        </main>
+        </Content>
         <BottomNav />
-      </div>
+      </Layout>
     );
   }
 
   if (phase === "active") {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
         <Navbar />
-        <main className="pb-20 md:pb-0 pt-4 md:pt-20">
-          <div className="max-w-2xl mx-auto px-4">
-            <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-8 text-center">
-              <div className="text-6xl font-mono font-bold text-primary mb-4">
+        <Content style={{ padding: "16px", paddingBottom: 80 }}>
+          <div style={{ maxWidth: 600, margin: "0 auto" }}>
+            <Card style={{ borderRadius: 12, textAlign: "center" }}>
+              <div style={{ 
+                fontSize: 64, 
+                fontWeight: "bold", 
+                color: "#3b82f6", 
+                fontFamily: "monospace",
+                marginBottom: 24 
+              }}>
                 {formatTime(timeRemaining)}
               </div>
 
-              <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-4 mb-8">
-                <div
-                  className="bg-primary h-4 rounded-full transition-all duration-1000"
-                  style={{ width: `${progress}%` }}
-                />
-              </div>
+              <Progress
+                percent={progress}
+                strokeColor="#3b82f6"
+                strokeWidth={16}
+                style={{ marginBottom: 24 }}
+              />
 
-              <div className="text-2xl mb-4">{getEncouragement()}</div>
+              <Title level={3} style={{ marginBottom: 24 }}>
+                {getEncouragement()}
+              </Title>
 
-              <div className="text-gray-600 dark:text-gray-400 mb-8">
+              <Text type="secondary" style={{ fontSize: 16, display: "block", marginBottom: 24 }}>
                 正在学习：{session?.module}
-              </div>
+              </Text>
 
-              <button
+              <Button
+                type="primary"
+                size="large"
+                icon={<CheckCircleOutlined />}
                 onClick={completeSession}
-                className="px-8 py-3 bg-success text-white rounded-xl font-bold hover:bg-green-600 transition-colors"
+                style={{ height: 48, fontSize: 16, fontWeight: "bold" }}
               >
                 完成专注
-              </button>
-            </div>
+              </Button>
+            </Card>
           </div>
-        </main>
+        </Content>
         <BottomNav />
-      </div>
+      </Layout>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+    <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
       <Navbar />
-      <main className="pb-20 md:pb-0 pt-4 md:pt-20">
-        <div className="max-w-2xl mx-auto px-4">
-          <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-lg p-8 text-center">
-            <div className="text-6xl mb-4">🎉</div>
-            <h1 className="text-3xl font-bold mb-4">恭喜！完成今日专注</h1>
+      <Content style={{ padding: "16px", paddingBottom: 80 }}>
+        <div style={{ maxWidth: 600, margin: "0 auto" }}>
+          <Card style={{ borderRadius: 12, textAlign: "center" }}>
+            <TrophyOutlined style={{ fontSize: 64, color: "#f59e0b", marginBottom: 24 }} />
+            <Title level={2} style={{ marginBottom: 24 }}>
+              恭喜！完成今日专注
+            </Title>
 
-            <div className="space-y-4 mb-8">
-              <div className="bg-gray-100 dark:bg-gray-800 rounded-xl p-4">
-                <div className="text-gray-600 dark:text-gray-400">学习时长</div>
-                <div className="text-2xl font-bold">{session?.duration}小时</div>
-              </div>
+            <Space direction="vertical" size={16} style={{ width: "100%", marginBottom: 32 }}>
+              <Card size="small" style={{ background: "#f5f5f5", border: "none" }}>
+                <Text type="secondary">学习时长</Text>
+                <div style={{ fontSize: 24, fontWeight: "bold", marginTop: 8 }}>
+                  {session?.duration}小时
+                </div>
+              </Card>
 
-              <div className="bg-gray-100 dark:bg-gray-800 rounded-xl p-4">
-                <div className="text-gray-600 dark:text-gray-400">学习模块</div>
-                <div className="text-xl font-semibold">{session?.module}</div>
-              </div>
-            </div>
+              <Card size="small" style={{ background: "#f5f5f5", border: "none" }}>
+                <Text type="secondary">学习模块</Text>
+                <div style={{ fontSize: 20, fontWeight: "bold", marginTop: 8 }}>
+                  {session?.module}
+                </div>
+              </Card>
+            </Space>
 
-            <div className="space-y-3">
-              <button
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              <Button
+                type="primary"
+                size="large"
+                block
                 onClick={resetSession}
-                className="w-full py-3 bg-primary text-white rounded-xl font-bold hover:bg-blue-600 transition-colors"
+                style={{ height: 48, fontSize: 16, fontWeight: "bold" }}
               >
                 再次专注
-              </button>
-              <button
-                onClick={() => {}}
-                className="w-full py-3 bg-gray-200 dark:bg-gray-800 text-gray-700 dark:text-gray-300 rounded-xl font-bold hover:bg-gray-300 dark:hover:bg-gray-700 transition-colors"
+              </Button>
+              <Button
+                size="large"
+                block
+                style={{ height: 48, fontSize: 16, fontWeight: "bold" }}
               >
                 返回首页
-              </button>
-            </div>
-          </div>
+              </Button>
+            </Space>
+          </Card>
         </div>
-      </main>
+      </Content>
       <BottomNav />
-    </div>
+    </Layout>
   );
 }

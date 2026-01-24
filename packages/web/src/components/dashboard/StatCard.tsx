@@ -1,23 +1,39 @@
+"use client";
+
+import { Card, Statistic, Typography } from "antd";
+
+const { Text } = Typography;
+
 interface StatCardProps {
   title: string;
-  value: string;
+  value: string | number;
   subtitle?: string;
-  icon?: string;
+  icon?: React.ReactNode;
 }
 
 export default function StatCard({ title, value, subtitle, icon }: StatCardProps) {
   return (
-    <div className="bg-white dark:bg-gray-900 rounded-xl p-6 shadow-md">
-      <div className="flex items-center justify-between mb-2">
-        <div className="text-gray-600 dark:text-gray-400 text-sm">{title}</div>
-        {icon && <div className="text-2xl">{icon}</div>}
+    <Card
+      style={{ borderRadius: 12 }}
+      bodyStyle={{ padding: 24 }}
+    >
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+        <Text type="secondary" style={{ fontSize: 14 }}>{title}</Text>
+        {icon && <div style={{ fontSize: 24 }}>{icon}</div>}
       </div>
-      <div className="text-3xl font-bold text-gray-900 dark:text-gray-100 mb-1">
-        {value}
-      </div>
+      <Statistic
+        value={value}
+        valueStyle={{ 
+          fontSize: 32, 
+          fontWeight: "bold",
+          color: "#000",
+        }}
+      />
       {subtitle && (
-        <div className="text-sm text-gray-500 dark:text-gray-500">{subtitle}</div>
+        <Text type="secondary" style={{ fontSize: 14, display: "block", marginTop: 4 }}>
+          {subtitle}
+        </Text>
       )}
-    </div>
+    </Card>
   );
 }
