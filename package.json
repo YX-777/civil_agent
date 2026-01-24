@@ -1,0 +1,38 @@
+{
+  "name": "civil-service-agent",
+  "version": "1.0.0",
+  "private": true,
+  "description": "AI备考陪伴教练 - 考公Agent项目",
+  "scripts": {
+    "dev": "pnpm --filter @civil-agent/web dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "lint": "pnpm -r lint",
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "type-check": "pnpm -r type-check",
+    "clean": "pnpm -r clean && rm -rf node_modules",
+    "prepare": "husky install || true"
+  },
+  "keywords": [
+    "ai",
+    "agent",
+    "langgraph",
+    "rag",
+    "mcp",
+    "civil-service-exam",
+    "考公",
+    "备考"
+  ],
+  "author": "sxh",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "prettier": "^3.2.4",
+    "typescript": "^5.3.3",
+    "husky": "^8.0.3"
+  },
+  "engines": {
+    "node": ">=18.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

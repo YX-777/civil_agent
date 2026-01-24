@@ -1,0 +1,39 @@
+{
+  "name": "@civil-agent/scheduler",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Scheduled task manager triggering morning greetings, evening reviews, and anomaly detection",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "jest"
+  },
+  "keywords": [
+    "scheduler",
+    "cron",
+    "task",
+    "bull",
+    "queue"
+  ],
+  "author": "sxh",
+  "license": "MIT",
+  "dependencies": {
+    "@civil-agent/core": "workspace:*",
+    "@civil-agent/agent-langgraph": "workspace:*",
+    "axios": "^1.6.5",
+    "bull": "^4.12.2",
+    "ioredis": "^5.3.2",
+    "node-cron": "^3.0.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/node-cron": "^3.0.11",
+    "typescript": "^5.3.3"
+  }
+}

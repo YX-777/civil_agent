@@ -1,0 +1,38 @@
+{
+  "name": "@civil-agent/agent-langgraph",
+  "version": "1.0.0",
+  "private": true,
+  "description": "LangGraph-based multi-turn dialogue agent engine",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "jest"
+  },
+  "keywords": [
+    "langgraph",
+    "agent",
+    "dialogue",
+    "conversation",
+    "intent-recognition"
+  ],
+  "author": "sxh",
+  "license": "MIT",
+  "dependencies": {
+    "@civil-agent/core": "workspace:*",
+    "@civil-agent/mcp-bailian-rag": "workspace:*",
+    "@langchain/anthropic": "^0.2.1",
+    "@langchain/core": "^0.2.27",
+    "@langchain/langgraph": "^0.0.28",
+    "axios": "^1.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}
