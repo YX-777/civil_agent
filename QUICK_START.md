@@ -307,9 +307,6 @@ pnpm type-check
 - [飞书开放平台](https://open.feishu.cn/)
 - [Next.js 14](https://nextjs.org/docs)
 
-### 参考项目
-- [MODULAR-RAG-MCP-SERVER](https://github.com/jerry-ai-dev/MODULAR-RAG-MCP-SERVER)
-
 ## 🤝 贡献指南
 
 欢迎贡献代码、报告问题或提出建议！

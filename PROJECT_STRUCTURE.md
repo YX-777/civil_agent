@@ -1,6 +1,5 @@
 # 考公 Agent 项目结构设计
 
-**基于 MODULAR-RAG-MCP-SERVER 的模块化架构**
 
 **版本**: v1.0
 **创建日期**: 2025-01-23
@@ -405,7 +404,6 @@ pnpm type-check     # 类型检查
 
 ### 参考项目
 
-- MODULAR-RAG-MCP-SERVER: https://github.com/jerry-ai-dev/MODULAR-RAG-MCP-SERVER
 - LangGraph.js Examples: https://github.com/langchain-ai/langgraph-js
 
 ---

@@ -171,4 +171,3 @@ sxh
 
 ---
 
-**基于 MODULAR-RAG-MCP-SERVER 的模块化架构设计**
