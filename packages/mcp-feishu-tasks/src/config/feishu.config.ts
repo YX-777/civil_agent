@@ -2,6 +2,10 @@
  * 飞书配置
  */
 
+import dotenv from "dotenv";
+
+dotenv.config();
+
 import { logger } from "@civil-agent/core";
 
 export interface FeishuConfig {

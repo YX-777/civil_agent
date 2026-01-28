@@ -4,7 +4,7 @@
  */
 
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
-import { ChatAnthropic } from "@langchain/anthropic";
+import { ChatOpenAI } from "@langchain/openai";
 import { logger, QuickReplyOption } from "@civil-agent/core";
 import type { UserIntent } from "@civil-agent/core";
 import { SYSTEM_PROMPTS } from "../prompts/system-prompts";
@@ -15,6 +15,22 @@ import { getEmotionDetector } from "../middleware/emotion-detector";
 import { getContextEnhancer } from "../middleware/context-enhancer";
 import { getAgentConfig } from "../config/agent.config";
 import type { GraphStateType } from "./state";
+
+/**
+ * 创建 LLM 实例
+ */
+function createLLM() {
+  const config = getAgentConfig();
+  return new ChatOpenAI({
+    modelName: config.llm.model,
+    temperature: config.llm.temperature,
+    maxTokens: config.llm.maxTokens,
+    apiKey: config.llm.apiKey,
+    configuration: {
+      baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    },
+  });
+}
 
 /**
  * 创建快捷回复选项
@@ -41,13 +57,7 @@ export async function intentRecognitionNode(
   const intentPrompt = SYSTEM_PROMPTS.INTENT_RECOGNITION.replace("{message}", content);
 
   try {
-    const config = getAgentConfig();
-    const llm = new ChatAnthropic({
-      model: config.llm.model,
-      temperature: 0,
-      maxTokens: 100,
-      apiKey: config.llm.apiKey,
-    });
+    const llm = createLLM();
 
     const response = await llm.invoke([new HumanMessage(intentPrompt)]);
     const intentText = response.content as string;
@@ -75,15 +85,8 @@ export async function morningGreetingNode(
 ): Promise<Partial<GraphStateType>> {
   logger.info("Morning greeting node executing");
 
-  const config = getAgentConfig();
-  const llm = new ChatAnthropic({
-    model: config.llm.model,
-    temperature: config.llm.temperature,
-    maxTokens: config.llm.maxTokens,
-    apiKey: config.llm.apiKey,
-  });
-
   try {
+    const llm = createLLM();
     const contextEnhancer = getContextEnhancer();
     const context = await contextEnhancer.enhanceContext(state.userId, "");
 
@@ -124,15 +127,8 @@ export async function eveningReviewNode(
 ): Promise<Partial<GraphStateType>> {
   logger.info("Evening review node executing");
 
-  const config = getAgentConfig();
-  const llm = new ChatAnthropic({
-    model: config.llm.model,
-    temperature: config.llm.temperature,
-    maxTokens: config.llm.maxTokens,
-    apiKey: config.llm.apiKey,
-  });
-
   try {
+    const llm = createLLM();
     const contextEnhancer = getContextEnhancer();
     const context = await contextEnhancer.enhanceContext(state.userId, "");
 
@@ -173,15 +169,8 @@ export async function taskGenerationNode(
 ): Promise<Partial<GraphStateType>> {
   logger.info("Task generation node executing");
 
-  const config = getAgentConfig();
-  const llm = new ChatAnthropic({
-    model: config.llm.model,
-    temperature: config.llm.temperature,
-    maxTokens: config.llm.maxTokens,
-    apiKey: config.llm.apiKey,
-  });
-
   try {
+    const llm = createLLM();
     const mcpClient = getMCPToolClient();
     const ragResult = await mcpClient.searchKnowledge({
       query: `用户 ${state.userId} 的学习进度和薄弱模块`,
@@ -236,15 +225,8 @@ export async function emotionSupportNode(
 ): Promise<Partial<GraphStateType>> {
   logger.info("Emotion support node executing");
 
-  const config = getAgentConfig();
-  const llm = new ChatAnthropic({
-    model: config.llm.model,
-    temperature: config.llm.temperature,
-    maxTokens: config.llm.maxTokens,
-    apiKey: config.llm.apiKey,
-  });
-
   try {
+    const llm = createLLM();
     const emotionDetector = getEmotionDetector();
     const lastMessage = state.messages[state.messages.length - 1];
     const content = lastMessage.content as string;
@@ -306,15 +288,8 @@ export async function progressQueryNode(
 ): Promise<Partial<GraphStateType>> {
   logger.info("Progress query node executing");
 
-  const config = getAgentConfig();
-  const llm = new ChatAnthropic({
-    model: config.llm.model,
-    temperature: config.llm.temperature,
-    maxTokens: config.llm.maxTokens,
-    apiKey: config.llm.apiKey,
-  });
-
   try {
+    const llm = createLLM();
     const mcpClient = getMCPToolClient();
     const ragResult = await mcpClient.searchKnowledge({
       query: `用户 ${state.userId} 的学习进度数据`,
@@ -363,15 +338,8 @@ export async function generalQANode(
 ): Promise<Partial<GraphStateType>> {
   logger.info("General QA node executing");
 
-  const config = getAgentConfig();
-  const llm = new ChatAnthropic({
-    model: config.llm.model,
-    temperature: config.llm.temperature,
-    maxTokens: config.llm.maxTokens,
-    apiKey: config.llm.apiKey,
-  });
-
   try {
+    const llm = createLLM();
     const lastMessage = state.messages[state.messages.length - 1];
     const content = lastMessage.content as string;
 

@@ -2,6 +2,10 @@
  * Agent 配置
  */
 
+import dotenv from "dotenv";
+
+dotenv.config();
+
 export interface AgentConfig {
   llm: {
     model: string;
@@ -34,10 +38,10 @@ export interface AgentConfig {
 
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   llm: {
-    model: "claude-3-sonnet-20240229",
+    model: "qwen3-max",
     temperature: 0.7,
     maxTokens: 4096,
-    apiKey: process.env.ANTHROPIC_API_KEY,
+    apiKey: process.env.DASHSCOPE_API_KEY,
   },
   mcp: {
     bailianRagUrl: process.env.MCP_BAILIAN_RAG_URL || "http://localhost:3002",
@@ -89,16 +93,17 @@ export function updateAgentConfig(partialConfig: Partial<AgentConfig>): AgentCon
  * 验证 Agent 配置
  */
 export function validateAgentConfig(config: AgentConfig): boolean {
+  console.log(config.llm, '==== config.llm ==');
   if (!config.llm.model) {
     throw new Error("LLM model is required");
   }
 
-  if (!config.llm.apiKey && process.env.ANTHROPIC_API_KEY) {
-    config.llm.apiKey = process.env.ANTHROPIC_API_KEY;
+  if (!config.llm.apiKey && process.env.DASHSCOPE_API_KEY) {
+    config.llm.apiKey = process.env.DASHSCOPE_API_KEY;
   }
 
   if (!config.llm.apiKey) {
-    console.warn("ANTHROPIC_API_KEY is not set");
+    console.warn("DASHSCOPE_API_KEY is not set");
   }
 
   if (config.llm.temperature < 0 || config.llm.temperature > 2) {

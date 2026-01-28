@@ -7,6 +7,8 @@ export function useAgent() {
   const [isLoading, setIsLoading] = useState(false);
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
 
+  console.log(messages, '==== messages==');
+
   const sendMessage = useCallback(async (text: string) => {
     const userMessage: Message = {
       id: Date.now().toString(),
@@ -23,6 +25,8 @@ export function useAgent() {
       const response = await apiClient.post("/api/agent/chat", {
         message: text,
       });
+
+      console.log(response, '==== response ==');
 
       const assistantMessage: Message = {
         id: (Date.now() + 1).toString(),

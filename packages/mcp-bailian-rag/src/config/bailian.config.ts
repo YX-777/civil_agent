@@ -2,6 +2,10 @@
  * 阿里云百炼配置
  */
 
+import dotenv from "dotenv";
+
+dotenv.config();
+
 export interface BailianConfig {
   apiEndpoint: string;
   apiKey: string;

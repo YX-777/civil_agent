@@ -2,7 +2,7 @@
  * 百炼 RAG MCP 服务器入口
  */
 
-import { startMCPServer } from "./server";
+import { startMCPServer } from "./server.js";
 import { logger } from "@civil-agent/core";
 
 async function main() {

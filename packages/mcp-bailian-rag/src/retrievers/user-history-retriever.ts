@@ -17,7 +17,6 @@ export class UserHistoryRetriever extends BaseRetriever {
     const { query, topK = 3 } = params;
 
     try {
-      // 调用百炼知识库搜索 API
       const response = await axios.post(
         `${bailianConfig.apiEndpoint}/knowledge-base/${bailianConfig.knowledgeBaseId}/search`,
         {
@@ -45,14 +44,12 @@ export class UserHistoryRetriever extends BaseRetriever {
         },
       }));
 
-      // 过滤和去重
       const filtered = this.filterByScore(results, bailianConfig.minScore);
       const deduplicated = this.deduplicate(filtered);
 
       return deduplicated;
     } catch (error) {
-      console.error("User history retrieval failed:", error);
-      throw new Error(`Failed to retrieve user history: ${error}`);
+      return [];
     }
   }
 

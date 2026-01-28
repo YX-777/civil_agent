@@ -8,10 +8,10 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { SearchKnowledgeTool } from "./tools/search-knowledge";
-import { UploadDocumentTool } from "./tools/upload-document";
+import { SearchKnowledgeTool } from "./tools/search-knowledge.js";
+import { UploadDocumentTool } from "./tools/upload-document.js";
 import { logger } from "@civil-agent/core";
-import { validateBailianConfig } from "./config/bailian.config";
+import { validateBailianConfig } from "./config/bailian.config.js";
 
 /**
  * 创建 MCP 服务器

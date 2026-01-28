@@ -17,7 +17,6 @@ export class ExamExperienceRetriever extends BaseRetriever {
     const { query, topK = 3, filters } = params;
 
     try {
-      // 构建过滤条件
       const apiFilters: any = {
         category: this.collectionName,
       };
@@ -26,7 +25,6 @@ export class ExamExperienceRetriever extends BaseRetriever {
         apiFilters.subcategory = filters.category;
       }
 
-      // 调用百炼知识库搜索 API
       const response = await axios.post(
         `${bailianConfig.apiEndpoint}/knowledge-base/${bailianConfig.knowledgeBaseId}/search`,
         {
@@ -53,14 +51,12 @@ export class ExamExperienceRetriever extends BaseRetriever {
         },
       }));
 
-      // 过滤和去重
       const filtered = this.filterByScore(results, bailianConfig.minScore);
       const deduplicated = this.deduplicate(filtered);
 
       return deduplicated;
     } catch (error) {
-      console.error("Exam experience retrieval failed:", error);
-      throw new Error(`Failed to retrieve exam experience: ${error}`);
+      return [];
     }
   }
 
