@@ -390,7 +390,7 @@ export async function generateResponseNode(
 
 export async function* generalQANodeStream(
   state: GraphStateType
-): AsyncGenerator<{ content: string; state: GraphStateType }> {
+): AsyncGenerator<string, GraphStateType, unknown> {
   logger.info("General QA stream node executing");
 
   try {
@@ -405,6 +405,18 @@ export async function* generalQANodeStream(
     
     const stream = await llm.stream([
       new SystemMessage(systemPrompt),
+      ...state.messages.slice(0, -1).map((msg: any) => {
+        if (msg.lc_serializable === true) {
+          return msg;
+        }
+        if (msg.role === "user") {
+          return new HumanMessage(msg.content);
+        }
+        if (msg.role === "assistant") {
+          return new AIMessage(msg.content);
+        }
+        return new HumanMessage(msg.content);
+      }),
       new HumanMessage(enhancedMessage),
     ]);
 
@@ -412,37 +424,35 @@ export async function* generalQANodeStream(
     for await (const chunk of stream) {
       const chunkContent = chunk.content as string;
       fullContent += chunkContent;
-      yield {
-        content: chunkContent,
-        state: {
-          ...state,
-          messages: [...state.messages, new AIMessage(fullContent)],
-          quickReplyOptions: [],
-          waitingForUserInput: false,
-        },
-      };
+      yield chunkContent;
     }
 
     LogTools.logAgentDecision(state.userId, state.userIntent, "General QA Stream");
+
+    return {
+      ...state,
+      messages: [...state.messages, new AIMessage(fullContent)],
+      quickReplyOptions: [],
+      waitingForUserInput: false,
+    };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error("General QA stream failed", err);
     const errorMessage = "抱歉，我无法理解你的问题。请换个方式问我。";
-    yield {
-      content: errorMessage,
-      state: {
-        ...state,
-        messages: [...state.messages, new AIMessage(errorMessage)],
-        quickReplyOptions: [],
-        waitingForUserInput: false,
-      },
+    yield errorMessage;
+    
+    return {
+      ...state,
+      messages: [...state.messages, new AIMessage(errorMessage)],
+      quickReplyOptions: [],
+      waitingForUserInput: false,
     };
   }
 }
 
 export async function* taskGenerationNodeStream(
   state: GraphStateType
-): AsyncGenerator<string> {
+): AsyncGenerator<string, GraphStateType, unknown> {
   logger.info("Task generation stream node executing");
 
   try {
@@ -468,27 +478,55 @@ export async function* taskGenerationNodeStream(
 
     const stream = await llm.stream([
       new SystemMessage(systemPrompt),
+      ...state.messages.slice(0, -1).map((msg: any) => {
+        if (msg.lc_serializable === true) {
+          return msg;
+        }
+        if (msg.role === "user") {
+          return new HumanMessage(msg.content);
+        }
+        if (msg.role === "assistant") {
+          return new AIMessage(msg.content);
+        }
+        return new HumanMessage(msg.content);
+      }),
       new HumanMessage(userPrompt),
     ]);
 
+    let fullContent = "";
     for await (const chunk of stream) {
       const chunkContent = chunk.content as string;
+      fullContent += chunkContent;
       yield chunkContent;
     }
 
-    const quickReplies = ["确认计划", "调整任务", "取消"];
+    const quickReplies = createQuickReplies(["确认计划", "调整任务", "取消"]);
     LogTools.logAgentDecision(state.userId, state.userIntent, "Task generation Stream");
+
+    return {
+      ...state,
+      messages: [...state.messages, new AIMessage(fullContent)],
+      quickReplyOptions: quickReplies,
+      waitingForUserInput: true,
+    };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error("Task generation stream failed", err);
     const errorMessage = "抱歉，生成任务计划时出错了。请稍后再试。";
     yield errorMessage;
+    
+    return {
+      ...state,
+      messages: [...state.messages, new AIMessage(errorMessage)],
+      quickReplyOptions: createQuickReplies(["重试"]),
+      waitingForUserInput: true,
+    };
   }
 }
 
 export async function* progressQueryNodeStream(
   state: GraphStateType
-): AsyncGenerator<{ content: string; state: GraphStateType }> {
+): AsyncGenerator<string, GraphStateType, unknown> {
   logger.info("Progress query stream node executing");
 
   try {
@@ -504,6 +542,18 @@ export async function* progressQueryNodeStream(
 
     const stream = await llm.stream([
       new SystemMessage(systemPrompt),
+      ...state.messages.slice(0, -1).map((msg: any) => {
+        if (msg.lc_serializable === true) {
+          return msg;
+        }
+        if (msg.role === "user") {
+          return new HumanMessage(msg.content);
+        }
+        if (msg.role === "assistant") {
+          return new AIMessage(msg.content);
+        }
+        return new HumanMessage(msg.content);
+      }),
       new HumanMessage(userPrompt),
     ]);
 
@@ -511,37 +561,35 @@ export async function* progressQueryNodeStream(
     for await (const chunk of stream) {
       const chunkContent = chunk.content as string;
       fullContent += chunkContent;
-      yield {
-        content: chunkContent,
-        state: {
-          ...state,
-          messages: [...state.messages, new AIMessage(fullContent)],
-          quickReplyOptions: [],
-          waitingForUserInput: false,
-        },
-      };
+      yield chunkContent;
     }
 
     LogTools.logAgentDecision(state.userId, state.userIntent, "Progress query Stream");
+
+    return {
+      ...state,
+      messages: [...state.messages, new AIMessage(fullContent)],
+      quickReplyOptions: [],
+      waitingForUserInput: false,
+    };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error("Progress query stream failed", err);
     const errorMessage = "抱歉，查询进度时出错了。请稍后再试。";
-    yield {
-      content: errorMessage,
-      state: {
-        ...state,
-        messages: [...state.messages, new AIMessage(errorMessage)],
-        quickReplyOptions: [],
-        waitingForUserInput: false,
-      },
+    yield errorMessage;
+    
+    return {
+      ...state,
+      messages: [...state.messages, new AIMessage(errorMessage)],
+      quickReplyOptions: [],
+      waitingForUserInput: false,
     };
   }
 }
 
 export async function* emotionSupportNodeStream(
   state: GraphStateType
-): AsyncGenerator<{ content: string; state: GraphStateType }> {
+): AsyncGenerator<string, GraphStateType, unknown> {
   logger.info("Emotion support stream node executing");
 
   try {
@@ -557,6 +605,18 @@ export async function* emotionSupportNodeStream(
 
     const stream = await llm.stream([
       new SystemMessage(systemPrompt),
+      ...state.messages.slice(0, -1).map((msg: any) => {
+        if (msg.lc_serializable === true) {
+          return msg;
+        }
+        if (msg.role === "user") {
+          return new HumanMessage(msg.content);
+        }
+        if (msg.role === "assistant") {
+          return new AIMessage(msg.content);
+        }
+        return new HumanMessage(msg.content);
+      }),
       new HumanMessage(userPrompt),
     ]);
 
@@ -564,30 +624,28 @@ export async function* emotionSupportNodeStream(
     for await (const chunk of stream) {
       const chunkContent = chunk.content as string;
       fullContent += chunkContent;
-      yield {
-        content: chunkContent,
-        state: {
-          ...state,
-          messages: [...state.messages, new AIMessage(fullContent)],
-          quickReplyOptions: [],
-          waitingForUserInput: false,
-        },
-      };
+      yield chunkContent;
     }
 
     LogTools.logAgentDecision(state.userId, state.userIntent, "Emotion support Stream");
+
+    return {
+      ...state,
+      messages: [...state.messages, new AIMessage(fullContent)],
+      quickReplyOptions: [],
+      waitingForUserInput: false,
+    };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error("Emotion support stream failed", err);
     const errorMessage = "抱歉，情感支持时出错了。请稍后再试。";
-    yield {
-      content: errorMessage,
-      state: {
-        ...state,
-        messages: [...state.messages, new AIMessage(errorMessage)],
-        quickReplyOptions: [],
-        waitingForUserInput: false,
-      },
+    yield errorMessage;
+    
+    return {
+      ...state,
+      messages: [...state.messages, new AIMessage(errorMessage)],
+      quickReplyOptions: [],
+      waitingForUserInput: false,
     };
   }
 }

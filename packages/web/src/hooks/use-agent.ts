@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { Message, QuickReply } from "@/types";
 
 export function useAgent() {
@@ -7,8 +7,22 @@ export function useAgent() {
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentContentRef = useRef<string>("");
+  const isInitializedRef = useRef(false);
 
   console.log(messages, '==== messages==');
+
+  useEffect(() => {
+    if (!isInitializedRef.current && messages.length === 0) {
+      const welcomeMessage: Message = {
+        id: "welcome",
+        role: "assistant",
+        content: "你好呀！😊 我是你的考公备考助手。\n\n我可以帮你：\n✅ 制定学习计划\n✅ 查询学习进度\n✅ 分析错题和薄弱模块\n✅ 提供备考建议和情感支持\n\n今天想聊点什么呢？",
+        timestamp: new Date(),
+      };
+      setMessages([welcomeMessage]);
+      isInitializedRef.current = true;
+    }
+  }, []);
 
   const sendMessage = useCallback(async (text: string) => {
     const userMessage: Message = {

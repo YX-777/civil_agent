@@ -63,46 +63,38 @@ export function createAgentGraph() {
 
     currentState = { ...currentState, ...(await intentRecognitionNode(currentState)) };
 
+    let streamGenerator: AsyncGenerator<string, GraphStateType, unknown>;
+    
     switch (currentState.userIntent) {
       case "create_task":
-        const taskStream = await taskGenerationNodeStream(currentState);
-        let fullTaskContent = "";
-        for await (const chunk of taskStream) {
-          fullTaskContent += chunk;
-          yield chunk;
-        }
-        currentState = {
-          ...currentState,
-          messages: [...currentState.messages, new AIMessage(fullTaskContent)],
-          quickReplyOptions: createQuickReplies(["确认计划", "调整任务", "取消"]),
-          waitingForUserInput: true,
-        };
+        streamGenerator = taskGenerationNodeStream(currentState);
         break;
       case "progress_tracking":
-        const progressStream = await progressQueryNodeStream(currentState);
-        for await (const chunk of progressStream) {
-          yield chunk.content;
-          currentState = chunk.state;
-        }
+        streamGenerator = progressQueryNodeStream(currentState);
         break;
       case "emotional_support":
-        const emotionStream = await emotionSupportNodeStream(currentState);
-        for await (const chunk of emotionStream) {
-          yield chunk.content;
-          currentState = chunk.state;
-        }
+        streamGenerator = emotionSupportNodeStream(currentState);
         break;
       case "general_inquiry":
       default:
-        const qaStream = await generalQANodeStream(currentState);
-        for await (const chunk of qaStream) {
-          yield chunk.content;
-          currentState = chunk.state;
-        }
+        streamGenerator = generalQANodeStream(currentState);
         break;
     }
 
-    currentState = { ...currentState, ...(await generateResponseNode(currentState)) };
+    let result: IteratorResult<string> | null = null;
+    
+    while (true) {
+      result = await streamGenerator.next();
+      if (result.done) {
+        break;
+      }
+      yield result.value;
+    }
+
+    if (result && result.value) {
+      currentState = result.value as GraphStateType;
+      currentState = { ...currentState, ...(await generateResponseNode(currentState)) };
+    }
 
     return currentState;
   };
