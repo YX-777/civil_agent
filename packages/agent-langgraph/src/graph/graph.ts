@@ -4,6 +4,7 @@
  */
 
 import { logger } from "@civil-agent/core";
+import { AIMessage } from "@langchain/core/messages";
 import type { GraphStateType } from "./state";
 import {
   intentRecognitionNode,
@@ -14,6 +15,11 @@ import {
   progressQueryNode,
   generalQANode,
   generateResponseNode,
+  generalQANodeStream,
+  taskGenerationNodeStream,
+  progressQueryNodeStream,
+  emotionSupportNodeStream,
+  createQuickReplies,
 } from "./nodes";
 import { getAgentConfig, validateAgentConfig } from "../config/agent.config";
 
@@ -52,9 +58,59 @@ export function createAgentGraph() {
     return currentState;
   };
 
+  const processStateStream = async function* (state: GraphStateType): AsyncGenerator<string, GraphStateType, unknown> {
+    let currentState = { ...state };
+
+    currentState = { ...currentState, ...(await intentRecognitionNode(currentState)) };
+
+    switch (currentState.userIntent) {
+      case "create_task":
+        const taskStream = await taskGenerationNodeStream(currentState);
+        let fullTaskContent = "";
+        for await (const chunk of taskStream) {
+          fullTaskContent += chunk;
+          yield chunk;
+        }
+        currentState = {
+          ...currentState,
+          messages: [...currentState.messages, new AIMessage(fullTaskContent)],
+          quickReplyOptions: createQuickReplies(["确认计划", "调整任务", "取消"]),
+          waitingForUserInput: true,
+        };
+        break;
+      case "progress_tracking":
+        const progressStream = await progressQueryNodeStream(currentState);
+        for await (const chunk of progressStream) {
+          yield chunk.content;
+          currentState = chunk.state;
+        }
+        break;
+      case "emotional_support":
+        const emotionStream = await emotionSupportNodeStream(currentState);
+        for await (const chunk of emotionStream) {
+          yield chunk.content;
+          currentState = chunk.state;
+        }
+        break;
+      case "general_inquiry":
+      default:
+        const qaStream = await generalQANodeStream(currentState);
+        for await (const chunk of qaStream) {
+          yield chunk.content;
+          currentState = chunk.state;
+        }
+        break;
+    }
+
+    currentState = { ...currentState, ...(await generateResponseNode(currentState)) };
+
+    return currentState;
+  };
+
   logger.info("Agent graph created successfully");
 
   return {
     processState,
+    processStateStream,
   };
 }

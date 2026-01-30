@@ -35,7 +35,7 @@ function createLLM() {
 /**
  * 创建快捷回复选项
  */
-function createQuickReplies(texts: string[]): QuickReplyOption[] {
+export function createQuickReplies(texts: string[]): QuickReplyOption[] {
   return texts.map((text) => ({
     id: `qr-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     text,
@@ -382,4 +382,212 @@ export async function generateResponseNode(
   return {
     waitingForUserInput: false,
   };
+}
+
+/**
+ * 流式版本的节点函数
+ */
+
+export async function* generalQANodeStream(
+  state: GraphStateType
+): AsyncGenerator<{ content: string; state: GraphStateType }> {
+  logger.info("General QA stream node executing");
+
+  try {
+    const llm = createLLM();
+    const lastMessage = state.messages[state.messages.length - 1];
+    const content = lastMessage.content as string;
+
+    const contextEnhancer = getContextEnhancer();
+    const enhancedMessage = await contextEnhancer.enhanceUserMessage(state.userId, content);
+
+    const systemPrompt = SYSTEM_PROMPTS.DEFAULT;
+    
+    const stream = await llm.stream([
+      new SystemMessage(systemPrompt),
+      new HumanMessage(enhancedMessage),
+    ]);
+
+    let fullContent = "";
+    for await (const chunk of stream) {
+      const chunkContent = chunk.content as string;
+      fullContent += chunkContent;
+      yield {
+        content: chunkContent,
+        state: {
+          ...state,
+          messages: [...state.messages, new AIMessage(fullContent)],
+          quickReplyOptions: [],
+          waitingForUserInput: false,
+        },
+      };
+    }
+
+    LogTools.logAgentDecision(state.userId, state.userIntent, "General QA Stream");
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error("General QA stream failed", err);
+    const errorMessage = "抱歉，我无法理解你的问题。请换个方式问我。";
+    yield {
+      content: errorMessage,
+      state: {
+        ...state,
+        messages: [...state.messages, new AIMessage(errorMessage)],
+        quickReplyOptions: [],
+        waitingForUserInput: false,
+      },
+    };
+  }
+}
+
+export async function* taskGenerationNodeStream(
+  state: GraphStateType
+): AsyncGenerator<string> {
+  logger.info("Task generation stream node executing");
+
+  try {
+    const llm = createLLM();
+    const mcpClient = getMCPToolClient();
+    const ragResult = await mcpClient.searchKnowledge({
+      query: `用户 ${state.userId} 的学习进度和薄弱模块`,
+      category: "user_history",
+      topK: 3,
+    });
+
+    let ragContext = "";
+    if (ragResult.success && ragResult.data?.results?.length > 0) {
+      ragContext = ragResult.data.results.map((r: any) => r.content).join("\n");
+    }
+
+    const systemPrompt = SYSTEM_PROMPTS.TASK_GENERATION;
+    const userPrompt = TASK_PROMPTS.GENERATE_TASK_PLAN
+      .replace("{userId}", state.userId)
+      .replace("{progress}", ragContext || "暂无进度数据")
+      .replace("{weakModules}", "待分析")
+      .replace("{studyHabits}", "待分析");
+
+    const stream = await llm.stream([
+      new SystemMessage(systemPrompt),
+      new HumanMessage(userPrompt),
+    ]);
+
+    for await (const chunk of stream) {
+      const chunkContent = chunk.content as string;
+      yield chunkContent;
+    }
+
+    const quickReplies = ["确认计划", "调整任务", "取消"];
+    LogTools.logAgentDecision(state.userId, state.userIntent, "Task generation Stream");
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error("Task generation stream failed", err);
+    const errorMessage = "抱歉，生成任务计划时出错了。请稍后再试。";
+    yield errorMessage;
+  }
+}
+
+export async function* progressQueryNodeStream(
+  state: GraphStateType
+): AsyncGenerator<{ content: string; state: GraphStateType }> {
+  logger.info("Progress query stream node executing");
+
+  try {
+    const llm = createLLM();
+    const lastMessage = state.messages[state.messages.length - 1];
+    const content = lastMessage.content as string;
+
+    const contextEnhancer = getContextEnhancer();
+    const context = await contextEnhancer.enhanceContext(state.userId, content);
+
+    const systemPrompt = SYSTEM_PROMPTS.GENERAL_QA;
+    const userPrompt = `用户ID：${state.userId}\n${contextEnhancer.generateSystemPromptEnhancement(context)}`;
+
+    const stream = await llm.stream([
+      new SystemMessage(systemPrompt),
+      new HumanMessage(userPrompt),
+    ]);
+
+    let fullContent = "";
+    for await (const chunk of stream) {
+      const chunkContent = chunk.content as string;
+      fullContent += chunkContent;
+      yield {
+        content: chunkContent,
+        state: {
+          ...state,
+          messages: [...state.messages, new AIMessage(fullContent)],
+          quickReplyOptions: [],
+          waitingForUserInput: false,
+        },
+      };
+    }
+
+    LogTools.logAgentDecision(state.userId, state.userIntent, "Progress query Stream");
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error("Progress query stream failed", err);
+    const errorMessage = "抱歉，查询进度时出错了。请稍后再试。";
+    yield {
+      content: errorMessage,
+      state: {
+        ...state,
+        messages: [...state.messages, new AIMessage(errorMessage)],
+        quickReplyOptions: [],
+        waitingForUserInput: false,
+      },
+    };
+  }
+}
+
+export async function* emotionSupportNodeStream(
+  state: GraphStateType
+): AsyncGenerator<{ content: string; state: GraphStateType }> {
+  logger.info("Emotion support stream node executing");
+
+  try {
+    const llm = createLLM();
+    const lastMessage = state.messages[state.messages.length - 1];
+    const content = lastMessage.content as string;
+
+    const emotionDetector = getEmotionDetector();
+    const emotion = await emotionDetector.detectEmotion(content);
+
+    const systemPrompt = SYSTEM_PROMPTS.EMOTION_SUPPORT;
+    const userPrompt = `用户情绪：${emotion.emotion}\n用户消息：${content}`;
+
+    const stream = await llm.stream([
+      new SystemMessage(systemPrompt),
+      new HumanMessage(userPrompt),
+    ]);
+
+    let fullContent = "";
+    for await (const chunk of stream) {
+      const chunkContent = chunk.content as string;
+      fullContent += chunkContent;
+      yield {
+        content: chunkContent,
+        state: {
+          ...state,
+          messages: [...state.messages, new AIMessage(fullContent)],
+          quickReplyOptions: [],
+          waitingForUserInput: false,
+        },
+      };
+    }
+
+    LogTools.logAgentDecision(state.userId, state.userIntent, "Emotion support Stream");
+  } catch (error) {
+    const err = error instanceof Error ? error : new Error(String(error));
+    logger.error("Emotion support stream failed", err);
+    const errorMessage = "抱歉，情感支持时出错了。请稍后再试。";
+    yield {
+      content: errorMessage,
+      state: {
+        ...state,
+        messages: [...state.messages, new AIMessage(errorMessage)],
+        quickReplyOptions: [],
+        waitingForUserInput: false,
+      },
+    };
+  }
 }
