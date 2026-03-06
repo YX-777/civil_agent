@@ -12,7 +12,7 @@ sleep 2
 
 # 启动 MCP HTTP 服务（端口 3002）
 echo "📡 启动 MCP HTTP 服务 (端口 3002)..."
-cd /Users/sxh/Code/study/demo/test/packages/mcp-bailian-rag
+cd /Users/sxh/Code/project/civil_agent/packages/mcp-bailian-rag
 npm run start:http &
 MCP_PID=$!
 echo "   MCP 服务 PID: $MCP_PID"
@@ -30,7 +30,7 @@ fi
 
 # 启动 Web 服务（端口 3000）
 echo "🌐 启动 Web 服务 (端口 3000)..."
-cd /Users/sxh/Code/study/demo/test
+cd /Users/sxh/Code/project/civil_agent
 pnpm dev &
 WEB_PID=$!
 echo "   Web 服务 PID: $WEB_PID"
