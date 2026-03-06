@@ -1,15 +1,18 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Message, QuickReply } from "@/types";
 
-export function useAgent() {
+export function useAgent(conversationId?: string, userId: string = "default-user") {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentContentRef = useRef<string>("");
   const isInitializedRef = useRef(false);
+  const currentConversationIdRef = useRef<string | undefined>(conversationId);
 
-  console.log(messages, '==== messages==');
+  useEffect(() => {
+    currentConversationIdRef.current = conversationId;
+  }, [conversationId]);
 
   useEffect(() => {
     if (!isInitializedRef.current && messages.length === 0) {
@@ -56,7 +59,8 @@ export function useAgent() {
         },
         body: JSON.stringify({
           message: text,
-          userId: "default-user",
+          userId,
+          conversationId: currentConversationIdRef.current,
         }),
         signal: abortControllerRef.current.signal,
       });
@@ -73,6 +77,7 @@ export function useAgent() {
       }
 
       let buffer = "";
+      let newConversationId: string | undefined;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -103,6 +108,10 @@ export function useAgent() {
                 if (data.quickReplies && data.quickReplies.length > 0) {
                   setQuickReplies(data.quickReplies);
                 }
+                if (data.conversationId) {
+                  newConversationId = data.conversationId;
+                  currentConversationIdRef.current = data.conversationId;
+                }
               } else if (data.type === "error") {
                 console.error("Stream error:", data.error);
                 const errorMessage = currentContentRef.current + "\n\n抱歉，处理您的消息时出现了错误。";
@@ -119,16 +128,22 @@ export function useAgent() {
             }
           }
         }
-      }
 
-      if (buffer.trim() && buffer.startsWith("data: ")) {
-        try {
-          const data = JSON.parse(buffer.slice(6));
-          if (data.type === "done" && data.quickReplies && data.quickReplies.length > 0) {
-            setQuickReplies(data.quickReplies);
+        if (buffer.trim() && buffer.startsWith("data: ")) {
+          try {
+            const data = JSON.parse(buffer.slice(6));
+            if (data.type === "done") {
+              if (data.quickReplies && data.quickReplies.length > 0) {
+                setQuickReplies(data.quickReplies);
+              }
+              if (data.conversationId) {
+                newConversationId = data.conversationId;
+                currentConversationIdRef.current = data.conversationId;
+              }
+            }
+          } catch (e) {
+            console.error("Failed to parse final SSE data:", e);
           }
-        } catch (e) {
-          console.error("Failed to parse final SSE data:", e);
         }
       }
     } catch (error) {
@@ -148,11 +163,16 @@ export function useAgent() {
       setIsLoading(false);
       abortControllerRef.current = null;
     }
-  }, []);
+  }, [userId]);
 
   const handleQuickReply = useCallback((reply: QuickReply) => {
     sendMessage(reply.text);
   }, [sendMessage]);
+
+  const setMessagesExternal = useCallback((newMessages: Message[]) => {
+    setMessages(newMessages);
+    isInitializedRef.current = true;
+  }, []);
 
   return {
     messages,
@@ -160,5 +180,6 @@ export function useAgent() {
     quickReplies,
     sendMessage,
     handleQuickReply,
+    setMessages: setMessagesExternal,
   };
 }

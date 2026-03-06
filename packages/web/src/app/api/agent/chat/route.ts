@@ -1,10 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAgentGraph, createInitialState } from "@civil-agent/agent-langgraph";
+import { conversations as convStore } from "@/lib/conversation-store";
 
-// 全局存储用户状态（生产环境应该使用 Redis 或数据库）
 const userStates = new Map<string, any>();
 
-// 初始化 Agent Graph
 let agentGraph: any;
 
 try {
@@ -15,16 +14,32 @@ try {
   agentGraph = null;
 }
 
-/**
- * 生成唯一 ID
- */
 function generateId(): string {
   return `msg_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
 }
 
+function generateConversationId(): string {
+  return `conv_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
+}
+
+function generateTitle(firstMessage: string): string {
+  if (!firstMessage || firstMessage.trim().length === 0) {
+    return "新对话";
+  }
+  
+  const maxLength = 20;
+  let title = firstMessage.trim();
+  
+  if (title.length > maxLength) {
+    title = title.substring(0, maxLength) + "...";
+  }
+  
+  return title;
+}
+
 export async function POST(request: NextRequest) {
   try {
-    const { message, userId } = await request.json();
+    const { message, userId, conversationId } = await request.json();
 
     if (!message || typeof message !== "string") {
       return NextResponse.json(
@@ -48,23 +63,26 @@ export async function POST(request: NextRequest) {
     }
 
     const effectiveUserId = userId || "default-user";
+    const effectiveConversationId = conversationId || generateConversationId();
 
-    let userState = userStates.get(effectiveUserId);
+    let userState = userStates.get(`${effectiveUserId}_${effectiveConversationId}`);
 
     if (!userState) {
       userState = createInitialState(effectiveUserId);
-      userStates.set(effectiveUserId, userState);
-      console.log(`[Agent API] Created new state for user: ${effectiveUserId}`);
+      userStates.set(`${effectiveUserId}_${effectiveConversationId}`, userState);
+      console.log(`[Agent API] Created new state for user: ${effectiveUserId}, conversation: ${effectiveConversationId}`);
     }
+
+    const userMessage = {
+      id: generateId(),
+      role: "user" as const,
+      content: message,
+      timestamp: new Date(),
+    };
 
     const updatedMessages = [
       ...(userState.messages || []),
-      {
-        id: generateId(),
-        role: "user" as const,
-        content: message,
-        timestamp: new Date(),
-      },
+      userMessage,
     ];
 
     const updatedState = {
@@ -72,7 +90,7 @@ export async function POST(request: NextRequest) {
       messages: updatedMessages,
     };
 
-    console.log(`[Agent API] Processing message for user ${effectiveUserId}:`, message);
+    console.log(`[Agent API] Processing message for user ${effectiveUserId}, conversation ${effectiveConversationId}:`, message);
 
     const encoder = new TextEncoder();
 
@@ -82,6 +100,7 @@ export async function POST(request: NextRequest) {
           const streamGenerator = agentGraph.processStateStream(updatedState);
           let finalState: any = null;
           let iterator = streamGenerator[Symbol.asyncIterator]();
+          let fullAssistantContent = "";
 
           while (true) {
             const { value, done } = await iterator.next();
@@ -91,19 +110,56 @@ export async function POST(request: NextRequest) {
               break;
             }
 
+            fullAssistantContent += value;
             controller.enqueue(
               encoder.encode(`data: ${JSON.stringify({ type: "chunk", content: value })}\n\n`)
             );
           }
 
           if (finalState) {
-            userStates.set(effectiveUserId, finalState);
+            const assistantMessage = {
+              id: generateId(),
+              role: "assistant" as const,
+              content: fullAssistantContent,
+              timestamp: new Date(),
+            };
+
+            const finalMessages = [...finalState.messages, assistantMessage];
+            
+            userStates.set(`${effectiveUserId}_${effectiveConversationId}`, {
+              ...finalState,
+              messages: finalMessages,
+            });
+
+            let conversation = convStore.get(effectiveConversationId);
+
+            if (!conversation) {
+              const title = generateTitle(message);
+              conversation = {
+                id: effectiveConversationId,
+                title,
+                messages: [userMessage, assistantMessage],
+                createdAt: new Date(),
+                updatedAt: new Date(),
+                userId: effectiveUserId,
+              };
+              convStore.set(effectiveConversationId, conversation);
+              console.log(`[Agent API] Created new conversation: ${effectiveConversationId} with title: ${title}`);
+            } else {
+              conversation.messages.push(userMessage, assistantMessage);
+              conversation.updatedAt = new Date();
+              convStore.set(effectiveConversationId, conversation);
+            }
 
             const quickReplies = finalState.quickReplyOptions || [];
 
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ type: "done", quickReplies })}\n\n`
+                `data: ${JSON.stringify({ 
+                  type: "done", 
+                  quickReplies,
+                  conversationId: effectiveConversationId,
+                })}\n\n`
               )
             );
           }
@@ -142,9 +198,6 @@ export async function POST(request: NextRequest) {
   }
 }
 
-/**
- * GET 请求：获取用户当前状态
- */
 export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -176,9 +229,6 @@ export async function GET(request: NextRequest) {
   }
 }
 
-/**
- * DELETE 请求：重置用户对话状态
- */
 export async function DELETE(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;

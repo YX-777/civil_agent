@@ -40,7 +40,11 @@ const menuItems = [
   },
 ];
 
-export default function Navbar() {
+interface NavbarProps {
+  extra?: React.ReactNode;
+}
+
+export default function Navbar({ extra }: NavbarProps) {
   const pathname = usePathname();
 
   return (
@@ -79,6 +83,11 @@ export default function Navbar() {
           border: "none",
         }}
       />
+      {extra && (
+        <div style={{ marginLeft: 16 }}>
+          {extra}
+        </div>
+      )}
     </Header>
   );
 }

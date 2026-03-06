@@ -5,6 +5,15 @@ export interface Message {
   timestamp: Date;
 }
 
+export interface Conversation {
+  id: string;
+  title: string;
+  messages: Message[];
+  createdAt: Date;
+  updatedAt: Date;
+  userId: string;
+}
+
 export interface QuickReply {
   id: string;
   text: string;

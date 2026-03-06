@@ -46,14 +46,14 @@ Web 应用是考公 Agent 的用户界面，提供6个核心页面：
 
 **路径**: `/`
 
-**功能描述**: 与 AI 助手实时对话，支持快捷回复和多轮对话。
+**功能描述**: 与 AI 助手实时对话，支持快捷回复、多轮对话和多会话管理。
 
 **核心组件**:
 - `ChatInterface`: 主聊天界面
 - `MessageBubble`: 消息气泡
 - `ChatInput`: 输入框
 - `QuickReplies`: 快捷回复按钮
-- `ChatHistory`: 对话历史
+- `ChatSidebar`: 会话列表侧边栏（新增）
 
 **交互流程**:
 ```
@@ -67,6 +67,109 @@ Web 应用是考公 Agent 的用户界面，提供6个核心页面：
     ↓
 等待用户点击快捷回复或输入新消息
 ```
+
+**会话管理功能（MVP）**:
+- ✅ 侧边栏会话列表（桌面端）/ 抽屉式列表（移动端）
+- ✅ 创建新会话
+- ✅ 切换会话
+- ✅ 删除会话
+- ✅ 会话标题自动生成（基于首条消息）
+- ✅ 当前会话高亮
+- ✅ 会话按日期分组（今天/昨天/更早）
+- ✅ 会话状态持久化（localStorage）
+
+**会话管理交互设计**:
+```
+桌面端布局：
+┌─────────────────────────────────────────────────────────┐
+│  📱 考公备考助手                        │
+├──────────┬────────────────────────────────────────────┤
+│  会话列表 │  主聊天区域                            │
+│          │                                        │
+│  [新建会话] │  AI：你好呀！我是你的考公备考助手。    │
+│          │  你：我想制定学习计划                   │
+│  📅 今天   │  AI：好的，让我帮你制定一个计划...       │
+│  ├─ 制定计划 │                                        │
+│  ├─ 查询进度 │  用户：好的，谢谢                       │
+│  └─ 情感支持 │                                        │
+│          │  [制定学习计划] [调整任务]                        │
+│  📅 昨天   │                                        │
+│  ├─ 错题分析 │  [输入框...]                            │
+│  └─ 模考复盘 │                                        │
+│  📅 更早   │                                        │
+│  ├─ 初始目标 │                                        │
+│  └─ 备考策略 │                                        │
+└──────────┴────────────────────────────────────────────┘
+
+移动端布局：
+┌─────────────────────────────────────────────────────────┐
+│  ☰ 考公备考助手              [新建会话] [设置]  │
+├─────────────────────────────────────────────────────────┤
+│                                                 │
+│  AI：你好呀！我是你的考公备考助手。              │
+│  你：我想制定学习计划                           │
+│  AI：好的，让我帮你制定一个计划...               │
+│  你：好的，谢谢                                 │
+│                                                 │
+│  [制定学习计划] [调整任务]                        │
+│                                                 │
+│  [输入框...]                                    │
+│                                                 │
+└─────────────────────────────────────────────────────────┘
+
+点击 ☰ 展开：
+┌────────────┐
+│  [新建会话] │
+│  📅 今天   │
+│  ├─ 制定计划│
+│  ├─ 查询进度│
+│  └─ 情感支持│
+│  📅 昨天   │
+│  ├─ 错题分析│
+│  └─ 模考复盘│
+│  📅 更早   │
+│  └─ ...     │
+└────────────┘
+```
+
+**会话数据结构**:
+```typescript
+interface Conversation {
+  id: string;                    // 会话 ID
+  title: string;                 // 会话标题
+  messages: Message[];             // 消息列表
+  createdAt: Date;               // 创建时间
+  updatedAt: Date;               // 更新时间
+  userId: string;                // 用户 ID
+}
+
+interface Message {
+  id: string;                    // 消息 ID
+  role: "user" | "assistant";   // 角色
+  content: string;               // 消息内容
+  timestamp: Date;               // 时间戳
+}
+```
+
+**会话标题生成规则**:
+- 基于首条用户消息自动生成
+- 限制 20 个字符，超出显示 "..."
+- 示例：
+  - "我想制定学习计划" → "制定学习计划"
+  - "你好呀！" → "新对话"
+  - "帮我分析一下错题" → "错题分析"
+
+**会话分组规则**:
+- 今天：00:00 - 23:59
+- 昨天：24 小时前
+- 更早：显示具体日期（MM-DD）
+
+**技术实现要点**:
+1. **状态管理**: 使用 React Context 或 Zustand 管理会话状态
+2. **持久化**: localStorage 存储会话列表和当前会话 ID
+3. **响应式**: 桌面端显示侧边栏，移动端显示抽屉
+4. **性能优化**: 虚拟滚动处理大量消息（会话超过 100 条时）
+5. **用户体验**: 切换会话时保留输入框内容，支持快速切换
 
 ---
 
@@ -196,7 +299,8 @@ src/
 │   ├── chat/                   # 对话组件
 │   │   ├── MessageBubble.tsx   # 消息气泡（Card + Avatar）
 │   │   ├── ChatInput.tsx       # 输入框（Input + Button）
-│   │   └── QuickReplies.tsx    # 快捷回复（Space + Button）
+│   │   ├── QuickReplies.tsx    # 快捷回复（Space + Button）
+│   │   └── ChatSidebar.tsx    # 会话列表侧边栏（新增）
 │   ├── dashboard/              # 看板组件
 │   │   ├── StatCard.tsx        # 统计卡片（Card + Statistic）
 │   │   ├── AccuracyChart.tsx   # 正确率图表（Card + LineChart）
@@ -214,6 +318,7 @@ src/
 │   └── utils.ts                # 工具函数
 ├── hooks/                      # React Hooks
 │   ├── use-agent.ts            # Agent Hook
+│   ├── use-conversations.ts    # 会话管理 Hook（新增）
 │   ├── use-stats.ts            # 统计数据 Hook
 │   └── use-focus.ts            # 专注模式 Hook
 ├── styles/                     # 样式文件
@@ -236,6 +341,8 @@ src/
 ```typescript
 interface ChatRequest {
   message: string;  // 用户输入的消息内容
+  userId?: string;  // 用户 ID（可选）
+  conversationId?: string;  // 会话 ID（可选）
 }
 ```
 
@@ -258,7 +365,9 @@ interface QuickReply {
 // 请求
 POST /api/agent/chat
 {
-  "message": "今天应该学习什么？"
+  "message": "今天应该学习什么？",
+  "userId": "user-123",
+  "conversationId": "conv-456"
 }
 
 // 响应
@@ -276,6 +385,209 @@ POST /api/agent/chat
       "action": "query_progress"
     }
   ]
+}
+```
+
+---
+
+### 1.5. 创建会话接口（新增）
+
+**路径**: `/api/conversations`  
+**方法**: POST  
+**调用场景**: 用户点击"新建会话"按钮
+
+**入参类型**:
+```typescript
+interface CreateConversationRequest {
+  userId: string;  // 用户 ID
+  title?: string;  // 会话标题（可选，默认自动生成）
+}
+```
+
+**出参类型**:
+```typescript
+interface CreateConversationResponse {
+  id: string;  // 会话 ID
+  title: string;  // 会话标题
+  createdAt: string;  // 创建时间
+}
+```
+
+**示例**:
+```typescript
+// 请求
+POST /api/conversations
+{
+  "userId": "user-123"
+}
+
+// 响应
+{
+  "id": "conv-789",
+  "title": "新对话",
+  "createdAt": "2026-01-30T10:00:00Z"
+}
+```
+
+---
+
+### 1.6. 获取会话列表接口（新增）
+
+**路径**: `/api/conversations`  
+**方法**: GET  
+**调用场景**: 页面加载、刷新会话列表
+
+**入参类型**:
+```typescript
+interface GetConversationsQuery {
+  userId: string;  // 用户 ID
+  limit?: number;  // 返回数量限制（可选，默认 50）
+}
+```
+
+**出参类型**:
+```typescript
+interface GetConversationsResponse {
+  conversations: Conversation[];
+}
+
+interface Conversation {
+  id: string;  // 会话 ID
+  title: string;  // 会话标题
+  createdAt: string;  // 创建时间
+  updatedAt: string;  // 更新时间
+  messageCount: number;  // 消息数量
+}
+```
+
+**示例**:
+```typescript
+// 请求
+GET /api/conversations?userId=user-123&limit=50
+
+// 响应
+{
+  "conversations": [
+    {
+      "id": "conv-456",
+      "title": "制定学习计划",
+      "createdAt": "2026-01-30T10:00:00Z",
+      "updatedAt": "2026-01-30T11:30:00Z",
+      "messageCount": 15
+    },
+    {
+      "id": "conv-123",
+      "title": "错题分析",
+      "createdAt": "2026-01-29T15:00:00Z",
+      "updatedAt": "2026-01-29T16:00:00Z",
+      "messageCount": 8
+    }
+  ]
+}
+```
+
+---
+
+### 1.7. 获取会话详情接口（新增）
+
+**路径**: `/api/conversations/[conversationId]`  
+**方法**: GET  
+**调用场景**: 切换会话、加载历史消息
+
+**入参类型**:
+```typescript
+interface GetConversationDetailQuery {
+  userId: string;  // 用户 ID
+  conversationId: string;  // 会话 ID
+}
+```
+
+**出参类型**:
+```typescript
+interface GetConversationDetailResponse {
+  conversation: {
+    id: string;  // 会话 ID
+    title: string;  // 会话标题
+    createdAt: string;  // 创建时间
+    updatedAt: string;  // 更新时间
+  };
+  messages: Message[];  // 消息列表
+}
+
+interface Message {
+  id: string;  // 消息 ID
+  role: "user" | "assistant";  // 角色
+  content: string;  // 消息内容
+  timestamp: string;  // 时间戳
+}
+```
+
+**示例**:
+```typescript
+// 请求
+GET /api/conversations/conv-456?userId=user-123
+
+// 响应
+{
+  "conversation": {
+    "id": "conv-456",
+    "title": "制定学习计划",
+    "createdAt": "2026-01-30T10:00:00Z",
+    "updatedAt": "2026-01-30T11:30:00Z"
+  },
+  "messages": [
+    {
+      "id": "msg-1",
+      "role": "user",
+      "content": "我想制定学习计划",
+      "timestamp": "2026-01-30T10:00:00Z"
+    },
+    {
+      "id": "msg-2",
+      "role": "assistant",
+      "content": "好的，让我帮你制定一个计划...",
+      "timestamp": "2026-01-30T10:00:05Z"
+    }
+  ]
+}
+```
+
+---
+
+### 1.8. 删除会话接口（新增）
+
+**路径**: `/api/conversations/[conversationId]`  
+**方法**: DELETE  
+**调用场景**: 用户删除会话
+
+**入参类型**:
+```typescript
+interface DeleteConversationRequest {
+  userId: string;  // 用户 ID
+  conversationId: string;  // 会话 ID
+}
+```
+
+**出参类型**:
+```typescript
+interface DeleteConversationResponse {
+  success: boolean;  // 是否成功
+  message: string;  // 提示信息
+}
+```
+
+**示例**:
+```typescript
+// 请求
+DELETE /api/conversations/conv-456
+{
+  "userId": "user-123"
+}
+
+// 响应
+{
+  "success": true,
+  "message": "会话删除成功"
 }
 ```
 
@@ -944,6 +1256,34 @@ AGENT_API_URL=http://localhost:3000/api/agent
 - [x] 重构学习日历页面
 - [x] 重构个人中心页面
 - [x] 验证构建和运行效果
+
+### 流式输出和多轮对话（已完成）
+
+- [x] 修复 `instanceof AIMessage` 检查失败的问题
+- [x] 添加 `@langchain/core` 依赖到 web 包
+- [x] 将所有节点改造为流式节点（AsyncGenerator）
+- [x] 修复流式生成器的迭代器处理逻辑
+- [x] 在流式节点中传递完整的历史消息
+- [x] 实现前端流式响应处理（SSE）
+- [x] 实现多轮对话记忆功能
+- [x] 添加欢迎消息自动显示
+- [x] 测试多轮对话功能
+
+### 会话管理 MVP（待实现）
+
+- [ ] 设计会话数据结构和存储方案
+- [ ] 实现会话列表侧边栏组件（ChatSidebar）
+- [ ] 实现会话管理 Hook（use-conversations）
+- [ ] 实现创建会话接口（POST /api/conversations）
+- [ ] 实现获取会话列表接口（GET /api/conversations）
+- [ ] 实现获取会话详情接口（GET /api/conversations/[id]）
+- [ ] 实现删除会话接口（DELETE /api/conversations/[id]）
+- [ ] 实现会话切换功能
+- [ ] 实现会话标题自动生成
+- [ ] 实现会话按日期分组显示
+- [ ] 实现会话状态持久化（localStorage）
+- [ ] 响应式设计（桌面端侧边栏/移动端抽屉）
+- [ ] 测试会话管理功能
 
 ---
 
