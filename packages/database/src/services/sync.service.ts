@@ -5,7 +5,7 @@ import { MessageRepository } from '../repositories/message.repository';
 
 export class SyncService {
   constructor(
-    private prisma: any,
+    private prisma: PrismaClient,
     private messageRepo: MessageRepository,
     private vectorService: VectorDBService,
     private embeddingService: EmbeddingService

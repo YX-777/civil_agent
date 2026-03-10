@@ -8,10 +8,10 @@ import { LearningRecordRepository } from './repositories/learning-record.reposit
 import { ModuleProgressRepository } from './repositories/module-progress.repository';
 import { EmbeddingService } from './services/embedding.service';
 
-let prisma: any = null;
+let prisma: PrismaClient | null = null;
 let embeddingService: EmbeddingService | null = null;
 
-export function getPrismaClient(): any {
+export function getPrismaClient(): PrismaClient {
   if (!prisma) {
     prisma = new PrismaClient();
   }
@@ -73,8 +73,8 @@ export async function disconnectDatabase(): Promise<void> {
 }
 
 export async function getSyncService(): Promise<any> {
-  const { getSyncService: getSyncServiceLoader } = await import('./services/sync.loader');
-  return getSyncServiceLoader();
+  const syncLoader = await import('./services/sync.loader');
+  return syncLoader.getSyncService();
 }
 
 export {

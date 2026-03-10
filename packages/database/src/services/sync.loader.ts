@@ -1,6 +1,8 @@
-let syncService: any = null;
+import { SyncService } from './sync.service';
 
-export async function getSyncService(): Promise<any> {
+let syncService: SyncService | null = null;
+
+export async function getSyncService(): Promise<SyncService> {
   if (!syncService) {
     const { SyncService } = await import('./sync.service');
     const { getPrismaClient } = await import('../index');
