@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String   @id @default(uuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  profile           UserProfile?
+  conversations     Conversation[]
+  tasks             Task[]
+  focusSessions     FocusSession[]
+  learningRecords   LearningRecord[]
+  moduleProgress    ModuleProgress[]
+  agentStates       AgentState[]
+  embeddings        Embedding[]
+
+  @@map("users")
+}
+
+model UserProfile {
+  userId          String   @id @map("user_id")
+  nickname         String   @default("考生")
+  targetScore      Int      @default(75) @map("target_score")
+  examDate        DateTime? @map("exam_date")
+  totalStudyDays   Int      @default(0) @map("total_study_days")
+  avatarUrl       String?  @map("avatar_url")
+  bio             String?
+  learningStyle    String?  @map("learning_style")
+  dailyGoalHours  Float    @default(4.0) @map("daily_goal_hours")
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("user_profiles")
+}
+
+model Conversation {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  summary   String?
+  vectorCollectionId String? @map("vector_collection_id")
+
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages  Message[]
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, updatedAt(sort: Desc)])
+  @@map("conversations")
+}
+
+model Message {
+  id             String   @id @default(uuid())
+  conversationId  String   @map("conversation_id")
+  role           String
+  content        String
+  timestamp      DateTime @default(now())
+  embeddingId     String?  @map("embedding_id")
+  metadata       String?
+  tokenCount     Int      @default(0) @map("token_count")
+  modelVersion   String?  @map("model_version")
+
+  conversation    Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, timestamp])
+  @@map("messages")
+}
+
+model Task {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  title       String
+  description String?
+  status      String    @default("todo")
+  progress    Int       @default(0)
+  dueDate     DateTime? @map("due_date")
+  priority    Int       @default(1)
+  module      String?
+  difficulty  String?
+  estimatedMinutes Int?  @map("estimated_minutes")
+  actualMinutes   Int?  @map("actual_minutes")
+  tags        String?
+
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+  completedAt DateTime? @map("completed_at")
+
+  @@index([userId, status, dueDate])
+  @@index([priority])
+  @@map("tasks")
+}
+
+model FocusSession {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  duration  Int
+  module    String
+  completed Boolean   @default(false)
+  startTime DateTime  @map("start_time")
+  endTime   DateTime? @map("end_time")
+  notes     String?
+  interruptionCount Int  @default(0) @map("interruption_count")
+  moodBefore  String?  @map("mood_before")
+  moodAfter   String?  @map("mood_after")
+
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId, startTime(sort: Desc)])
+  @@index([completed])
+  @@map("focus_sessions")
+}
+
+model LearningRecord {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  date              DateTime @default(now())
+  learningHours      Float    @default(0) @map("learning_hours")
+  completed         Boolean  @default(false)
+  tasksCompleted     Int      @default(0) @map("tasks_completed")
+  questionsAnswered  Int      @default(0) @map("questions_answered")
+  accuracy          Float?
+  notes             String?
+  mood              String?
+  energyLevel       Int?     @map("energy_level")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, date])
+  @@index([userId, date(sort: Desc)])
+  @@map("learning_records")
+}
+
+model ModuleProgress {
+  id                String   @id @default(uuid())
+  userId            String   @map("user_id")
+  moduleName        String   @map("module_name")
+  totalQuestions    Int      @default(0) @map("total_questions")
+  correctAnswers    Int      @default(0) @map("correct_answers")
+  accuracy          Float    @default(0)
+  progressPercentage Int      @default(0) @map("progress_percentage")
+  lastPracticedAt   DateTime? @map("last_practiced_at")
+  weakPoints        String?  @map("weak_points")
+  strongPoints      String?  @map("strong_points")
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, moduleName])
+  @@index([userId, accuracy(sort: Desc)])
+  @@map("module_progress")
+}
+
+model AgentState {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  conversationId  String   @map("conversation_id")
+  stateData       String   @map("state_data")
+  contextVectorId String?  @map("context_vector_id")
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@unique([userId, conversationId])
+  @@index([updatedAt])
+  @@map("agent_states")
+}
+
+model Embedding {
+  id             String   @id @default(uuid())
+  userId         String   @map("user_id")
+  vectorDbId     String   @map("vector_db_id")
+  vectorType     String   @map("vector_type")
+  contentType    String   @map("content_type")
+  contentSummary String?  @map("content_summary")
+
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([vectorType])
+  @@index([vectorDbId])
+  @@map("embeddings")
+}

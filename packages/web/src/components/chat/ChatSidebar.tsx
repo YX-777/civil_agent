@@ -8,6 +8,7 @@ import {
   DeleteOutlined,
   MoreOutlined,
   ExclamationCircleOutlined,
+  EditOutlined,
 } from "@ant-design/icons";
 import { Conversation } from "@/types";
 
@@ -20,6 +21,7 @@ interface ChatSidebarProps {
   onCreateConversation: () => void;
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
+  onUpdateConversationTitle?: (id: string, newTitle: string) => void;
   isLoading?: boolean;
   collapsed?: boolean;
   onCollapse?: (collapsed: boolean) => void;
@@ -31,12 +33,17 @@ export default function ChatSidebar({
   onCreateConversation,
   onSelectConversation,
   onDeleteConversation,
+  onUpdateConversationTitle,
   isLoading = false,
   collapsed = false,
   onCollapse,
 }: ChatSidebarProps) {
   const [deleteModalVisible, setDeleteModalVisible] = useState(false);
   const [conversationToDelete, setConversationToDelete] = useState<string | null>(null);
+  const [editModalVisible, setEditModalVisible] = useState(false);
+  const [conversationToEdit, setConversationToEdit] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [isEditing, setIsEditing] = useState(false);
 
   const getGroupedConversations = () => {
     const today = new Date();
@@ -52,12 +59,14 @@ export default function ChatSidebar({
     };
 
     conversations.forEach((conv) => {
-      const convDate = new Date(conv.updatedAt);
-      convDate.setHours(0, 0, 0, 0);
+      // 只使用 createdAt（创建时间）来判断分组
+      // 确保会话不会因为操作而在分组之间跳转
+      const createDate = new Date(conv.createdAt);
+      createDate.setHours(0, 0, 0, 0);
 
-      if (convDate.getTime() === today.getTime()) {
+      if (createDate.getTime() === today.getTime()) {
         grouped.today.push(conv);
-      } else if (convDate.getTime() === yesterday.getTime()) {
+      } else if (createDate.getTime() === yesterday.getTime()) {
         grouped.yesterday.push(conv);
       } else {
         grouped.earlier.push(conv);
@@ -81,10 +90,41 @@ export default function ChatSidebar({
     }
   };
 
+  const handleEditClick = (e: React.MouseEvent, conversationId: string, currentTitle: string) => {
+    e.stopPropagation();
+    setConversationToEdit(conversationId);
+    setEditTitle(currentTitle);
+    setEditModalVisible(true);
+  };
+
+  const handleEditConfirm = async () => {
+    if (conversationToEdit && editTitle.trim() && onUpdateConversationTitle) {
+      setIsEditing(true);
+      try {
+        await onUpdateConversationTitle(conversationToEdit, editTitle.trim());
+        setEditModalVisible(false);
+        setConversationToEdit(null);
+        setEditTitle("");
+      } catch (error) {
+        console.error("Failed to update conversation title:", error);
+        // 可以添加错误提示
+      } finally {
+        setIsEditing(false);
+      }
+    }
+  };
+
+  const handleEditCancel = () => {
+    setEditModalVisible(false);
+    setConversationToEdit(null);
+    setEditTitle("");
+  };
+
   const getConversationItems = (convs: Conversation[]) => {
     return convs.map((conv) => ({
       key: conv.id,
       icon: <MessageOutlined />,
+      onClick: () => onSelectConversation(conv.id),
       label: (
         <div
           style={{
@@ -107,6 +147,15 @@ export default function ChatSidebar({
           <Dropdown
             menu={{
               items: [
+                {
+                  key: "edit",
+                  icon: <EditOutlined />,
+                  label: "重命名",
+                  onClick: (e) => handleEditClick(e.domEvent as any, conv.id, conv.title),
+                },
+                {
+                  type: "divider",
+                },
                 {
                   key: "delete",
                   icon: <DeleteOutlined />,
@@ -133,17 +182,7 @@ export default function ChatSidebar({
 
   const grouped = getGroupedConversations();
 
-  const menuItems: any[] = [
-    {
-      key: "new",
-      icon: <PlusOutlined />,
-      label: "新建会话",
-      onClick: onCreateConversation,
-    },
-    {
-      type: "divider",
-    },
-  ];
+  const menuItems: any[] = [];
 
   if (grouped.today.length > 0) {
     menuItems.push({
@@ -204,6 +243,8 @@ export default function ChatSidebar({
           left: 0,
           top: 0,
           zIndex: 10,
+          display: "flex",
+          flexDirection: "column",
         }}
         trigger={null}
       >
@@ -214,6 +255,7 @@ export default function ChatSidebar({
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
+            flexShrink: 0,
           }}
         >
           {!collapsed && (
@@ -234,8 +276,9 @@ export default function ChatSidebar({
         <div
           style={{
             padding: "8px",
-            height: "calc(100vh - 65px)",
+            flex: 1,
             overflowY: "auto",
+            overflowX: "hidden",
           }}
         >
           <Menu
@@ -262,6 +305,28 @@ export default function ChatSidebar({
         <Space direction="vertical" size="middle">
           <ExclamationCircleOutlined style={{ fontSize: 48, color: "#ff4d4f" }} />
           <Text>确定要删除这个会话吗？删除后无法恢复。</Text>
+        </Space>
+      </Modal>
+
+      <Modal
+        title="编辑会话标题"
+        open={editModalVisible}
+        onOk={handleEditConfirm}
+        onCancel={handleEditCancel}
+        okText="保存"
+        cancelText="取消"
+        confirmLoading={isEditing}
+      >
+        <Space direction="vertical" style={{ width: "100%" }}>
+          <Text>请输入新的会话标题：</Text>
+          <Input
+            value={editTitle}
+            onChange={(e) => setEditTitle(e.target.value)}
+            placeholder="会话标题"
+            maxLength={50}
+            showCount
+            onPressEnter={handleEditConfirm}
+          />
         </Space>
       </Modal>
     </>

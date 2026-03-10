@@ -77,8 +77,7 @@ export function useConversations(userId: string = "default-user") {
         },
         body: JSON.stringify({
           userId,
-          title,
-          initialMessages,
+          title: title || "新对话",
         }),
       });
 
@@ -87,23 +86,29 @@ export function useConversations(userId: string = "default-user") {
       }
 
       const data = await response.json();
-      
+      const conversation = data.conversation;
+
       const newConversation: Conversation = {
-        id: data.id,
-        title: data.title,
+        id: conversation.id,
+        title: conversation.title,
         messages: initialMessages || [],
-        createdAt: new Date(data.createdAt),
-        updatedAt: new Date(data.updatedAt),
+        createdAt: new Date(conversation.createdAt),
+        updatedAt: new Date(conversation.updatedAt),
         userId,
       };
 
+      // 将新会话添加到列表开头
       setConversations((prev) => {
         const updated = [newConversation, ...prev];
         localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         return updated;
       });
+
+      // 立即切换到新会话
       setCurrentConversationId(newConversation.id);
       localStorage.setItem(CURRENT_CONVERSATION_KEY, newConversation.id);
+
+      console.log(`Created and switched to new conversation: ${newConversation.id}`);
 
       return newConversation;
     } catch (err) {
@@ -118,13 +123,13 @@ export function useConversations(userId: string = "default-user") {
       setError(null);
 
       const response = await fetch(`/api/conversations/${conversationId}?userId=${userId}`);
-      
+
       if (!response.ok) {
         throw new Error("Failed to get conversation");
       }
 
       const data = await response.json();
-      
+
       const conversation: Conversation = {
         ...data.conversation,
         createdAt: new Date(data.conversation.createdAt),
@@ -135,7 +140,8 @@ export function useConversations(userId: string = "default-user") {
         })),
       };
 
-      setConversations((prev) => 
+      // 更新会话列表中的消息
+      setConversations((prev) =>
         prev.map((c) => c.id === conversationId ? conversation : c)
       );
 
@@ -221,12 +227,14 @@ export function useConversations(userId: string = "default-user") {
     };
 
     conversations.forEach((conv) => {
-      const convDate = new Date(conv.updatedAt);
-      convDate.setHours(0, 0, 0, 0);
+      // 只使用 createdAt（创建时间）来判断分组
+      // 这样会话就不会因为更新时间变化而在分组之间跳转
+      const createDate = new Date(conv.createdAt);
+      createDate.setHours(0, 0, 0, 0);
 
-      if (convDate.getTime() === today.getTime()) {
+      if (createDate.getTime() === today.getTime()) {
         grouped.today.push(conv);
-      } else if (convDate.getTime() === yesterday.getTime()) {
+      } else if (createDate.getTime() === yesterday.getTime()) {
         grouped.yesterday.push(conv);
       } else {
         grouped.earlier.push(conv);

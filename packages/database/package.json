@@ -1,0 +1,41 @@
+{
+  "name": "@civil-agent/database",
+  "version": "1.0.0",
+  "private": true,
+  "description": "数据库包 - Prisma ORM + Repository 层",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "generate": "prisma generate",
+    "push": "prisma db push",
+    "migrate": "prisma migrate dev",
+    "seed": "ts-node prisma/seed.ts",
+    "studio": "prisma studio",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit",
+    "lint": "eslint src --ext .ts",
+    "test": "jest"
+  },
+  "keywords": [
+    "database",
+    "prisma",
+    "repository",
+    "sqlite"
+  ],
+  "author": "sxh",
+  "license": "MIT",
+  "dependencies": {
+    "@civil-agent/core": "workspace:*",
+    "@prisma/client": "^5.7.0",
+    "chromadb": "^1.8.0",
+    "axios": "^1.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "prisma": "^5.7.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.3.3"
+  }
+}

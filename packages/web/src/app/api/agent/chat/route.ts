@@ -26,14 +26,14 @@ function generateTitle(firstMessage: string): string {
   if (!firstMessage || firstMessage.trim().length === 0) {
     return "新对话";
   }
-  
+
   const maxLength = 20;
   let title = firstMessage.trim();
-  
+
   if (title.length > maxLength) {
     title = title.substring(0, maxLength) + "...";
   }
-  
+
   return title;
 }
 
@@ -125,7 +125,7 @@ export async function POST(request: NextRequest) {
             };
 
             const finalMessages = [...finalState.messages, assistantMessage];
-            
+
             userStates.set(`${effectiveUserId}_${effectiveConversationId}`, {
               ...finalState,
               messages: finalMessages,
@@ -155,8 +155,8 @@ export async function POST(request: NextRequest) {
 
             controller.enqueue(
               encoder.encode(
-                `data: ${JSON.stringify({ 
-                  type: "done", 
+                `data: ${JSON.stringify({
+                  type: "done",
                   quickReplies,
                   conversationId: effectiveConversationId,
                 })}\n\n`

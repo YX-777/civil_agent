@@ -1,102 +1,54 @@
-import { NextRequest, NextResponse } from "next/server";
-import { conversations } from "@/lib/conversation-store";
+import { NextRequest, NextResponse } from 'next/server';
+import { getDatabase } from '@/lib/database';
+import { getConversationRepository } from '@civil-agent/database';
 
-function generateId(): string {
-  return `conv_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-}
-
-function generateTitle(firstMessage: string): string {
-  if (!firstMessage || firstMessage.trim().length === 0) {
-    return "新对话";
-  }
-  
-  const maxLength = 20;
-  let title = firstMessage.trim();
-  
-  if (title.length > maxLength) {
-    title = title.substring(0, maxLength) + "...";
-  }
-  
-  return title;
-}
-
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { userId, title, initialMessages } = body;
+    await getDatabase();
+    const searchParams = request.nextUrl.searchParams;
+    const userId = searchParams.get('userId');
 
-    if (!userId || typeof userId !== "string") {
+    if (!userId) {
       return NextResponse.json(
-        { error: "Invalid userId" },
+        { error: 'userId is required' },
         { status: 400 }
       );
     }
 
-    const conversationId = generateId();
-    const now = new Date();
+    const conversationRepo = getConversationRepository();
+    const conversations = await conversationRepo.findByUserId(userId);
 
-    const newConversation = {
-      id: conversationId,
-      title: title || "新对话",
-      messages: initialMessages || [],
-      createdAt: now,
-      updatedAt: now,
-      userId,
-    };
-
-    conversations.set(conversationId, newConversation);
-
-    console.log(`[Conversations API] Created conversation: ${conversationId} for user: ${userId}`);
-
-    return NextResponse.json({
-      id: newConversation.id,
-      title: newConversation.title,
-      createdAt: newConversation.createdAt,
-      updatedAt: newConversation.updatedAt,
-    });
+    return NextResponse.json({ success: true, conversations });
   } catch (error) {
-    console.error("[Conversations API] Error in POST handler:", error);
+    console.error('Error fetching conversations:', error);
     return NextResponse.json(
-      { error: "Failed to create conversation" },
+      { error: 'Failed to fetch conversations' },
       { status: 500 }
     );
   }
 }
 
-export async function GET(request: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const userId = searchParams.get("userId");
-    const limit = parseInt(searchParams.get("limit") || "50", 10);
+    await getDatabase();
+    const body = await request.json();
+    const { userId, title } = body;
 
-    if (!userId) {
+    if (!userId || !title) {
       return NextResponse.json(
-        { error: "userId is required" },
+        { error: 'userId and title are required' },
         { status: 400 }
       );
     }
 
-    const userConversations = Array.from(conversations.values())
-      .filter(conv => conv.userId === userId)
-      .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime())
-      .slice(0, limit);
+    const conversationRepo = getConversationRepository();
+    const conversation = await conversationRepo.createConversation(userId, title);
 
-    const responseConversations = userConversations.map(conv => ({
-      id: conv.id,
-      title: conv.title,
-      createdAt: conv.createdAt,
-      updatedAt: conv.updatedAt,
-      messageCount: conv.messages.length,
-      messages: conv.messages,
-    }));
-
-    return NextResponse.json({
-      conversations: responseConversations,
-    });
+    return NextResponse.json({ success: true, conversation });
   } catch (error) {
-    console.error("[Conversations API] Error in GET handler:", error);
+    console.error('Error creating conversation:', error);
     return NextResponse.json(
-      { error: "Failed to get conversations" },
+      { error: 'Failed to create conversation' },
       { status: 500 }
     );
   }

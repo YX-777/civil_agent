@@ -9,13 +9,20 @@ export function useAgent(conversationId?: string, userId: string = "default-user
   const currentContentRef = useRef<string>("");
   const isInitializedRef = useRef(false);
   const currentConversationIdRef = useRef<string | undefined>(conversationId);
+  const prevConversationIdRef = useRef<string | undefined>(conversationId);
 
   useEffect(() => {
+    // 当会话ID改变时，重置初始化状态
+    if (conversationId !== prevConversationIdRef.current) {
+      isInitializedRef.current = false;
+      prevConversationIdRef.current = conversationId;
+    }
     currentConversationIdRef.current = conversationId;
   }, [conversationId]);
 
   useEffect(() => {
-    if (!isInitializedRef.current && messages.length === 0) {
+    // 只有在没有会话ID且没有消息时才显示欢迎消息
+    if (!conversationId && !isInitializedRef.current && messages.length === 0) {
       const welcomeMessage: Message = {
         id: "welcome",
         role: "assistant",
@@ -25,7 +32,7 @@ export function useAgent(conversationId?: string, userId: string = "default-user
       setMessages([welcomeMessage]);
       isInitializedRef.current = true;
     }
-  }, []);
+  }, [conversationId, messages.length]);
 
   const sendMessage = useCallback(async (text: string) => {
     const userMessage: Message = {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Layout, Empty, Spin } from "antd";
+import { Layout, Empty, Spin, message } from "antd";
 import { MessageOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import { useAgent } from "@/hooks/use-agent";
 import { useConversations } from "@/hooks/use-conversations";
@@ -25,6 +25,8 @@ export default function ChatPage() {
     switchConversation,
     deleteConversation,
     updateConversation,
+    loadConversations,
+    isLoading: isLoadingConversations,
   } = useConversations(userId);
 
   const {
@@ -36,17 +38,71 @@ export default function ChatPage() {
     setMessages: setAgentMessages,
   } = useAgent(currentConversationId || undefined, userId);
 
+  // 初始化：等待会话列表加载完成后再初始化
   useEffect(() => {
-    if (currentConversationId) {
-      const loadConversationMessages = async () => {
-        const conv = conversations.find((c) => c.id === currentConversationId);
-        if (conv && conv.messages.length > 0) {
-          setAgentMessages(conv.messages);
+    const initializeConversation = async () => {
+      try {
+        // 等待会话列表加载完成
+        if (isLoadingConversations) {
+          console.log("Waiting for conversations to load...");
+          return;
         }
-      };
-      loadConversationMessages();
-    }
-  }, [currentConversationId, conversations, setAgentMessages]);
+
+        // 如果已经有选中会话，不做处理
+        if (currentConversationId) {
+          console.log(`Already has current conversation: ${currentConversationId}`);
+          return;
+        }
+
+        // 如果有会话列表，选中最近的一个（第一个）
+        if (conversations.length > 0) {
+          await switchConversation(conversations[0].id);
+          console.log(`Auto-selected most recent conversation: ${conversations[0].title}`);
+        } else {
+          console.log(`No existing conversations, showing empty state`);
+        }
+      } catch (error) {
+        console.error("Failed to initialize conversation:", error);
+      }
+    };
+
+    initializeConversation();
+  }, [isLoadingConversations, currentConversationId, conversations, switchConversation]); // 依赖加载状态
+
+  useEffect(() => {
+    const loadConversationMessages = async () => {
+      if (currentConversationId) {
+        try {
+          const response = await fetch(`/api/conversations/${currentConversationId}?userId=${userId}`);
+          if (response.ok) {
+            const data = await response.json();
+            if (data.messages && data.messages.length > 0) {
+              const formattedMessages = data.messages.map((msg: any) => ({
+                id: msg.id,
+                role: msg.role,
+                content: msg.content,
+                timestamp: new Date(msg.timestamp),
+              }));
+              setAgentMessages(formattedMessages);
+              console.log(`Loaded ${formattedMessages.length} messages for conversation ${currentConversationId}`);
+            } else {
+              // 新会话没有消息时，清空消息列表
+              setAgentMessages([]);
+              console.log(`No messages found for conversation ${currentConversationId}, clearing messages`);
+            }
+          } else {
+            console.error(`Failed to load conversation: ${response.status}`);
+            message.error("加载会话消息失败");
+          }
+        } catch (error) {
+          console.error("Failed to load conversation messages:", error);
+          message.error("加载会话消息时出错");
+        }
+      }
+    };
+
+    loadConversationMessages();
+  }, [currentConversationId, userId, setAgentMessages]);
 
   useEffect(() => {
     if (currentConversationId && messages.length > 0) {
@@ -56,21 +112,24 @@ export default function ChatPage() {
 
   const handleCreateConversation = async () => {
     try {
-      const newConv = await createConversation("新对话");
+      // 先清空当前消息
       setAgentMessages([]);
+
+      // 创建新会话（会自动切换到新会话）
+      const newConv = await createConversation("新对话");
+      console.log(`Created new conversation: ${newConv.id}`);
+
+      // 新会话没有消息，保持空状态
     } catch (error) {
       console.error("Failed to create conversation:", error);
+      message.error("创建会话失败");
     }
   };
 
   const handleSelectConversation = async (conversationId: string) => {
     try {
-      const conv = await switchConversation(conversationId);
-      if (conv && conv.messages.length > 0) {
-        setAgentMessages(conv.messages);
-      } else {
-        setAgentMessages([]);
-      }
+      await switchConversation(conversationId);
+      // useEffect 会自动加载消息
     } catch (error) {
       console.error("Failed to switch conversation:", error);
     }
@@ -87,6 +146,36 @@ export default function ChatPage() {
     }
   };
 
+  const handleUpdateConversationTitle = async (conversationId: string, newTitle: string) => {
+    try {
+      const response = await fetch(`/api/conversations/${conversationId}`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId,
+          title: newTitle,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update conversation title");
+      }
+
+      const data = await response.json();
+      console.log(`Updated conversation title: ${conversationId} -> ${newTitle}`);
+
+      // 更新本地状态
+      updateConversation(conversationId, { title: newTitle });
+
+      message.success("标题更新成功");
+    } catch (error) {
+      console.error("Failed to update conversation title:", error);
+      message.error("更新标题失败");
+    }
+  };
+
   return (
     <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
       <ChatSidebar
@@ -95,6 +184,7 @@ export default function ChatPage() {
         onCreateConversation={handleCreateConversation}
         onSelectConversation={handleSelectConversation}
         onDeleteConversation={handleDeleteConversation}
+        onUpdateConversationTitle={handleUpdateConversationTitle}
         collapsed={sidebarCollapsed}
         onCollapse={setSidebarCollapsed}
       />
