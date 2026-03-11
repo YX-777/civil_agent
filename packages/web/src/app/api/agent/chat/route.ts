@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAgentGraph, createInitialState } from "@civil-agent/agent-langgraph";
 import { conversations as convStore } from "@/lib/conversation-store";
+import { getDatabase } from "@/lib/database";
+import { getConversationRepository, getMessageRepository } from "@civil-agent/database";
 
 const userStates = new Map<string, any>();
 
@@ -97,6 +99,10 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          await getDatabase();
+          const conversationRepo = getConversationRepository();
+          const messageRepo = getMessageRepository();
+          
           const streamGenerator = agentGraph.processStateStream(updatedState);
           let finalState: any = null;
           let iterator = streamGenerator[Symbol.asyncIterator]();
@@ -144,11 +150,40 @@ export async function POST(request: NextRequest) {
                 userId: effectiveUserId,
               };
               convStore.set(effectiveConversationId, conversation);
-              console.log(`[Agent API] Created new conversation: ${effectiveConversationId} with title: ${title}`);
+              
+              await messageRepo.createMessage({
+                conversationId: effectiveConversationId,
+                role: userMessage.role,
+                content: userMessage.content,
+                timestamp: userMessage.timestamp,
+              });
+              await messageRepo.createMessage({
+                conversationId: effectiveConversationId,
+                role: assistantMessage.role,
+                content: assistantMessage.content,
+                timestamp: assistantMessage.timestamp,
+              });
+              
+              await conversationRepo.updateConversation(effectiveConversationId, { title });
+              
+              console.log(`[Agent API] Updated conversation title: ${effectiveConversationId} with title: ${title}`);
             } else {
               conversation.messages.push(userMessage, assistantMessage);
               conversation.updatedAt = new Date();
               convStore.set(effectiveConversationId, conversation);
+              
+              await messageRepo.createMessage({
+                conversationId: effectiveConversationId,
+                role: userMessage.role,
+                content: userMessage.content,
+                timestamp: userMessage.timestamp,
+              });
+              await messageRepo.createMessage({
+                conversationId: effectiveConversationId,
+                role: assistantMessage.role,
+                content: assistantMessage.content,
+                timestamp: assistantMessage.timestamp,
+              });
             }
 
             const quickReplies = finalState.quickReplyOptions || [];

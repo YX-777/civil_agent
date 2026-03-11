@@ -1,7 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Conversation, Message } from "@/types";
 
-const STORAGE_KEY = "conversations";
 const CURRENT_CONVERSATION_KEY = "currentConversationId";
 
 export function useConversations(userId: string = "default-user") {
@@ -36,24 +35,26 @@ export function useConversations(userId: string = "default-user") {
 
       if (conversationsWithDates.length > 0) {
         setConversations(conversationsWithDates);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(conversationsWithDates));
+        
+        // 注册到内存存储
+        const { conversations: convStore } = await import("@/lib/conversation-store");
+        conversationsWithDates.forEach((conv: any) => {
+          convStore.set(conv.id, {
+            id: conv.id,
+            title: conv.title,
+            messages: conv.messages,
+            createdAt: conv.createdAt,
+            updatedAt: conv.updatedAt,
+            userId: conv.userId,
+          });
+        });
       } else {
-        const stored = localStorage.getItem(STORAGE_KEY);
-        if (stored) {
-          const storedConversations = JSON.parse(stored);
-          setConversations(storedConversations);
-        } else {
-          setConversations(conversationsWithDates);
-        }
+        setConversations(conversationsWithDates);
       }
     } catch (err) {
       console.error("Failed to load conversations:", err);
       setError("Failed to load conversations");
-      
-      const stored = localStorage.getItem(STORAGE_KEY);
-      if (stored) {
-        setConversations(JSON.parse(stored));
-      }
+      setConversations([]);
     } finally {
       setIsLoading(false);
     }
@@ -100,13 +101,23 @@ export function useConversations(userId: string = "default-user") {
       // 将新会话添加到列表开头
       setConversations((prev) => {
         const updated = [newConversation, ...prev];
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         return updated;
       });
 
       // 立即切换到新会话
       setCurrentConversationId(newConversation.id);
       localStorage.setItem(CURRENT_CONVERSATION_KEY, newConversation.id);
+
+      // 注册到内存存储，让 Agent API 能找到这个会话
+      const { conversations: convStore } = await import("@/lib/conversation-store");
+      convStore.set(newConversation.id, {
+        id: newConversation.id,
+        title: newConversation.title,
+        messages: newConversation.messages,
+        createdAt: newConversation.createdAt,
+        updatedAt: newConversation.updatedAt,
+        userId: newConversation.userId,
+      });
 
       console.log(`Created and switched to new conversation: ${newConversation.id}`);
 
@@ -145,6 +156,17 @@ export function useConversations(userId: string = "default-user") {
         prev.map((c) => c.id === conversationId ? conversation : c)
       );
 
+      // 更新内存存储
+      const { conversations: convStore } = await import("@/lib/conversation-store");
+      convStore.set(conversationId, {
+        id: conversation.id,
+        title: conversation.title,
+        messages: conversation.messages,
+        createdAt: conversation.createdAt,
+        updatedAt: conversation.updatedAt,
+        userId: conversation.userId,
+      });
+
       return conversation;
     } catch (err) {
       console.error("Failed to get conversation:", err);
@@ -171,9 +193,12 @@ export function useConversations(userId: string = "default-user") {
 
       setConversations((prev) => {
         const updated = prev.filter((c) => c.id !== conversationId);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
         return updated;
       });
+
+      // 从内存存储中删除
+      const { conversations: convStore } = await import("@/lib/conversation-store");
+      convStore.delete(conversationId);
 
       if (currentConversationId === conversationId) {
         setCurrentConversationId(null);
@@ -201,14 +226,29 @@ export function useConversations(userId: string = "default-user") {
     }
   }, [getConversation]);
 
-  const updateConversation = useCallback((conversationId: string, updates: Partial<Conversation>) => {
+  const updateConversation = useCallback(async (conversationId: string, updates: Partial<Conversation>) => {
     setConversations((prev) => {
       const updated = prev.map((c) =>
         c.id === conversationId
           ? { ...c, ...updates, updatedAt: new Date() }
           : c
       );
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+      
+      // 更新内存存储
+      const conversation = updated.find(c => c.id === conversationId);
+      if (conversation) {
+        import("@/lib/conversation-store").then(({ conversations: convStore }) => {
+          convStore.set(conversationId, {
+            id: conversation.id,
+            title: conversation.title,
+            messages: conversation.messages,
+            createdAt: conversation.createdAt,
+            updatedAt: conversation.updatedAt,
+            userId: conversation.userId,
+          });
+        });
+      }
+      
       return updated;
     });
   }, []);

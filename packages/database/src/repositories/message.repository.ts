@@ -5,6 +5,7 @@ export interface CreateMessageDto {
   conversationId: string;
   role: string;
   content: string;
+  timestamp?: Date;
   metadata?: string;
   tokenCount?: number;
   modelVersion?: string;
