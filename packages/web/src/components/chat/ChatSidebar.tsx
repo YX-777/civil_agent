@@ -301,11 +301,27 @@ export default function ChatSidebar({
         okText="删除"
         cancelText="取消"
         okButtonProps={{ danger: true }}
+        centered
       >
-        <Space direction="vertical" size="middle">
-          <ExclamationCircleOutlined style={{ fontSize: 48, color: "#ff4d4f" }} />
-          <Text>确定要删除这个会话吗？删除后无法恢复。</Text>
-        </Space>
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            alignItems: "center",
+            padding: "24px 0",
+          }}
+        >
+          <ExclamationCircleOutlined
+            style={{
+              fontSize: 48,
+              color: "#ff4d4f",
+              marginBottom: 16,
+            }}
+          />
+          <Text style={{ fontSize: 14 }}>
+            确定要删除这个会话吗？删除后无法恢复。
+          </Text>
+        </div>
       </Modal>
 
       <Modal
