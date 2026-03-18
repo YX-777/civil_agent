@@ -7,6 +7,7 @@ import { getTaskQueue } from "./bull-queue";
 import { morningGreetingJob, getAllActiveUsers } from "../jobs/morning-greeting";
 import { eveningReviewJob, getTodayStats } from "../jobs/evening-review";
 import { anomalyCheckJob, getAllUsersAnomalies } from "../jobs/anomaly-check";
+import { weeklyXiaohongshuSyncJob } from "../jobs/weekly-xiaohongshu-sync";
 import { getCronJobConfig } from "../config/cron.config";
 
 export async function setupProcessors(): Promise<void> {
@@ -25,6 +26,11 @@ export async function setupProcessors(): Promise<void> {
   queue.process("anomaly-check", 5, async (job) => {
     logger.info(`Processing anomaly-check job: ${job.id}`);
     await anomalyCheckJob(job.data);
+  });
+
+  queue.process("weekly-xiaohongshu-sync", 1, async (job) => {
+    logger.info(`Processing weekly-xiaohongshu-sync job: ${job.id}`);
+    await weeklyXiaohongshuSyncJob(job.data);
   });
 
   logger.info("Job processors registered");
@@ -95,4 +101,26 @@ export async function triggerAnomalyCheck(): Promise<void> {
   }
 
   logger.info(`Triggered anomaly check for ${anomalies.length} users with anomalies`);
+}
+
+export async function triggerWeeklyXiaohongshuSync(limit = 50): Promise<void> {
+  const config = getCronJobConfig("weekly-xiaohongshu-sync");
+  if (!config) {
+    logger.error("Weekly xiaohongshu sync job config not found");
+    return;
+  }
+
+  await getTaskQueue().add(
+    "weekly-xiaohongshu-sync",
+    { limit, page: 1 },
+    {
+      attempts: 1,
+      backoff: {
+        type: "exponential",
+        delay: 5000,
+      },
+    }
+  );
+
+  logger.info(`Triggered weekly xiaohongshu sync job with limit=${limit}`);
 }

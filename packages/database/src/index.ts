@@ -6,7 +6,10 @@ import { TaskRepository } from './repositories/task.repository';
 import { FocusSessionRepository } from './repositories/focus-session.repository';
 import { LearningRecordRepository } from './repositories/learning-record.repository';
 import { ModuleProgressRepository } from './repositories/module-progress.repository';
+import { XhsPostRepository } from './repositories/xhs-post.repository';
+import { XhsSyncRunRepository } from './repositories/xhs-sync-run.repository';
 import { EmbeddingService } from './services/embedding.service';
+import { XhsSyncService } from './services/xhs-sync.service';
 
 let prisma: PrismaClient | null = null;
 let embeddingService: EmbeddingService | null = null;
@@ -53,6 +56,18 @@ export function getModuleProgressRepository(): ModuleProgressRepository {
   return new ModuleProgressRepository(getPrismaClient());
 }
 
+export function getXhsPostRepository(): XhsPostRepository {
+  return new XhsPostRepository(getPrismaClient());
+}
+
+export function getXhsSyncRunRepository(): XhsSyncRunRepository {
+  return new XhsSyncRunRepository(getPrismaClient());
+}
+
+export function getXhsSyncService(): XhsSyncService {
+  return new XhsSyncService(getXhsPostRepository(), getXhsSyncRunRepository());
+}
+
 export async function initializeDatabase(options?: { skipVectorDB?: boolean }): Promise<void> {
   if (!options?.skipVectorDB) {
     try {
@@ -86,7 +101,10 @@ export {
   FocusSessionRepository,
   LearningRecordRepository,
   ModuleProgressRepository,
-  EmbeddingService
+  XhsPostRepository,
+  XhsSyncRunRepository,
+  EmbeddingService,
+  XhsSyncService
 };
 
 export * from '@prisma/client';

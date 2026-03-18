@@ -9,6 +9,7 @@
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/index.js",
+    "test:xhs-sync": "node dist/scripts/test-weekly-xhs-sync.js --limit=5",
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
@@ -26,6 +27,8 @@
   "dependencies": {
     "@civil-agent/agent-langgraph": "workspace:*",
     "@civil-agent/core": "workspace:*",
+    "@civil-agent/database": "workspace:*",
+    "@civil-agent/mcp-xiaohongshu": "workspace:*",
     "axios": "^1.6.5",
     "bull": "^4.12.2",
     "dotenv": "^17.2.3",

@@ -204,3 +204,56 @@ model Embedding {
   @@index([vectorDbId])
   @@map("embeddings")
 }
+
+model XhsPost {
+  id           String   @id @default(uuid())
+  postId       String   @unique @map("post_id")
+  xsecToken    String?  @map("xsec_token")
+  title        String
+  contentRaw   String   @map("content_raw")
+  contentClean String   @map("content_clean")
+  contentHash  String   @map("content_hash")
+  authorId     String?  @map("author_id")
+  authorName   String?  @map("author_name")
+  publishTime  DateTime? @map("publish_time")
+  likeCount    Int      @default(0) @map("like_count")
+  commentCount Int      @default(0) @map("comment_count")
+  collectCount Int      @default(0) @map("collect_count")
+  shareCount   Int      @default(0) @map("share_count")
+  sourceUrl    String?  @map("source_url")
+  tags         String?
+  status       String   @default("new")
+  errorMessage String?  @map("error_message")
+  bailianDocId String?  @map("bailian_doc_id")
+  uploadedAt   DateTime? @map("uploaded_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([contentHash])
+  @@index([status])
+  @@index([publishTime])
+  @@map("xhs_posts")
+}
+
+model XhsSyncRun {
+  id                String   @id @default(uuid())
+  jobName           String   @default("weekly-xiaohongshu-sync") @map("job_name")
+  status            String   @default("running")
+  requestedLimit    Int      @default(0) @map("requested_limit")
+  fetchedCount      Int      @default(0) @map("fetched_count")
+  insertedCount     Int      @default(0) @map("inserted_count")
+  dedupedPostIdCount Int     @default(0) @map("deduped_post_id_count")
+  dedupedHashCount  Int      @default(0) @map("deduped_hash_count")
+  invalidCount      Int      @default(0) @map("invalid_count")
+  failedCount       Int      @default(0) @map("failed_count")
+  errorMessage      String?  @map("error_message")
+  reportJson        String?  @map("report_json")
+  startedAt         DateTime @default(now()) @map("started_at")
+  endedAt           DateTime? @map("ended_at")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@index([jobName, createdAt(sort: Desc)])
+  @@index([status])
+  @@map("xhs_sync_runs")
+}

@@ -80,7 +80,7 @@ start_mcp_server() {
   # ./xiaohongshu-mcp-darwin-arm64 -headless=false
   (
     cd "$BIN_DIR"
-    ./xiaohongshu-mcp-darwin-arm64 -headless=false
+    ./xiaohongshu-mcp-darwin-arm64
   ) >"$LOG_FILE" 2>&1 &
 
   MCP_PID=$!
@@ -121,4 +121,3 @@ print_header
 start_mcp_server
 run_validation
 finish_message
-

@@ -12,6 +12,7 @@ import { PushNotificationService } from "./notification/push-notification";
 import { morningGreetingJob } from "./jobs/morning-greeting";
 import { eveningReviewJob } from "./jobs/evening-review";
 import { anomalyCheckJob } from "./jobs/anomaly-check";
+import { weeklyXiaohongshuSyncJob } from "./jobs/weekly-xiaohongshu-sync";
 
 export class Scheduler {
   private cronJobs: Map<string, cron.ScheduledTask> = new Map();
@@ -87,7 +88,7 @@ export class Scheduler {
   }
 
   private async executeJob(jobName: string): Promise<void> {
-    const { triggerMorningGreeting, triggerEveningReview, triggerAnomalyCheck } =
+    const { triggerMorningGreeting, triggerEveningReview, triggerAnomalyCheck, triggerWeeklyXiaohongshuSync } =
       await import("./queue/processors");
 
     try {
@@ -100,6 +101,9 @@ export class Scheduler {
           break;
         case "anomaly-check":
           await triggerAnomalyCheck();
+          break;
+        case "weekly-xiaohongshu-sync":
+          await triggerWeeklyXiaohongshuSync();
           break;
         default:
           logger.warn(`Unknown job: ${jobName}`);
@@ -123,6 +127,7 @@ export * from "./notification/push-notification";
 export * from "./jobs/morning-greeting";
 export * from "./jobs/evening-review";
 export * from "./jobs/anomaly-check";
+export * from "./jobs/weekly-xiaohongshu-sync";
 export * from "./queue/bull-queue";
 export * from "./queue/processors";
 

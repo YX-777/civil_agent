@@ -28,6 +28,12 @@ export const CRON_JOBS: CronJobConfig[] = [
     description: "异常检测 - 每天 23:59",
     concurrency: 5,
   },
+  {
+    name: "weekly-xiaohongshu-sync",
+    expression: "0 3 * * 0",
+    description: "小红书每周同步 - 每周日 03:00",
+    concurrency: 1,
+  },
 ];
 
 export function getCronJobConfig(name: string): CronJobConfig | undefined {
