@@ -1,0 +1,28 @@
+{
+  "name": "@civil-agent/mcp-xiaohongshu",
+  "version": "1.0.0",
+  "private": true,
+  "description": "小红书内容抓取 MCP 客户端",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "start": "./start.sh",
+    "verify": "node ./start.mjs",
+    "stop": "./stop.sh",
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "clean": "rm -rf dist",
+    "type-check": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@langchain/core": "^1.1.32",
+    "@langchain/mcp-adapters": "^1.1.3",
+    "@langchain/openai": "^1.2.13",
+    "@modelcontextprotocol/sdk": "^1.27.1",
+    "dotenv": "^17.2.3"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.3.3"
+  }
+}

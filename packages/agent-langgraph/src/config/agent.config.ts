@@ -16,12 +16,14 @@ export interface AgentConfig {
   mcp: {
     bailianRagUrl: string;
     feishuTasksUrl?: string;
+    xiaohongshuUrl: string;
   };
   features: {
     ragEnabled: boolean;
     emotionDetectionEnabled: boolean;
     contextEnhancementEnabled: boolean;
     quickRepliesEnabled: boolean;
+    xiaohongshuEnabled: boolean;
   };
   thresholds: {
     emotionSupportThreshold: number;
@@ -46,12 +48,14 @@ export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   mcp: {
     bailianRagUrl: process.env.MCP_BAILIAN_RAG_URL || "http://localhost:3002",
     feishuTasksUrl: process.env.MCP_FEISHU_TASKS_URL,
+    xiaohongshuUrl: process.env.XIAOHONGSHU_MCP_URL || "http://localhost:18060/mcp",
   },
   features: {
     ragEnabled: true,
     emotionDetectionEnabled: true,
     contextEnhancementEnabled: true,
     quickRepliesEnabled: true,
+    xiaohongshuEnabled: true,
   },
   thresholds: {
     emotionSupportThreshold: 3,

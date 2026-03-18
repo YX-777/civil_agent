@@ -1,0 +1,238 @@
+# 小红书 MCP 服务
+
+## 概述
+
+小红书 MCP 服务是一个基于 LangChain MCP 适配器的内容抓取工具，用于搜索和获取小红书的内容。该服务通过连接到 `xiaohongshu-mcp` MCP 服务器，提供以下功能：
+
+- 搜索小红书内容
+- 获取推荐列表
+- 获取帖子详情
+- 获取用户主页
+- 检查登录状态
+
+## 功能特性
+
+### 1. 搜索内容 (`search_feeds`)
+根据关键词搜索小红书内容，支持多种筛选条件。
+
+**参数：**
+- `keyword` (必需): 搜索关键词
+- `sort_by` (可选): 排序依据 - 综合、最新、最多点赞、最多评论、最多收藏
+- `note_type` (可选): 笔记类型 - 不限、视频、图文
+- `publish_time` (可选): 发布时间 - 不限、一天内、一周内、半年内
+- `search_scope` (可选): 搜索范围 - 不限、已看过、未看过、已关注
+- `location` (可选): 位置距离 - 不限、同城、附近
+
+**使用场景：**
+- 查找特定主题的内容
+- 搜索用户笔记
+- 发现热门话题
+
+### 2. 获取推荐列表 (`list_feeds`)
+获取小红书首页推荐内容列表。
+
+**参数：**
+- `page` (必需): 页码，从1开始
+
+**使用场景：**
+- 浏览推荐内容
+- 发现热门笔记
+- 获取最新动态
+
+### 3. 获取帖子详情 (`get_feed_detail`)
+获取小红书帖子的完整详情，包括互动数据和评论。
+
+**参数：**
+- `feed_id` (必需): 帖子ID
+- `xsec_token` (必需): 帖子安全令牌
+- `load_all_comments` (可选): 是否加载全部评论，默认false仅返回前10条一级评论
+- `limit` (可选): 限制加载的一级评论数量，仅当load_all_comments=true时生效，默认20
+- `click_more_replies` (可选): 是否展开二级回复，仅当load_all_comments=true时生效，默认false
+- `reply_limit` (可选): 跳过回复数过多的评论，仅当click_more_replies=true时生效，默认10
+- `scroll_speed` (可选): 滚动速度，仅当load_all_comments=true时生效，slow|normal|fast，默认normal
+
+**使用场景：**
+- 查看帖子详情
+- 获取评论内容
+- 分析互动数据
+
+**重要提示：**
+- 需要提供帖子 ID 和 xsec_token（两个参数缺一不可）
+- 这两个参数可以从 Feed 列表或搜索结果中获取
+- 必须先登录才能使用此功能
+
+### 4. 获取用户主页 (`get_user_profile`)
+获取小红书用户的个人主页信息，包括用户基本信息和笔记内容。
+
+**参数：**
+- `user_id` (必需): 用户ID
+- `xsec_token` (必需): 用户安全令牌
+
+**使用场景：**
+- 查看用户资料
+- 获取用户发布的笔记
+- 分析用户行为
+
+**重要提示：**
+- 需要提供用户 ID 和 xsec_token
+- 这两个参数可以从 Feed 列表或搜索结果中获取
+- 必须先登录才能使用此功能
+
+### 5. 检查登录状态 (`check_login_status`)
+检查小红书登录状态。
+
+**参数：** 无
+
+**使用场景：**
+- 验证登录状态
+- 确认是否已登录
+
+## 配置
+
+### 环境变量
+
+在 `.env` 文件中配置以下环境变量：
+
+```bash
+# 小红书 MCP 服务地址
+XIAOHONGSHU_MCP_URL=http://localhost:18060/mcp
+
+# 小红书 MCP 服务超时时间（毫秒）
+XIAOHONGSHU_MCP_TIMEOUT=30000
+```
+
+### MCP 服务要求
+
+在使用小红书 MCP 服务之前，需要：
+
+1. **下载并启动 xiaohongshu-mcp 服务**
+   - 从 GitHub Releases 下载对应平台的二进制文件
+   - 运行登录工具完成登录：`./xiaohongshu-login-darwin-arm64`
+   - 启动 MCP 服务：`./xiaohongshu-mcp-darwin-arm64`
+
+2. **确认服务正常运行**
+   - 默认端口：18060
+   - MCP 端点：`http://localhost:18060/mcp`
+
+## 使用示例
+
+### 基本使用
+
+```typescript
+import { getXiaohongshuMCPClient } from '@civil-agent/mcp-xiaohongshu';
+
+// 获取客户端实例
+const client = getXiaohongshuMCPClient();
+
+// 搜索内容
+const searchResult = await client.searchFeeds("考公经验");
+
+// 获取推荐列表
+const listResult = await client.listFeeds(1);
+
+// 获取帖子详情
+const detailResult = await client.getFeedDetail(
+  "feed_id", 
+  "xsec_token"
+);
+
+// 获取用户主页
+const profileResult = await client.getUserProfile(
+  "user_id", 
+  "xsec_token"
+);
+
+// 检查登录状态
+const loginStatus = await client.checkLoginStatus();
+```
+
+### 与 LangChain 集成
+
+```typescript
+import { getXiaohongshuTools } from '@civil-agent/mcp-xiaohongshu';
+import { ChatOpenAI } from '@langchain/openai';
+
+// 创建模型
+const model = new ChatOpenAI({
+  modelName: "qwen-plus",
+  apiKey: process.env.DASHSCOPE_API_KEY,
+  configuration: {
+    baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  },
+});
+
+// 获取小红书工具
+const tools = getXiaohongshuTools();
+
+// 绑定工具到模型
+const modelWithTools = model.bindTools(tools);
+
+// 使用工具
+const response = await modelWithTools.invoke([
+  new HumanMessage("搜索小红书上关于考公经验的内容")
+]);
+```
+
+## 技术架构
+
+### MCP 适配器
+
+使用 `@langchain/mcp-adapters` 包中的 `MultiServerMCPClient` 来连接小红书 MCP 服务。
+
+### 工具封装
+
+所有小红书功能都封装为 LangChain 的 `StructuredTool`，可以直接与 LangChain 生态集成。
+
+### 错误处理
+
+所有工具都包含完善的错误处理，当调用失败时会抛出详细的错误信息。
+
+## 注意事项
+
+1. **登录状态**
+   - 必须先使用 `xiaohongshu-login` 工具完成登录
+   - 登录状态会保存在 MCP 服务中
+
+2. **Token 获取**
+   - `feed_id` 和 `xsec_token` 可以从搜索结果或推荐列表中获取
+   - `user_id` 和 `xsec_token` 可以从帖子详情或搜索结果中获取
+
+3. **性能考虑**
+   - 获取帖子详情时，如果不需要全部评论，建议使用默认设置
+   - 大量评论加载可能需要较长时间
+
+4. **服务可用性**
+   - 确保 xiaohongshu-mcp 服务正在运行
+   - 检查网络连接和防火墙设置
+
+## 故障排除
+
+### 连接失败
+
+如果无法连接到 MCP 服务：
+
+1. 检查 xiaohongshu-mcp 服务是否正在运行
+2. 确认服务地址配置正确（`XIAOHONGSHU_MCP_URL`）
+3. 检查端口是否被占用或被防火墙阻止
+
+### 工具调用失败
+
+如果工具调用失败：
+
+1. 确认已正确登录
+2. 检查参数是否正确（特别是 `xsec_token`）
+3. 查看服务日志获取详细错误信息
+
+### 性能问题
+
+如果响应速度较慢：
+
+1. 调整超时时间（`XIAOHONGSHU_MCP_TIMEOUT`）
+2. 减少加载的评论数量
+3. 避免不必要的详情获取
+
+## 参考资料
+
+- [xiaohongshu-mcp GitHub 仓库](https://github.com/xpzouying/xiaohongshu-mcp)
+- [LangChain MCP 适配器文档](https://github.com/langchain-ai/langchainjs/tree/main/libs/langchain_mcp_adapters)
+- [小红书 API 文档](https://open.xiaohongshu.com/)

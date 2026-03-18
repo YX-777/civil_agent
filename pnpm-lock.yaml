@@ -29,6 +29,9 @@ importers:
       '@civil-agent/mcp-bailian-rag':
         specifier: workspace:*
         version: link:../mcp-bailian-rag
+      '@civil-agent/mcp-xiaohongshu':
+        specifier: workspace:*
+        version: link:../mcp-xiaohongshu
       '@langchain/community':
         specifier: ^1.1.8
         version: 1.1.8(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.58.0)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.16.0(ws@8.19.0)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.7)(@langchain/core@1.1.17(openai@6.16.0(ws@8.19.0)(zod@3.25.76)))(chromadb@1.10.5(openai@6.16.0(ws@8.19.0)(zod@3.25.76)))(ibm-cloud-sdk-core@5.4.5)(ioredis@5.9.2)(jsonwebtoken@9.0.3)(lodash@4.17.23)(mysql2@3.15.3)(openai@6.16.0(ws@8.19.0)(zod@3.25.76))(playwright@1.58.0)(ws@8.19.0)
@@ -125,6 +128,19 @@ importers:
       axios:
         specifier: ^1.6.5
         version: 1.13.2(debug@4.4.3)
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
+    devDependencies:
+      '@types/node':
+        specifier: ^20.11.0
+        version: 20.19.30
+      typescript:
+        specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/mcp-xiaohongshu:
+    dependencies:
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
