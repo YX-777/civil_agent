@@ -1,7 +1,11 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Message, QuickReply } from "@/types";
 
-export function useAgent(conversationId?: string, userId: string = "default-user") {
+export function useAgent(
+  conversationId?: string,
+  userId: string = "default-user",
+  onTurnDone?: (conversationId: string) => void | Promise<void>
+) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
@@ -35,6 +39,12 @@ export function useAgent(conversationId?: string, userId: string = "default-user
   }, [conversationId, messages.length]);
 
   const sendMessage = useCallback(async (text: string) => {
+    // Phase A 约束：发送消息前必须绑定明确的会话 ID。
+    if (!currentConversationIdRef.current) {
+      console.warn("Cannot send message without conversationId");
+      return;
+    }
+
     const userMessage: Message = {
       id: Date.now().toString(),
       role: "user",
@@ -85,6 +95,7 @@ export function useAgent(conversationId?: string, userId: string = "default-user
 
       let buffer = "";
       let newConversationId: string | undefined;
+      let doneHandled = false;
 
       while (true) {
         const { done, value } = await reader.read();
@@ -112,12 +123,17 @@ export function useAgent(conversationId?: string, userId: string = "default-user
                   )
                 );
               } else if (data.type === "done") {
-                if (data.quickReplies && data.quickReplies.length > 0) {
-                  setQuickReplies(data.quickReplies);
-                }
-                if (data.conversationId) {
-                  newConversationId = data.conversationId;
-                  currentConversationIdRef.current = data.conversationId;
+                if (!doneHandled) {
+                  doneHandled = true;
+                  if (data.quickReplies && data.quickReplies.length > 0) {
+                    setQuickReplies(data.quickReplies);
+                  }
+                  if (data.conversationId) {
+                    newConversationId = data.conversationId;
+                    currentConversationIdRef.current = data.conversationId;
+                    // 服务端提交事务成功后，立即刷新会话列表和标题，避免用户手动刷新页面。
+                    void onTurnDone?.(data.conversationId);
+                  }
                 }
               } else if (data.type === "error") {
                 console.error("Stream error:", data.error);
@@ -139,13 +155,15 @@ export function useAgent(conversationId?: string, userId: string = "default-user
         if (buffer.trim() && buffer.startsWith("data: ")) {
           try {
             const data = JSON.parse(buffer.slice(6));
-            if (data.type === "done") {
+            if (data.type === "done" && !doneHandled) {
+              doneHandled = true;
               if (data.quickReplies && data.quickReplies.length > 0) {
                 setQuickReplies(data.quickReplies);
               }
               if (data.conversationId) {
                 newConversationId = data.conversationId;
                 currentConversationIdRef.current = data.conversationId;
+                void onTurnDone?.(data.conversationId);
               }
             }
           } catch (e) {
@@ -170,7 +188,7 @@ export function useAgent(conversationId?: string, userId: string = "default-user
       setIsLoading(false);
       abortControllerRef.current = null;
     }
-  }, [userId]);
+  }, [userId, onTurnDone]);
 
   const handleQuickReply = useCallback((reply: QuickReply) => {
     sendMessage(reply.text);

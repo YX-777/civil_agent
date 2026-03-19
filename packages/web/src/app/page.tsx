@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Layout, Empty, Spin, message } from "antd";
 import { MessageOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import { useAgent } from "@/hooks/use-agent";
@@ -26,8 +26,18 @@ export default function ChatPage() {
     deleteConversation,
     updateConversation,
     loadConversations,
+    hasBootstrapped,
     isLoading: isLoadingConversations,
   } = useConversations(userId);
+
+  const handleAgentTurnDone = useCallback(async (conversationId: string) => {
+    try {
+      // 每轮对话完成后主动回源，确保标题和更新时间即时反映到侧边栏。
+      await loadConversations(conversationId);
+    } catch (error) {
+      console.error("Failed to refresh conversations after turn done:", error);
+    }
+  }, [loadConversations]);
 
   const {
     messages,
@@ -36,17 +46,25 @@ export default function ChatPage() {
     sendMessage,
     handleQuickReply,
     setMessages: setAgentMessages,
-  } = useAgent(currentConversationId || undefined, userId);
+  } = useAgent(currentConversationId || undefined, userId, handleAgentTurnDone);
+
+  const hasInitializedConversationRef = useRef(false);
 
   // 初始化：等待会话列表加载完成后再初始化
   useEffect(() => {
     const initializeConversation = async () => {
       try {
-        // 等待会话列表加载完成
-        if (isLoadingConversations) {
+        // 等待会话列表完成 bootstrap（含 localStorage + 远端会话列表）
+        if (!hasBootstrapped || isLoadingConversations) {
           console.log("Waiting for conversations to load...");
           return;
         }
+
+        // Prevent duplicate initialization side effects on re-render.
+        if (hasInitializedConversationRef.current) {
+          return;
+        }
+        hasInitializedConversationRef.current = true;
 
         // 如果已经有选中会话，不做处理
         if (currentConversationId) {
@@ -59,7 +77,9 @@ export default function ChatPage() {
           await switchConversation(conversations[0].id);
           console.log(`Auto-selected most recent conversation: ${conversations[0].title}`);
         } else {
-          console.log(`No existing conversations, showing empty state`);
+          // Ensure first chat turn has a valid conversationId before user input.
+          const created = await createConversation("新对话");
+          console.log(`No existing conversations, auto-created conversation: ${created.id}`);
         }
       } catch (error) {
         console.error("Failed to initialize conversation:", error);
@@ -67,7 +87,7 @@ export default function ChatPage() {
     };
 
     initializeConversation();
-  }, [isLoadingConversations, currentConversationId, conversations, switchConversation]); // 依赖加载状态
+  }, [hasBootstrapped, isLoadingConversations, currentConversationId, conversations, switchConversation, createConversation]); // 依赖加载状态
 
   useEffect(() => {
     const loadConversationMessages = async () => {

@@ -6,6 +6,7 @@ import { TaskRepository } from './repositories/task.repository';
 import { FocusSessionRepository } from './repositories/focus-session.repository';
 import { LearningRecordRepository } from './repositories/learning-record.repository';
 import { ModuleProgressRepository } from './repositories/module-progress.repository';
+import { AgentStateRepository } from './repositories/agent-state.repository';
 import { XhsPostRepository } from './repositories/xhs-post.repository';
 import { XhsSyncRunRepository } from './repositories/xhs-sync-run.repository';
 import { EmbeddingService } from './services/embedding.service';
@@ -56,6 +57,11 @@ export function getModuleProgressRepository(): ModuleProgressRepository {
   return new ModuleProgressRepository(getPrismaClient());
 }
 
+export function getAgentStateRepository(): AgentStateRepository {
+  // Agent 会话状态主仓储（单一真相源）。
+  return new AgentStateRepository(getPrismaClient());
+}
+
 export function getXhsPostRepository(): XhsPostRepository {
   return new XhsPostRepository(getPrismaClient());
 }
@@ -101,6 +107,7 @@ export {
   FocusSessionRepository,
   LearningRecordRepository,
   ModuleProgressRepository,
+  AgentStateRepository,
   XhsPostRepository,
   XhsSyncRunRepository,
   EmbeddingService,

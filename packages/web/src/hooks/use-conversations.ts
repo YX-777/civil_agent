@@ -6,15 +6,11 @@ const CURRENT_CONVERSATION_KEY = "currentConversationId";
 export function useConversations(userId: string = "default-user") {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [hasBootstrapped, setHasBootstrapped] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    loadConversations();
-    loadCurrentConversation();
-  }, [userId]);
-
-  const loadConversations = async () => {
+  const loadConversations = useCallback(async (preferredConversationId?: string | null) => {
     try {
       setIsLoading(true);
       setError(null);
@@ -51,6 +47,22 @@ export function useConversations(userId: string = "default-user") {
       } else {
         setConversations(conversationsWithDates);
       }
+
+      // 启动阶段优先恢复本地已选会话；若本地无效则回退到最新会话。
+      if (preferredConversationId !== undefined) {
+        const exists = conversationsWithDates.some((conv: Conversation) => conv.id === preferredConversationId);
+        if (preferredConversationId && exists) {
+          setCurrentConversationId(preferredConversationId);
+          localStorage.setItem(CURRENT_CONVERSATION_KEY, preferredConversationId);
+        } else if (conversationsWithDates.length > 0) {
+          const latestConversationId = conversationsWithDates[0].id;
+          setCurrentConversationId(latestConversationId);
+          localStorage.setItem(CURRENT_CONVERSATION_KEY, latestConversationId);
+        } else {
+          setCurrentConversationId(null);
+          localStorage.removeItem(CURRENT_CONVERSATION_KEY);
+        }
+      }
     } catch (err) {
       console.error("Failed to load conversations:", err);
       setError("Failed to load conversations");
@@ -58,14 +70,25 @@ export function useConversations(userId: string = "default-user") {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [userId]);
 
-  const loadCurrentConversation = () => {
-    const stored = localStorage.getItem(CURRENT_CONVERSATION_KEY);
-    if (stored) {
-      setCurrentConversationId(stored);
-    }
-  };
+  useEffect(() => {
+    let cancelled = false;
+
+    const bootstrap = async () => {
+      const storedConversationId = localStorage.getItem(CURRENT_CONVERSATION_KEY);
+      await loadConversations(storedConversationId);
+      if (!cancelled) {
+        setHasBootstrapped(true);
+      }
+    };
+
+    bootstrap();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userId, loadConversations]);
 
   const createConversation = useCallback(async (title?: string, initialMessages?: Message[]) => {
     try {
@@ -290,6 +313,7 @@ export function useConversations(userId: string = "default-user") {
     conversations,
     currentConversation,
     currentConversationId,
+    hasBootstrapped,
     isLoading,
     error,
     createConversation,

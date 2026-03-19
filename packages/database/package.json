@@ -16,7 +16,8 @@
     "clean": "rm -rf dist",
     "type-check": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "test": "jest"
+    "test": "jest",
+    "test:unit": "tsx --test src/**/*.test.ts"
   },
   "keywords": [
     "database",
@@ -36,6 +37,7 @@
     "@types/node": "^20.11.0",
     "prisma": "^5.7.0",
     "ts-node": "^10.9.2",
+    "tsx": "^4.20.6",
     "typescript": "^5.3.3"
   }
 }
