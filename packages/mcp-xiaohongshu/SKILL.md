@@ -231,6 +231,17 @@ const response = await modelWithTools.invoke([
 2. 减少加载的评论数量
 3. 避免不必要的详情获取
 
+### 联调时前端资源 404（补充）
+
+如果联调时 Web 端出现 `/_next/static/*` 404（即页面打开但静态资源失败）：
+
+1. 优先使用项目根目录统一脚本重启：`./stop-all.sh && ./start-all.sh`
+2. 查看日志是否真实输出到：
+   - `/tmp/web-service.log`
+   - `/tmp/mcp-service.log`
+3. 先确认 Web 可达，再确认 `_next` 静态资源可达，避免仅凭首页 200 判断“服务正常”
+4. 若仍异常，保留失败 URL 和日志片段，再继续分析是否为进程退出或缓存问题
+
 ## 参考资料
 
 - [xiaohongshu-mcp GitHub 仓库](https://github.com/xpzouying/xiaohongshu-mcp)
