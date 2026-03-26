@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  transpilePackages: ["@civil-agent/core", "@civil-agent/agent-langgraph"],
+  transpilePackages: ["@civil-agent/core", "@civil-agent/agent-langgraph", "@civil-agent/scheduler"],
   webpack: (config, { isServer }) => {
     // 排除chromadb相关的包
     config.externals = config.externals || [];

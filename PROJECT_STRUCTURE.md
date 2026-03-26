@@ -1,413 +1,156 @@
-# 考公 Agent 项目结构设计
+# 考公 Agent 项目结构说明
 
+> 状态说明（2026-03-26）：
+> 本文档用于描述当前仓库的真实结构。旧版本中关于 `docs/`、`data/`、`scripts/` 的目录树以及“第几周做什么”的计划表，已经不再适合作为当前结构依据。
 
-**版本**: v1.0
-**创建日期**: 2025-01-23
-**设计理念**: 渐进式开发 + 模块化 SKILL.md 规范
+## 根目录当前重点文件
 
----
+当前更值得关注的根目录文件包括：
 
-## 📋 目录结构总览
+1. [README.md](/Users/sxh/Code/project/civil_agent/README.md)
+2. [0318.md](/Users/sxh/Code/project/civil_agent/0318.md)
+3. [STARTUP_GUIDE.md](/Users/sxh/Code/project/civil_agent/STARTUP_GUIDE.md)
+4. [QUICK_START.md](/Users/sxh/Code/project/civil_agent/QUICK_START.md)
+5. [SKILL.md](/Users/sxh/Code/project/civil_agent/SKILL.md)
+6. `package.json`
+7. `pnpm-workspace.yaml`
+8. `start-all.sh`
+9. `stop-all.sh`
+10. `test-all.sh`
 
-```
-civil-service-agent/
-├── README.md                          # 项目总览
-├── PROJECT_STRUCTURE.md               # 本文档：项目结构设计
-├── package.json                       # 根配置文件
-├── pnpm-workspace.yaml                # Monorepo 配置
-├── .gitignore                         # Git 忽略文件
-│
-├── docs/                              # 文档目录
-│   ├── DEVELOPMENT_GUIDE.md           # 开发指南
-│   ├── API_REFERENCE.md               # API 接口文档
-│   └── DEPLOYMENT.md                  # 部署指南
-│
-├── packages/                          # Monorepo 包管理
-│   │
-│   ├── core/                          # 核心包（共享代码）
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   ├── src/
-│   │   │   ├── types/                 # 共享类型定义
-│   │   │   ├── utils/                 # 工具函数
-│   │   │   └── constants/             # 常量定义
-│   │   └── SKILL.md                   # 核心包技能文档
-│   │
-│   ├── mcp-bailian-rag/               # 阿里云百炼 RAG MCP
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   ├── src/
-│   │   │   ├── index.ts               # MCP 服务器入口
-│   │   │   ├── tools/                 # MCP 工具定义
-│   │   │   ├── retrievers/            # 检索器模块
-│   │   │   └── config/                # 配置文件
-│   │   └── SKILL.md                   # 百炼 RAG 技能文档
-│   │
-│   ├── mcp-feishu-tasks/              # 飞书任务 MCP
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   ├── src/
-│   │   │   ├── index.ts               # MCP 服务器入口
-│   │   │   ├── tools/                 # MCP 工具定义
-│   │   │   ├── client/                # 飞书 API 客户端
-│   │   │   └── config/                # 配置文件
-│   │   └── SKILL.md                   # 飞书任务技能文档
-│   │
-│   ├── agent-langgraph/               # LangGraph Agent 引擎
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   ├── src/
-│   │   │   ├── index.ts               # Agent 入口
-│   │   │   ├── graph/                 # LangGraph 状态机
-│   │   │   ├── tools/                 # Agent 工具集成
-│   │   │   ├── prompts/               # 提示词工程
-│   │   │   └── middleware/            # 中间件
-│   │   └── SKILL.md                   # Agent 技能文档
-│   │
-│   ├── scheduler/                     # 定时任务调度器
-│   │   ├── package.json
-│   │   ├── tsconfig.json
-│   │   ├── src/
-│   │   │   ├── index.ts
-│   │   │   ├── jobs/                  # 定时任务定义
-│   │   │   ├── queue/                 # 任务队列
-│   │   │   └── config/                # 配置文件
-│   │   └── SKILL.md                   # 调度器技能文档
-│   │
-│   └── web/                           # Next.js Web 应用
-│       ├── package.json
-│       ├── tsconfig.json
-│       ├── next.config.js
-│       ├── tailwind.config.ts
-│       ├── src/
-│       │   ├── app/                   # App Router
-│       │   ├── components/            # UI 组件
-│       │   ├── lib/                   # 工具库
-│       │   └── hooks/                 # React Hooks
-│       └── SKILL.md                   # Web 应用技能文档
-│
-├── data/                              # 数据目录
-│   ├── knowledge-base/                # 知识库文档
-│   │   ├── user-history/              # 用户学习历史
-│   │   └── exam-experience/           # 备考经验
-│   └── mock/                          # Mock 数据
-│
-└── scripts/                           # 脚本目录
-    ├── setup-env.sh                   # 环境设置
-    ├── init-knowledge-base.sh         # 初始化知识库
-    └── seed-data.sh                   # 数据填充
-```
+## packages 目录当前实际结构
 
----
+当前 `packages/` 下真实存在以下包：
 
-## 🎯 模块化设计理念
+1. `core`
+2. `mcp-bailian-rag`
+3. `mcp-feishu-tasks`
+4. `agent-langgraph`
+5. `scheduler`
+6. `web`
+7. `database`
+8. `mcp-xiaohongshu`
 
-### 核心思想
+## 各包职责
 
-每个 `packages/` 下的子包都是一个**独立的功能模块**，具有：
+### 1. `packages/core`
 
-1. **独立的 SKILL.md** - 描述该模块的功能、API、使用示例
-2. **独立的 package.json** - 管理依赖和脚本
-3. **独立的 tsconfig.json** - TypeScript 配置
-4. **清晰的依赖关系** - 模块间依赖单向流动
+职责：
 
-### 依赖关系图
+- 共享类型
+- 日志工具
+- 公共配置与常量
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                         web (前端)                          │
-│                    Next.js 14 + React                       │
-└──────────────────────┬──────────────────────────────────────┘
-                       │ 依赖
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   agent-langgraph                           │
-│              LangGraph 状态机 + Agent 逻辑                   │
-└──────────────────────┬──────────────────────────────────────┘
-                       │ 依赖
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│              scheduler (定时任务调度器)                      │
-│                   node-cron + Bull                          │
-└────┬──────────────────────────────────────┬─────────────────┘
-     │                                      │ 依赖
-     │ 依赖                                 ▼
-     ▼                    ┌─────────────────────────────────┐
-┌────────────────┐       │      mcp-feishu-tasks            │
-│ mcp-bailian-rag│       │    飞书任务 MCP 服务器            │
-│  百炼 RAG MCP   │       └─────────────────────────────────┘
-└────────────────┘
-     │
-     │ 依赖
-     ▼
-┌─────────────────────────────────────────────────────────────┐
-│                       core (核心包)                         │
-│              共享类型、工具、常量                            │
-└─────────────────────────────────────────────────────────────┘
+### 2. `packages/mcp-bailian-rag`
+
+职责：
+
+- 百炼知识库检索
+- 文档上传
+- HTTP 服务对外暴露检索能力
+
+### 3. `packages/mcp-feishu-tasks`
+
+职责：
+
+- 飞书任务 MCP 工具封装
+- 任务创建、查询、更新等能力
+
+### 4. `packages/agent-langgraph`
+
+职责：
+
+- LangGraph 对话状态机
+- 意图识别与节点编排
+- 工具调用路由
+- 本地知识优先的考公经验问答增强
+
+### 5. `packages/scheduler`
+
+职责：
+
+- 定时任务
+- 小红书同步任务编排
+- 详情重试与后台处理
+
+### 6. `packages/web`
+
+职责：
+
+- Next.js 前端
+- 聊天页面与会话管理
+- Dashboard 与小红书同步看板
+- API 路由聚合
+
+### 7. `packages/database`
+
+职责：
+
+- Prisma schema
+- SQLite 持久化
+- Repository / Service 封装
+- 向量同步与数据服务
+
+### 8. `packages/mcp-xiaohongshu`
+
+职责：
+
+- 小红书 MCP 客户端封装
+- 搜索、详情、登录状态等能力
+- 与外部 MCP 二进制服务对接
+
+## 当前主链路
+
+从系统角度看，当前项目的主链路更接近：
+
+```text
+Web
+  -> Agent API
+  -> agent-langgraph
+     -> mcp-bailian-rag
+     -> mcp-xiaohongshu
+     -> database
+  -> scheduler
+     -> 小红书同步任务
+     -> database
 ```
 
----
+## 当前结构认知上的几个注意点
 
-## 📚 SKILL.md 规范
+### 1. 不能再假设只有 6 个包
 
-每个模块的 `SKILL.md` 文件遵循统一的结构：
+当前仓库不是最初那版 6 包结构，而是至少 8 个包，并且：
 
-```markdown
-# [模块名称] 技能文档
+- `database` 不是“以后再建”
+- `mcp-xiaohongshu` 不是“外部工具占位”
 
-**模块类型**: [MCP服务器 | Agent引擎 | Web应用 | 核心库]
-**开发状态**: [📅 计划中 | 🚧 开发中 | ✅ 已完成]
-**优先级**: [P0 | P1 | P2]
-**预计周期**: [X 天]
+### 2. 不能再按不存在的目录理解项目
 
----
+旧文档里提到的：
 
-## 📖 模块概述
+- `docs/`
+- `data/`
+- `scripts/`
 
-[简要描述该模块的功能、职责、核心价值]
+并不是当前仓库理解项目结构的核心入口，至少不应再作为 README 级别的结构图主干。
 
----
+### 3. 阶段计划不等于当前结构
 
-## 🎯 核心功能
+“第 1 周做什么、第 2 周做什么”这类计划表有历史价值，但已经不适合作为当前结构说明。
 
-### 功能1: [功能名称]
+## 建议阅读顺序
 
-**功能描述**: [详细描述]
+如果现在要快速建立对项目的正确认知，建议按下面顺序读：
 
-**使用场景**: [场景描述]
+1. [README.md](/Users/sxh/Code/project/civil_agent/README.md)
+2. [0318.md](/Users/sxh/Code/project/civil_agent/0318.md)
+3. 本文档
+4. 各包下的 `SKILL.md`
 
-**API 示例**:
-```typescript
-// 代码示例
-```
+## 当前结论
 
----
+项目结构本身已经比较稳定，当前工作的重点不再是“继续拆包”，而是：
 
-## 🔧 技术实现
-
-### 技术栈
-
-- [技术1]: [用途]
-- [技术2]: [用途]
-
----
-
-## 🔌 接口定义
-
-### 对外接口
-
-| 接口名称 | 类型 | 参数 | 返回值 | 说明 |
-|---------|------|------|--------|------|
-| [接口名] | [HTTP/MCP] | [参数说明] | [返回值说明] | [使用场景] |
-
----
-
-## 📝 依赖关系
-
-### 依赖的模块
-- `@civil-agent/core`: [共享类型]
-
-### 被依赖的模块
-- `@civil-agent/web`: [前端调用]
-
----
-
-## 🚀 开发指南
-
-### 本地开发
-
-```bash
-# 安装依赖
-pnpm install
-
-# 开发模式
-pnpm dev
-
-# 构建
-pnpm build
-
-# 测试
-pnpm test
-```
-
----
-
-## 📋 待办事项
-
-- [ ] 任务1: [描述] (预计 X 天)
-- [ ] 任务2: [描述] (预计 X 天)
-```
-
----
-
-## 🗓️ 渐进式开发计划
-
-### Phase 1: 基础设施（第1周）
-
-#### Day 1-2: 核心包（core）
-
-**文件**: `packages/core/SKILL.md`
-
-**任务清单**:
-- [ ] 定义共享类型（agent.ts, rag.ts, mcp.ts）
-- [ ] 实现日志工具（logger.ts）
-- [ ] 实现错误处理（error.ts）
-- [ ] 定义提示词模板（prompts.ts）
-
-#### Day 3-4: 阿里云百炼 RAG MCP（mcp-bailian-rag）
-
-**文件**: `packages/mcp-bailian-rag/SKILL.md`
-
-**任务清单**:
-- [ ] 搭建 MCP 服务器框架
-- [ ] 实现百炼知识库搜索工具
-- [ ] 实现用户历史检索器
-- [ ] 实现备考经验检索器
-
----
-
-### Phase 2: 核心功能（第2周）
-
-#### Day 5-7: LangGraph Agent（agent-langgraph）
-
-**文件**: `packages/agent-langgraph/SKILL.md`
-
-**任务清单**:
-- [ ] 定义 GraphState 状态结构
-- [ ] 实现意图识别节点
-- [ ] 实现早晚问候节点
-- [ ] 实现任务生成节点
-- [ ] 实现情感支持节点
-
-#### Day 8-9: 飞书任务 MCP（mcp-feishu-tasks）
-
-**文件**: `packages/mcp-feishu-tasks/SKILL.md`
-
-**任务清单**:
-- [ ] 搭建飞书 API 客户端
-- [ ] 实现创建任务工具
-- [ ] 实现查询任务工具
-- [ ] 实现更新任务工具
-
----
-
-### Phase 3: 用户界面（第3周）
-
-#### Day 10-12: Web 应用（web - 核心页面）
-
-**文件**: `packages/web/SKILL.md`
-
-**任务清单**:
-- [ ] 搭建 Next.js 14 项目
-- [ ] 实现对话界面
-- [ ] 实现专注模式
-- [ ] 实现数据看板
-
-#### Day 13-14: Web 应用（web - 辅助页面）+ 调度器
-
-**任务清单**:
-- [ ] 实现任务管理页面
-- [ ] 实现学习日历页面
-- [ ] 实现个人中心页面
-- [ ] 实现定时任务调度器
-
----
-
-### Phase 4: 测试与优化（第4周）
-
-#### Day 15-21: 集成测试、部署、文档
-
----
-
-## 🔗 模块间通信协议
-
-### MCP 工具调用协议
-
-```typescript
-// Agent → MCP 服务器
-interface MCPToolCall {
-  tool: string;
-  params: Record<string, any>;
-}
-
-// MCP 服务器 → Agent
-interface MCPToolResponse {
-  success: boolean;
-  data?: any;
-  error?: string;
-}
-```
-
-### Agent ↔ Web 通信协议
-
-```typescript
-// Web → Agent
-interface AgentRequest {
-  message: string;
-  userId: string;
-  state?: GraphStateType;
-}
-
-// Agent → Web
-interface AgentResponse {
-  response: string;
-  quickReplies?: string[];
-  waitingForInput: boolean;
-  state?: GraphStateType;
-}
-```
-
----
-
-## 🛠️ 开发工具链
-
-### Monorepo 管理
-
-```bash
-# 使用 pnpm workspace
-pnpm install
-pnpm --filter @civil-agent/web dev
-pnpm --filter @civil-agent/agent-langgraph test
-```
-
-### 代码规范
-
-```bash
-pnpm lint           # 检查代码规范
-pnpm format         # 格式化代码
-pnpm type-check     # 类型检查
-```
-
----
-
-## 📊 开发进度追踪
-
-| 模块 | 负责人 | 状态 | 进度 | 预计完成时间 |
-|------|--------|------|------|-------------|
-| core | - | 📅 计划中 | 0% | Day 2 |
-| mcp-bailian-rag | - | 📅 计划中 | 0% | Day 4 |
-| agent-langgraph | - | 📅 计划中 | 0% | Day 7 |
-| mcp-feishu-tasks | - | 📅 计划中 | 0% | Day 9 |
-| web | - | 📅 计划中 | 0% | Day 12 |
-| scheduler | - | 📅 计划中 | 0% | Day 14 |
-
----
-
-## 🎓 学习资源
-
-### 必读文档
-
-1. **LangGraph 官方文档**: https://langchain-ai.github.io/langgraph/
-2. **MCP 协议规范**: https://modelcontextprotocol.io/
-3. **阿里云百炼文档**: https://help.aliyun.com/zh/dashscope/
-4. **飞书开放平台**: https://open.feishu.cn/
-
-### 参考项目
-
-- LangGraph.js Examples: https://github.com/langchain-ai/langgraph-js
-
----
-
-**文档版本**: v1.0
-**最后更新**: 2025-01-23
-**维护者**: sxh
+1. 让现有包之间的联调更稳
+2. 让文档与代码保持一致
+3. 让新增能力能够被清楚观察和验证

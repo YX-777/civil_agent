@@ -128,6 +128,7 @@ export * from "./jobs/morning-greeting";
 export * from "./jobs/evening-review";
 export * from "./jobs/anomaly-check";
 export * from "./jobs/weekly-xiaohongshu-sync";
+export * from "./jobs/xiaohongshu-retry";
 export * from "./queue/bull-queue";
 export * from "./queue/processors";
 

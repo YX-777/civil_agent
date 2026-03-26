@@ -6,7 +6,11 @@ const CURRENT_CONVERSATION_KEY = "currentConversationId";
 export function useConversations(userId: string = "default-user") {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [currentConversationId, setCurrentConversationId] = useState<string | null>(null);
+  // loading 初始值保持 true，确保首轮 bootstrap 完成前页面不会误判成“无会话”，
+  // 这是之前避免刷新后重复创建空白会话的关键之一。
   const [isLoading, setIsLoading] = useState(true);
+  // hasBootstrapped 专门表示“首轮会话恢复逻辑已经跑完”，
+  // 它和 isLoading 不是一回事：前者管初始化竞态，后者管请求中的 UI 状态。
   const [hasBootstrapped, setHasBootstrapped] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -32,7 +36,7 @@ export function useConversations(userId: string = "default-user") {
       if (conversationsWithDates.length > 0) {
         setConversations(conversationsWithDates);
         
-        // 注册到内存存储
+        // 注册到内存存储，让当前页面中的消息视图和后续会话切换能直接复用已拉到的数据。
         const { conversations: convStore } = await import("@/lib/conversation-store");
         conversationsWithDates.forEach((conv: any) => {
           convStore.set(conv.id, {
@@ -49,6 +53,7 @@ export function useConversations(userId: string = "default-user") {
       }
 
       // 启动阶段优先恢复本地已选会话；若本地无效则回退到最新会话。
+      // 这里不能在每次 load 时都盲目创建新会话，否则刷新页面时会不断堆积空白会话。
       if (preferredConversationId !== undefined) {
         const exists = conversationsWithDates.some((conv: Conversation) => conv.id === preferredConversationId);
         if (preferredConversationId && exists) {
@@ -76,6 +81,8 @@ export function useConversations(userId: string = "default-user") {
     let cancelled = false;
 
     const bootstrap = async () => {
+      // 首次进入页面时，先尝试恢复上次 localStorage 记住的会话，
+      // 只有它无效时才回退到最近一条会话。
       const storedConversationId = localStorage.getItem(CURRENT_CONVERSATION_KEY);
       await loadConversations(storedConversationId);
       if (!cancelled) {
@@ -127,11 +134,11 @@ export function useConversations(userId: string = "default-user") {
         return updated;
       });
 
-      // 立即切换到新会话
+      // 创建完成后立即切过去，并同步写入 localStorage，避免后续刷新又回到旧会话。
       setCurrentConversationId(newConversation.id);
       localStorage.setItem(CURRENT_CONVERSATION_KEY, newConversation.id);
 
-      // 注册到内存存储，让 Agent API 能找到这个会话
+      // 注册到内存存储，让当前页无需重新请求就能马上使用这条会话。
       const { conversations: convStore } = await import("@/lib/conversation-store");
       convStore.set(newConversation.id, {
         id: newConversation.id,
@@ -174,7 +181,7 @@ export function useConversations(userId: string = "default-user") {
         })),
       };
 
-      // 更新会话列表中的消息
+      // 这里不仅是“拉一条会话详情”，也会把列表里对应会话的消息和时间一起刷新掉。
       setConversations((prev) =>
         prev.map((c) => c.id === conversationId ? conversation : c)
       );
@@ -224,6 +231,8 @@ export function useConversations(userId: string = "default-user") {
       convStore.delete(conversationId);
 
       if (currentConversationId === conversationId) {
+        // 当前选中会话被删掉时，先清空 currentConversationId，
+        // 让上层决定是切到其他会话还是提示用户新建。
         setCurrentConversationId(null);
         localStorage.removeItem(CURRENT_CONVERSATION_KEY);
       }
@@ -237,6 +246,7 @@ export function useConversations(userId: string = "default-user") {
   const switchConversation = useCallback(async (conversationId: string) => {
     try {
       setError(null);
+      // 先切 currentConversationId，再拉详情，用户点击历史会话时界面反馈会更即时。
       setCurrentConversationId(conversationId);
       localStorage.setItem(CURRENT_CONVERSATION_KEY, conversationId);
       
@@ -257,7 +267,7 @@ export function useConversations(userId: string = "default-user") {
           : c
       );
       
-      // 更新内存存储
+      // 标题或消息在前端先行更新时，也同步刷新内存存储，保持当前页数据一致。
       const conversation = updated.find(c => c.id === conversationId);
       if (conversation) {
         import("@/lib/conversation-store").then(({ conversations: convStore }) => {

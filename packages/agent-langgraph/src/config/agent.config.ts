@@ -97,7 +97,6 @@ export function updateAgentConfig(partialConfig: Partial<AgentConfig>): AgentCon
  * 验证 Agent 配置
  */
 export function validateAgentConfig(config: AgentConfig): boolean {
-  console.log(config.llm, '==== config.llm ==');
   if (!config.llm.model) {
     throw new Error("LLM model is required");
   }

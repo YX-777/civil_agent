@@ -12,6 +12,7 @@ export function useAgent(
   const abortControllerRef = useRef<AbortController | null>(null);
   const currentContentRef = useRef<string>("");
   const isInitializedRef = useRef(false);
+  // 用 ref 保存当前 conversationId，避免流式回调里拿到旧闭包值。
   const currentConversationIdRef = useRef<string | undefined>(conversationId);
   const prevConversationIdRef = useRef<string | undefined>(conversationId);
 
@@ -26,6 +27,7 @@ export function useAgent(
 
   useEffect(() => {
     // 只有在没有会话ID且没有消息时才显示欢迎消息
+    // 一旦已经绑定具体会话，就不再插入欢迎消息，避免污染真实历史消息。
     if (!conversationId && !isInitializedRef.current && messages.length === 0) {
       const welcomeMessage: Message = {
         id: "welcome",
@@ -114,6 +116,8 @@ export function useAgent(
               const data = JSON.parse(line.slice(6));
 
               if (data.type === "chunk") {
+                // chunk 阶段只负责把 assistant 当前输出流式拼起来，
+                // 真正的数据库提交由服务端在 done 前统一处理。
                 currentContentRef.current += data.content;
                 setMessages((prev) =>
                   prev.map((msg) =>
@@ -137,6 +141,8 @@ export function useAgent(
                 }
               } else if (data.type === "error") {
                 console.error("Stream error:", data.error);
+                // 服务端 error 事件说明这一轮没正常完成，这里只在前端补一个可见错误提示，
+                // 不试图伪造成功提交状态。
                 const errorMessage = currentContentRef.current + "\n\n抱歉，处理您的消息时出现了错误。";
                 setMessages((prev) =>
                   prev.map((msg) =>
@@ -155,6 +161,8 @@ export function useAgent(
         if (buffer.trim() && buffer.startsWith("data: ")) {
           try {
             const data = JSON.parse(buffer.slice(6));
+            // 这里处理最后一个 data 包仍留在 buffer 中的情况，
+            // 避免 done 恰好卡在分片边界时被漏掉。
             if (data.type === "done" && !doneHandled) {
               doneHandled = true;
               if (data.quickReplies && data.quickReplies.length > 0) {
@@ -175,6 +183,7 @@ export function useAgent(
       console.error("Failed to send message:", error);
       
       if ((error as any).name !== "AbortError") {
+        // 网络失败时保留已经收到的 partial content，避免用户完全看不到模型刚才输出到哪一步。
         const errorMessage = currentContentRef.current + "\n\n抱歉，服务暂时不可用。请稍后再试。";
         setMessages((prev) =>
           prev.map((msg) =>
@@ -196,6 +205,8 @@ export function useAgent(
 
   const setMessagesExternal = useCallback((newMessages: Message[]) => {
     setMessages(newMessages);
+    // 外部显式写入消息（如切换会话回填历史）后，标记为已初始化，
+    // 避免欢迎消息逻辑再次插入。
     isInitializedRef.current = true;
   }, []);
 

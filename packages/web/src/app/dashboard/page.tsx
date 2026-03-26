@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Layout, Card, Button, Progress, Row, Col, Alert, Radio, Spin, Result } from "antd";
 import { ClockCircleOutlined, LineChartOutlined, FireOutlined, BulbOutlined } from "@ant-design/icons";
+import Link from "next/link";
 import { useStats } from "@/hooks/use-stats";
 import Navbar from "@/components/shared/Navbar";
 import BottomNav from "@/components/shared/BottomNav";
@@ -75,15 +76,20 @@ export default function DashboardPage() {
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
           <div style={{ marginBottom: 24 }}>
             <h1 style={{ fontSize: 28, fontWeight: "bold", marginBottom: 16 }}>数据看板</h1>
-            <Radio.Group
-              value={timeRange}
-              onChange={(e) => setTimeRange(e.target.value)}
-              buttonStyle="solid"
-            >
-              <Radio.Button value="week">最近一周</Radio.Button>
-              <Radio.Button value="month">最近一月</Radio.Button>
-              <Radio.Button value="all">全部</Radio.Button>
-            </Radio.Group>
+            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+              <Radio.Group
+                value={timeRange}
+                onChange={(e) => setTimeRange(e.target.value)}
+                buttonStyle="solid"
+              >
+                <Radio.Button value="week">最近一周</Radio.Button>
+                <Radio.Button value="month">最近一月</Radio.Button>
+                <Radio.Button value="all">全部</Radio.Button>
+              </Radio.Group>
+              <Link href="/dashboard/xiaohongshu">
+                <Button type="primary">查看小红书同步看板</Button>
+              </Link>
+            </div>
           </div>
 
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>

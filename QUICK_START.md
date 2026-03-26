@@ -1,13 +1,15 @@
-# 🚀 考公 Agent 快速开始指南
+# 考公 Agent 快速开始指南
 
-欢迎来到考公 Agent 项目！这是一个基于 AI 的备考陪伴系统，使用 LangGraph、阿里云百炼、飞书任务等技术栈。
+> 状态说明（2026-03-26）：
+> 本文档保留“快速上手”用途，但项目当前已经包含小红书同步、同步看板、会话持久化等增量能力。详细真实进展请看 `0318.md`。
+
+欢迎来到考公 Agent 项目。这是一个基于 AI 的备考陪伴系统，当前主要使用 LangGraph、阿里云百炼、SQLite/Prisma、小红书 MCP 等技术栈。
 
 ## 📋 前置要求
 
 - Node.js 18+
 - pnpm 8+
 - Git
-- Anthropic API Key（用于 Claude）
 - 阿里云百炼 API Key
 - 飞书开放平台账号
 
@@ -38,10 +40,8 @@ cp .env.example .env
 **必需的环境变量**：
 
 ```bash
-# Anthropic API（Claude）
-ANTHROPIC_API_KEY=your_anthropic_api_key
-
-# 阿里云百炼
+# 阿里云百炼 / 千问兼容接口
+DASHSCOPE_API_KEY=your_dashscope_api_key
 BAILIAN_API_KEY=your_bailian_api_key
 BAILIAN_KNOWLEDGE_BASE_ID=your_kb_id
 
@@ -64,10 +64,8 @@ pnpm --filter @civil-agent/mcp-bailian-rag init-kb
 ### 4. 启动开发服务器
 
 ```bash
-# 启动 Web 应用
-pnpm dev
-
-# 访问 http://localhost:3000
+# 推荐一键启动
+./start-all.sh
 ```
 
 ## 📚 项目结构
@@ -81,9 +79,11 @@ civil-service-agent/
 │   ├── agent-langgraph/         # LangGraph Agent 引擎
 │   ├── scheduler/               # 定时任务调度器
 │   └── web/                     # Next.js Web 应用
-├── docs/                        # 文档
-├── data/                        # 数据文件
-└── scripts/                     # 脚本
+│   ├── database/                # Prisma + SQLite
+│   └── mcp-xiaohongshu/         # 小红书 MCP 客户端封装
+├── 0318.md                      # 当前阶段记录
+├── STARTUP_GUIDE.md             # 启动指南
+└── SKILL.md                     # 小红书 + Agent 方案文档
 ```
 
 ## 🎯 核心功能
@@ -103,7 +103,7 @@ civil-service-agent/
 ### 3. RAG 知识检索
 - 用户学习历史检索
 - 备考经验检索
-- 90%+ 召回准确率
+- 基于本地知识库的检索增强
 
 ### 4. 定时任务
 - 早安问候（8:00）
@@ -114,6 +114,7 @@ civil-service-agent/
 - 学习进度统计
 - 正确率趋势
 - 薄弱模块分析
+- 小红书同步看板
 
 ### 6. 专注模式
 - 计时器
@@ -141,12 +142,17 @@ civil-service-agent/
 - [ ] 部署上线
 - [ ] 文档完善
 
+### 当前补充进展
+- [x] 小红书搜索 -> 详情 -> 正文提取 -> 去重入库
+- [x] Agent 命中考公经验类问题时优先查询本地知识
+- [x] 小红书同步可视化看板与单条失败样本重试
+
 ## 📖 文档
 
 ### 必读文档
 1. **项目结构**: `PROJECT_STRUCTURE.md`
 2. **模块文档**: 每个模块的 `SKILL.md`
-3. **完成总结**: `PROJECT_COMPLETION_SUMMARY.md`
+3. **阶段记录**: `0318.md`
 
 ### SKILL.md 位置
 每个模块都有详细的 SKILL.md 文档：
@@ -167,7 +173,7 @@ packages/web/SKILL.md
 pnpm install
 
 # 开发模式（Web 应用）
-pnpm dev
+pnpm --filter @civil-agent/web dev
 
 # 构建所有包
 pnpm build
@@ -193,9 +199,6 @@ pnpm clean
 ```bash
 # 开发 core 包
 pnpm --filter @civil-agent/core dev
-
-# 开发 agent-langgraph 包
-pnpm --filter @civil-agent/agent-langgraph dev
 
 # 开发 web 包
 pnpm --filter @civil-agent/web dev
@@ -233,18 +236,18 @@ pnpm --filter @civil-agent/agent-langgraph dev
 #### MCP 服务器调试
 
 ```bash
-# 启动 MCP 服务器
-pnpm --filter @civil-agent/mcp-bailian-rag dev
+# 启动 MCP HTTP 服务
+pnpm --filter @civil-agent/mcp-bailian-rag start:http
 
-# 在 Claude Desktop 中配置
-# ~/.config/Claude/claude_desktop_config.json
+# 查看 HTTP 服务
+# http://localhost:3002/health
 ```
 
 #### Web 应用调试
 
 ```bash
 # 启动开发服务器
-pnpm dev
+pnpm --filter @civil-agent/web dev
 
 # 访问 http://localhost:3000
 # 使用浏览器 DevTools 调试

@@ -80,10 +80,12 @@ start_mcp_server() {
   # ./xiaohongshu-mcp-darwin-arm64 -headless=false
   (
     cd "$BIN_DIR"
-    ./xiaohongshu-mcp-darwin-arm64
-  ) >"$LOG_FILE" 2>&1 &
+    # 使用 nohup 脱离当前启动脚本，避免脚本退出后后台 MCP 进程一并被回收。
+    nohup ./xiaohongshu-mcp-darwin-arm64 >"$LOG_FILE" 2>&1 < /dev/null &
+    echo $! > "$PID_FILE"
+  )
 
-  MCP_PID=$!
+  MCP_PID=$(cat "$PID_FILE")
   echo "$MCP_PID" > "$PID_FILE"
   echo "   MCP 服务进程已启动，PID=$MCP_PID"
 

@@ -20,6 +20,9 @@
     "paths": {
       "@/*": [
         "./src/*"
+      ],
+      "@civil-agent/scheduler": [
+        "../scheduler/src/index.ts"
       ]
     },
     "plugins": [

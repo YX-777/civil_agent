@@ -15,6 +15,11 @@ import { getEmotionDetector } from "../middleware/emotion-detector";
 import { getContextEnhancer } from "../middleware/context-enhancer";
 import { getAgentConfig } from "../config/agent.config";
 import type { GraphStateType } from "./state";
+import {
+  buildGeneralAnswerPrompt,
+  resolveXiaohongshuKnowledge,
+  shouldRouteToXiaohongshuRag,
+} from "./xiaohongshu-rag";
 
 /**
  * 创建 LLM 实例
@@ -180,6 +185,8 @@ export async function taskGenerationNode(
 
     let ragContext = "";
     if (ragResult.success && ragResult.data?.results?.length > 0) {
+      // 这里先用最轻量的拼接方式把历史学习信息带给模型，
+      // 后续如果任务生成需要更强结构化，再单独升级 prompt 组织方式。
       ragContext = ragResult.data.results.map((r: any) => r.content).join("\n");
     }
 
@@ -247,6 +254,8 @@ export async function emotionSupportNode(
 
     let ragContext = "";
     if (ragResult.success && ragResult.data?.results?.length > 0) {
+      // 情感支持场景下，RAG 的作用是补“别人怎么走出来”的经验语境，
+      // 不是机械罗列知识点，所以这里只保留可直接转成安抚建议的内容。
       ragContext = ragResult.data.results.map((r: any) => r.content).join("\n");
     }
 
@@ -345,11 +354,25 @@ export async function generalQANode(
 
     const contextEnhancer = getContextEnhancer();
     const enhancedMessage = await contextEnhancer.enhanceUserMessage(state.userId, content);
+    const config = getAgentConfig();
+    const mcpClient = getMCPToolClient();
+
+    // 命中考公经验类白名单时，优先查本地沉淀的小红书经验，不触发实时搜索。
+    const ragResult =
+      config.features.ragEnabled && shouldRouteToXiaohongshuRag(content)
+        ? await mcpClient.searchKnowledge({
+            query: content,
+            category: "exam_experience",
+            topK: 3,
+          })
+        : { success: false };
+    const routedKnowledge = resolveXiaohongshuKnowledge(content, ragResult);
+    const userPrompt = buildGeneralAnswerPrompt(enhancedMessage, routedKnowledge);
 
     const systemPrompt = SYSTEM_PROMPTS.DEFAULT;
     const response = await llm.invoke([
       new SystemMessage(systemPrompt),
-      new HumanMessage(enhancedMessage),
+      new HumanMessage(userPrompt),
     ]);
 
     LogTools.logAgentDecision(state.userId, state.userIntent, "General QA");
@@ -358,6 +381,7 @@ export async function generalQANode(
       messages: [...state.messages, new AIMessage(response.content as string)],
       quickReplyOptions: [],
       waitingForUserInput: false,
+      ragResults: routedKnowledge.ragResults,
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -400,6 +424,20 @@ export async function* generalQANodeStream(
 
     const contextEnhancer = getContextEnhancer();
     const enhancedMessage = await contextEnhancer.enhanceUserMessage(state.userId, content);
+    const config = getAgentConfig();
+    const mcpClient = getMCPToolClient();
+
+    // 流式回答与非流式保持同一套检索路由，避免刷新后出现行为不一致。
+    const ragResult =
+      config.features.ragEnabled && shouldRouteToXiaohongshuRag(content)
+        ? await mcpClient.searchKnowledge({
+            query: content,
+            category: "exam_experience",
+            topK: 3,
+          })
+        : { success: false };
+    const routedKnowledge = resolveXiaohongshuKnowledge(content, ragResult);
+    const userPrompt = buildGeneralAnswerPrompt(enhancedMessage, routedKnowledge);
 
     const systemPrompt = SYSTEM_PROMPTS.DEFAULT;
     
@@ -417,7 +455,7 @@ export async function* generalQANodeStream(
         }
         return new HumanMessage(msg.content);
       }),
-      new HumanMessage(enhancedMessage),
+      new HumanMessage(userPrompt),
     ]);
 
     let fullContent = "";
@@ -434,6 +472,7 @@ export async function* generalQANodeStream(
       messages: [...state.messages, new AIMessage(fullContent)],
       quickReplyOptions: [],
       waitingForUserInput: false,
+      ragResults: routedKnowledge.ragResults,
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));

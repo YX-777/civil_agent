@@ -57,3 +57,75 @@ export interface UserProfile {
   examDate: string;
   totalStudyDays: number;
 }
+
+export interface XhsDetailErrorBreakdown {
+  access_denied: number;
+  transient: number;
+  parse_empty: number;
+  login_required: number;
+  invalid_param: number;
+  lookup_miss?: number;
+  unknown: number;
+}
+
+export interface XhsSyncRunSummary {
+  id: string;
+  status: string;
+  requestedLimit: number;
+  fetchedCount: number;
+  insertedCount: number;
+  dedupedPostIdCount: number;
+  dedupedHashCount: number;
+  invalidCount: number;
+  failedCount: number;
+  detailErrorCount: number;
+  detailErrorBreakdown: XhsDetailErrorBreakdown;
+  createdAt: string;
+  endedAt?: string | null;
+}
+
+export interface XhsPostReportItem {
+  postId: string;
+  title: string;
+  authorName?: string | null;
+  keyword?: string | null;
+  status: string;
+  errorCategory?: string | null;
+  likeCount: number;
+  commentCount: number;
+  publishTime?: string | null;
+  updatedAt: string;
+  sourceUrl?: string | null;
+  contentPreview: string;
+  errorMessage?: string | null;
+}
+
+export interface XhsSyncDashboardData {
+  summary: {
+    totalRuns: number;
+    successRuns: number;
+    failedRuns: number;
+    totalPosts: number;
+    newPosts: number;
+    detailUnavailablePosts: number;
+  };
+  latestRun: XhsSyncRunSummary | null;
+  recentRuns: XhsSyncRunSummary[];
+  recentPosts: XhsPostReportItem[];
+  runTrend: Array<{
+    label: string;
+    fetchedCount: number;
+    insertedCount: number;
+    detailErrorCount: number;
+    transient: number;
+    parseEmpty: number;
+    accessDenied: number;
+    unknown: number;
+  }>;
+  keywordStats: Array<{
+    keyword: string;
+    totalPosts: number;
+    availablePosts: number;
+    detailUnavailablePosts: number;
+  }>;
+}

@@ -1,5 +1,8 @@
 # 项目启动指南
 
+> 状态说明（2026-03-26）：
+> 本文档描述的是当前仓库推荐启动方式。若与更早的规划文档冲突，请以本文件和 `0318.md` 为准。
+
 ## 🚀 快速启动
 
 ### 一键启动所有服务
@@ -22,7 +25,7 @@
 
 ## 🧪 测试服务
 
-运行完整的联调测试：
+运行联调测试：
 
 ```bash
 ./test-all.sh
@@ -60,7 +63,7 @@ npm run start:http
 ### 启动 Web 服务
 
 ```bash
-pnpm dev
+pnpm --filter @civil-agent/web dev
 ```
 
 ---
@@ -73,7 +76,7 @@ pnpm dev
 
 ```bash
 # 阿里云千问 API Key
-DASHSCOPE_API_KEY=sk-2b9b8a96b1af4c7196a713d768b4d468
+DASHSCOPE_API_KEY=your_dashscope_api_key
 
 # LangSmith Tracing
 LANGCHAIN_TRACING_V2=true
@@ -90,7 +93,7 @@ MCP_BAILIAN_RAG_URL=http://localhost:3002
 
 ```bash
 # 阿里云百炼 API
-BAILIAN_API_KEY=sk-2b9b8a96b1af4c7196a713d768b4d468
+BAILIAN_API_KEY=your_bailian_api_key
 BAILIAN_KNOWLEDGE_BASE_ID=fgweq786jm
 BAILIAN_API_ENDPOINT=https://dashscope.aliyuncs.com/api/v1
 
@@ -117,13 +120,10 @@ BAILIAN_MIN_SCORE=0.6
 
 ### 3. 查看日志
 
-服务运行时，日志会直接输出到终端。如果需要查看详细日志：
+当前推荐直接查看脚本输出的日志文件：
 
 ```bash
-# 查看实时日志
-./start-all.sh
-
-# 查看特定服务的日志（需要修改脚本输出到文件）
+# 查看特定服务的日志
 tail -f /tmp/mcp-service.log
 tail -f /tmp/web-service.log
 ```
@@ -168,9 +168,17 @@ cat packages/mcp-bailian-rag/.env
 ./start-all.sh
 ```
 
-### MCP 服务返回 404
+### 前端页面能打开但静态资源 404
 
-这是正常的，因为知识库可能还没有配置数据。系统会自动降级，不使用 RAG 功能，直接使用 LLM 生成回复。
+如果出现 `/_next/static/*` 404 或 `vendor-chunks` 资源报错：
+
+```bash
+./stop-all.sh
+rm -rf packages/web/.next
+./start-all.sh
+```
+
+这通常是 Next 开发态缓存错乱，不一定是业务代码问题。
 
 ---
 
@@ -191,17 +199,7 @@ cat packages/mcp-bailian-rag/.env
 
 **响应：**
 
-```json
-{
-  "content": "AI 回复内容",
-  "quickReplies": [
-    {
-      "text": "快速回复选项",
-      "intent": "general_qa"
-    }
-  ]
-}
-```
+当前主链路以流式响应为主，实际前端通过 SSE 消费回复，不应再按旧版一次性 JSON 返回结构理解。
 
 ### MCP API
 
@@ -223,9 +221,9 @@ cat packages/mcp-bailian-rag/.env
 
 现在你可以：
 
-1. ✅ 在浏览器中访问 http://localhost:3000
-2. ✅ 测试 AI 助手对话功能
-3. ✅ 查看各种功能模块（任务管理、学习日历等）
-4. ✅ 体验完整的公务员考试备考助手
+1. 访问 http://localhost:3000
+2. 测试 AI 助手对话功能
+3. 查看当前已接入的页面和看板能力
+4. 结合 `0318.md` 对照当前真实开发进展
 
-祝你使用愉快！🚀
+如需查看当前真实开发进展，请同步参考 `0318.md`。

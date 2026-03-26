@@ -1,173 +1,176 @@
-# AI备考陪伴教练 - 考公 Agent 项目
+# AI 备考陪伴教练 - 考公 Agent 项目
 
-一个基于 LangGraph + MCP + RAG 的智能考公备考陪伴系统。
+一个基于 `LangGraph + MCP + RAG + Next.js` 的考公备考陪伴系统。当前项目已经不是纯规划态，而是进入了“核心链路已落地、继续补齐联调与稳定性”的阶段。
 
-## 🎯 项目定位
+## 当前状态
 
-区别于传统刷题APP的冷冰冰，通过：
-- 🤖 **主动陪伴**：早晚问候 + 学习提醒
-- 💬 **情感支持**：识别焦虑，提供疏导
-- 📚 **智能建议**：基于RAG的个性化学习指导
-- ✅ **任务管理**：飞书任务MCP集成，智能规划学习
+截至 `2026-03-26`，仓库中已经真实存在并可运行的能力包括：
 
-## 🏗️ 技术架构
+1. Web 多会话聊天界面与会话管理
+2. LangGraph Agent 多轮对话与意图路由
+3. 百炼 RAG 检索服务
+4. SQLite + Prisma 数据持久化
+5. 小红书搜索 -> 详情 -> 正文提取 -> 去重入库链路
+6. Agent 命中考公经验类问题时优先查询本地知识
+7. 小红书同步看板与失败样本手动重试
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Web 前端 (Next.js 14)                     │
-│              6个页面: 对话/专注/看板/任务/日历/个人           │
-└──────────────────────┬──────────────────────────────────────┘
-                       │
-                       ▼
-┌─────────────────────────────────────────────────────────────┐
-│              LangGraph Agent (多轮对话引擎)                  │
-│         状态机管理 + 意图识别 + 快捷回复 + 情感支持           │
-└────┬──────────────────────────────────┬─────────────────────┘
-     │                                  │
-     ▼                                  ▼
-┌─────────────────┐          ┌─────────────────────────┐
-│ 百炼 RAG MCP    │          │   飞书任务 MCP           │
-│ • 用户学习历史   │          │   • 创建任务            │
-│ • 备考经验库     │          │   • 查询进度            │
-│ • 智能检索       │          │   • 自动分解            │
-└─────────────────┘          └─────────────────────────┘
-     │                                  │
-     └──────────────┬───────────────────┘
-                    ▼
-         ┌──────────────────────┐
-         │   核心包 (core)      │
-         │   类型 + 工具 + 常量   │
-         └──────────────────────┘
+如果需要看“当前真实代码状态、已完成项、剩余待办”，请优先阅读：
+
+- [0318.md](/Users/sxh/Code/project/civil_agent/0318.md)
+
+## 技术架构
+
+```text
+Web (Next.js 14)
+  -> Agent API / SSE
+  -> LangGraph Agent
+     -> 百炼 RAG MCP (HTTP)
+     -> 小红书 MCP 客户端
+     -> 数据库 Repository / Service
+  -> SQLite (Prisma)
+  -> Scheduler (定时任务 / 同步任务)
 ```
 
-## 📦 模块结构
+当前 `packages/` 下实际存在 8 个包：
 
-```
-civil-service-agent/
-├── packages/
-│   ├── core/                  # 核心包（共享代码）
-│   ├── mcp-bailian-rag/       # 阿里云百炼 RAG MCP
-│   ├── mcp-feishu-tasks/      # 飞书任务 MCP
-│   ├── agent-langgraph/       # LangGraph Agent 引擎
-│   ├── scheduler/             # 定时任务调度器
-│   └── web/                   # Next.js Web 应用
-├── docs/                      # 项目文档
-├── data/                      # 数据目录
-└── scripts/                   # 脚本目录
-```
+1. `core`
+2. `mcp-bailian-rag`
+3. `mcp-feishu-tasks`
+4. `agent-langgraph`
+5. `scheduler`
+6. `web`
+7. `database`
+8. `mcp-xiaohongshu`
 
-## 🚀 快速开始
+## 当前重点页面与接口
 
-### 环境要求
+### Web 页面
 
-- Node.js >= 18.0.0
-- pnpm >= 8.0.0
+- `/`：聊天主界面
+- `/dashboard`：总看板
+- `/dashboard/xiaohongshu`：小红书同步看板
+- `/focus`
+- `/tasks`
+- `/calendar`
+- `/profile`
 
-### 安装依赖
+### 关键接口
+
+- `/api/agent/chat`
+- `/api/conversations`
+- `/api/xhs-sync/report`
+- `/api/xhs-sync/retry`
+
+## 快速启动
+
+### 1. 安装依赖
 
 ```bash
 pnpm install
 ```
 
-### 配置环境变量
+### 2. 配置环境变量
 
 ```bash
 cp .env.example .env
-# 编辑 .env 文件，填入必要的 API Keys
 ```
 
-### 初始化知识库
+按当前代码，至少需要关注：
+
+- `DASHSCOPE_API_KEY`
+- `MCP_BAILIAN_RAG_URL`
+- 小红书 MCP 相关配置
+
+### 3. 一键启动
+
+推荐统一使用根目录脚本：
 
 ```bash
-pnpm --filter @civil-agent/mcp-bailian-rag init-kb
+./start-all.sh
 ```
 
-### 启动开发服务器
+停止服务：
 
 ```bash
-# 启动 Web 应用
-pnpm dev
-
-# 启动 MCP 服务器（需要单独启动）
-pnpm --filter @civil-agent/mcp-bailian-rag dev
-pnpm --filter @civil-agent/mcp-feishu-tasks dev
+./stop-all.sh
 ```
 
-## 📚 开发文档
+当前这套脚本会负责：
 
-每个模块都有独立的 `SKILL.md` 文档，详细说明：
+1. 启动 Web 服务（`3000`）
+2. 启动百炼 RAG HTTP 服务（`3002`）
+3. 输出日志到 `/tmp/web-service.log` 与 `/tmp/mcp-service.log`
+4. 校验 `_next` 静态资源是否可访问，减少“首页能开但资源 404”的误判
 
-- **packages/core/SKILL.md** - 核心包技能文档
-- **packages/mcp-bailian-rag/SKILL.md** - 百炼 RAG 技能文档
-- **packages/mcp-feishu-tasks/SKILL.md** - 飞书任务技能文档
-- **packages/agent-langgraph/SKILL.md** - Agent 技能文档
-- **packages/scheduler/SKILL.md** - 调度器技能文档
-- **packages/web/SKILL.md** - Web 应用技能文档
+## 小红书相关说明
 
-详细文档请查看 `docs/` 目录。
+当前项目对小红书数据的使用口径已经明确：
 
-## 🛠️ 开发命令
+1. 不抓首页推荐作为主链路
+2. 以搜索关键词为主：
+   - `杭州考公`
+   - `浙江省考`
+   - `杭州事业单位考试`
+   - 及同类备考经验词
+3. 同步结果先入本地库，再供 Agent 命中白名单问题时优先检索
+4. 不希望让 Agent 在用户提问时实时搜索小红书
+
+当前已落地能力：
+
+- 搜索结果详情抓取
+- 正文提取与评论摘录
+- 失败分类
+- 单条失败样本手动重试
+- Web 可视化同步看板
+
+## 开发文档
+
+与当前代码最相关的文档入口：
+
+- [0318.md](/Users/sxh/Code/project/civil_agent/0318.md)：当前真实阶段记录
+- [SKILL.md](/Users/sxh/Code/project/civil_agent/SKILL.md)：小红书 + Agent 增强总体方案
+- [packages/web/SKILL.md](/Users/sxh/Code/project/civil_agent/packages/web/SKILL.md)
+- [packages/agent-langgraph/SKILL.md](/Users/sxh/Code/project/civil_agent/packages/agent-langgraph/SKILL.md)
+- [packages/mcp-xiaohongshu/SKILL.md](/Users/sxh/Code/project/civil_agent/packages/mcp-xiaohongshu/SKILL.md)
+- [STARTUP_GUIDE.md](/Users/sxh/Code/project/civil_agent/STARTUP_GUIDE.md)
+
+## 常用命令
 
 ```bash
 # 安装依赖
 pnpm install
 
-# 开发模式
-pnpm dev
+# Web 开发
+pnpm --filter @civil-agent/web dev
 
-# 构建
-pnpm build
-
-# 测试
-pnpm test
-
-# 代码检查
-pnpm lint
+# 类型检查
 pnpm type-check
 
-# 格式化代码
-pnpm format
+# 构建指定包
+pnpm --filter @civil-agent/agent-langgraph build
+pnpm --filter @civil-agent/scheduler build
 
-# 清理
-pnpm clean
+# 运行单元测试
+pnpm --filter @civil-agent/agent-langgraph test:unit
+pnpm --filter @civil-agent/scheduler test:unit
 ```
 
-## 📊 开发进度
+## 当前已知事项
 
-| 模块 | 状态 | 进度 |
-|------|------|------|
-| core | 📅 计划中 | 0% |
-| mcp-bailian-rag | 📅 计划中 | 0% |
-| agent-langgraph | 📅 计划中 | 0% |
-| mcp-feishu-tasks | 📅 计划中 | 0% |
-| scheduler | 📅 计划中 | 0% |
-| web | 📅 计划中 | 0% |
+1. 仓库中部分旧文档仍保留早期规划口径，不能直接代表最新进度。
+2. Next.js 开发态如果出现 `/_next/static/*` 404 或 `vendor-chunks` 资源异常，优先执行：
+   - `./stop-all.sh`
+   - 清理 `packages/web/.next`
+   - `./start-all.sh`
+3. 小红书 MCP 是否“可达”不能只看 `GET /mcp` 是否返回 `200`，返回 `405` 也可能只是方法不允许，不代表服务未启动。
 
-## 🎓 技术栈
+## 下一阶段重点
 
-### 前端
-- Next.js 14 (App Router)
-- TailwindCSS + shadcn/ui
-- TypeScript
-- Framer Motion
+1. 会话状态源继续收口
+2. 小红书失败样本继续压缩
+3. 小红书看板筛选与诊断能力继续增强
+4. 继续统一根文档与包级文档口径
 
-### 后端
-- LangChain.js + LangGraph
-- 阿里云百炼知识库
-- 飞书开放平台 API
-- node-cron + Bull Queue
-
-### 数据库
-- Supabase (PostgreSQL)
-- 阿里云百炼（向量数据库）
-
-## 📄 许可证
+## 许可证
 
 MIT
-
-## 👨‍💻 作者
-
-sxh
-
----
-

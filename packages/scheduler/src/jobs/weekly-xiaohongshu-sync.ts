@@ -6,6 +6,15 @@
 import { logger } from "@civil-agent/core";
 import { getXiaohongshuMCPClient } from "@civil-agent/mcp-xiaohongshu";
 import { getPrismaClient, initializeDatabase, getXhsSyncService } from "@civil-agent/database";
+import {
+  buildDetailRefreshQueries,
+  classifyDetailError,
+  extractDetailContent,
+  isDetailUnavailableText,
+  isRetryableDetailError,
+  selectRefreshFeedCandidate,
+  type DetailFailCategory,
+} from "./xiaohongshu-detail";
 
 export interface WeeklyXhsSyncJobData {
   limit?: number;
@@ -14,8 +23,8 @@ export interface WeeklyXhsSyncJobData {
 
 const DEFAULT_KEYWORDS = ["杭州考公", "浙江省考", "杭州事业单位考试"];
 const DETAIL_RETRY_DELAYS_MS = [4000, 8000];
+// 整个同步任务共用一套 MCP 调用节流，尽量把风控风险收敛在任务层。
 const MCP_CALL_INTERVAL_MS = Math.max(0, Number(process.env.XHS_MCP_CALL_INTERVAL_MS ?? 3000));
-type DetailFailCategory = "access_denied" | "transient" | "parse_empty" | "unknown";
 
 function isLoggedIn(result: any): boolean {
   const text = typeof result === "string" ? result : JSON.stringify(result);
@@ -29,6 +38,7 @@ function isLoggedIn(result: any): boolean {
 }
 
 function extractFeeds(result: any): any[] {
+  // searchFeeds 返回结构有多种包装形式，这里统一拍平成 feed 数组给后续流程使用。
   if (!result) return [];
   if (Array.isArray(result)) return result;
   if (Array.isArray(result?.data?.items)) return result.data.items;
@@ -37,77 +47,6 @@ function extractFeeds(result: any): any[] {
   if (Array.isArray(result?.feeds)) return result.feeds;
   if (Array.isArray(result?.data)) return result.data;
   return [];
-}
-
-function collectTextByKeys(input: any, keys: string[], out: string[], depth = 0): void {
-  if (input == null || depth > 5) return;
-
-  if (typeof input === "string") return;
-
-  if (Array.isArray(input)) {
-    for (const item of input) {
-      collectTextByKeys(item, keys, out, depth + 1);
-    }
-    return;
-  }
-
-  if (typeof input !== "object") return;
-
-  for (const [k, v] of Object.entries(input)) {
-    const lk = k.toLowerCase();
-    if (typeof v === "string" && keys.some((key) => lk.includes(key)) && v.trim().length > 0) {
-      out.push(v.trim());
-    } else {
-      collectTextByKeys(v, keys, out, depth + 1);
-    }
-  }
-}
-
-function dedupeStrings(lines: string[]): string[] {
-  const seen = new Set<string>();
-  const result: string[] = [];
-  for (const line of lines) {
-    const key = line.replace(/\s+/g, " ").trim();
-    if (!key) continue;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    result.push(key);
-  }
-  return result;
-}
-
-function extractDetailContent(detail: any): string {
-  const lines: string[] = [];
-
-  const commonPaths = [
-    detail?.noteCard?.desc,
-    detail?.noteCard?.description,
-    detail?.note_card?.desc,
-    detail?.data?.noteCard?.desc,
-    detail?.data?.note?.desc,
-    detail?.note?.desc,
-    detail?.desc,
-    detail?.content,
-  ];
-
-  for (const p of commonPaths) {
-    if (typeof p === "string" && p.trim().length > 0) {
-      lines.push(p.trim());
-    }
-  }
-
-  collectTextByKeys(detail, ["desc", "content", "text"], lines);
-  const merged = dedupeStrings(lines).join("\n");
-  return merged.slice(0, 6000);
-}
-
-function isDetailUnavailableText(text: string): boolean {
-  if (!text) return false;
-  return (
-    text.includes("Sorry, This Page Isn't Available Right Now") ||
-    text.includes("请打开小红书App扫码查看") ||
-    text.includes("笔记不可访问")
-  );
 }
 
 function getCandidateId(feed: any): string | undefined {
@@ -126,6 +65,7 @@ function createMcpInvoker(client: ReturnType<typeof getXiaohongshuMCPClient>) {
   let lastCallAt = 0;
 
   return async function invokeMcp<T>(action: string, fn: () => Promise<T>): Promise<T> {
+    // 统一从这里做节流，避免关键词搜索、详情抓取、回搜补救之间互相打满频率。
     if (MCP_CALL_INTERVAL_MS > 0 && lastCallAt > 0) {
       const elapsed = Date.now() - lastCallAt;
       const waitMs = MCP_CALL_INTERVAL_MS - elapsed;
@@ -147,43 +87,10 @@ function createMcpInvoker(client: ReturnType<typeof getXiaohongshuMCPClient>) {
   };
 }
 
-function isRetryableDetailError(message: string): boolean {
-  const text = (message || "").toLowerCase();
-  return (
-    text.includes("sorry, this page isn't available right now") ||
-    text.includes("请打开小红书app扫码查看") ||
-    text.includes("笔记不可访问") ||
-    text.includes("timeout") ||
-    text.includes("net::err") ||
-    text.includes("navigation")
-  );
-}
-
-function classifyDetailError(message: string): DetailFailCategory {
-  const text = (message || "").toLowerCase();
-
-  if (
-    text.includes("detail page unavailable from get_feed_detail") ||
-    text.includes("sorry, this page isn't available right now") ||
-    text.includes("请打开小红书app扫码查看") ||
-    text.includes("笔记不可访问")
-  ) {
-    return "access_denied";
-  }
-
-  if (text.includes("timeout") || text.includes("net::err") || text.includes("navigation") || text.includes("fetch failed")) {
-    return "transient";
-  }
-
-  if (text.includes("empty") || text.includes("inaccessible from get_feed_detail")) {
-    return "parse_empty";
-  }
-
-  return "unknown";
-}
-
 async function fetchRetryCandidates(limit: number): Promise<any[]> {
   const prisma = getPrismaClient() as any;
+  // 每轮同步都会顺手把历史 detail_unavailable 样本再带一遍，
+  // 这样不需要额外单独跑一个“失败补偿任务”也能持续尝试恢复。
   const rows = await prisma.xhsPost.findMany({
     where: {
       status: "detail_unavailable",
@@ -228,6 +135,7 @@ async function fetchKeywordCandidates(
   client: ReturnType<typeof getXiaohongshuMCPClient>,
   invokeMcp: <T>(action: string, fn: () => Promise<T>) => Promise<T>
 ): Promise<any[]> {
+  // 为了兼顾“覆盖多个关键词”和“单轮抓取量可控”，这里按关键词平均切分候选配额。
   const targetPerKeyword = Math.max(3, Math.ceil((limit * 2) / DEFAULT_KEYWORDS.length));
   const collected: any[] = [];
   const seenIds = new Set<string>();
@@ -257,6 +165,7 @@ async function fetchKeywordCandidates(
       const id = getCandidateId(feed);
       if (!id) continue;
       if (seenIds.has(id)) continue;
+      // 这里把关键词写回 feed，后续入库和看板都能知道这条内容最初是由哪个词命中的。
       seenIds.add(id);
       collected.push({
         ...feed,
@@ -291,16 +200,27 @@ async function enrichWithDetailContent(
     let lastError = "";
     let lastErrorCategory: DetailFailCategory = "unknown";
     let resolved = false;
+    let currentFeed = feed;
 
     for (let attempt = 0; attempt <= DETAIL_RETRY_DELAYS_MS.length; attempt++) {
+      // 每条候选的详情抓取逻辑是：
+      // 直接取详情 -> 分类错误 -> lookup_miss 时回搜补 token -> 对可重试错误做有限退避。
       try {
-        const detail = await invokeMcp("get_feed_detail", () => client.getFeedDetail(feedId, xsecToken));
+        const currentFeedId = getCandidateId(currentFeed);
+        const currentToken = getCandidateToken(currentFeed);
+        if (!currentFeedId || !currentToken) {
+          lastError = "feed_id or xsec_token missing before get_feed_detail";
+          lastErrorCategory = classifyDetailError(lastError);
+          break;
+        }
+
+        const detail = await invokeMcp("get_feed_detail", () => client.getFeedDetail(currentFeedId, currentToken));
         const detailContent = extractDetailContent(detail);
         const unavailable = isDetailUnavailableText(detailContent);
 
         if (!unavailable && detailContent.trim().length > 0) {
           enriched.push({
-            ...feed,
+            ...currentFeed,
             _detailRaw: detail,
             _detailText: detailContent,
           });
@@ -317,13 +237,48 @@ async function enrichWithDetailContent(
         lastErrorCategory = classifyDetailError(lastError);
       }
 
+      // 某些搜索结果里的详情映射会失效，此时先基于标题/关键词重新搜一轮再重试详情。
+      if (lastErrorCategory === "lookup_miss") {
+        const refreshQueries = buildDetailRefreshQueries(currentFeed);
+        for (const query of refreshQueries) {
+          try {
+            const searchResult = await invokeMcp("search_feeds_refresh", () =>
+              client.searchFeeds(query, {
+                sort_by: "综合",
+                publish_time: "一周内",
+                note_type: "不限",
+              })
+            );
+            const matchedFeed = selectRefreshFeedCandidate(currentFeed, extractFeeds(searchResult));
+            if (matchedFeed) {
+              // 批量同步这里允许用匹配到的新 feed 覆盖 currentFeed，
+              // 因为目标是“尽可能拿回正文”；而单条手动重试则会更严格校验原始 postId。
+              currentFeed = {
+                ...currentFeed,
+                ...matchedFeed,
+                _detailRefreshQuery: query,
+              };
+              lastError = "";
+              break;
+            }
+          } catch (refreshError) {
+            logger.warn("Refresh search for feed detail failed", {
+              feedId,
+              query,
+              error: refreshError instanceof Error ? refreshError.message : String(refreshError),
+            });
+          }
+        }
+      }
+
       const retryable = isRetryableDetailError(lastError);
       if (attempt < DETAIL_RETRY_DELAYS_MS.length && retryable) {
         logger.warn("Fetch feed detail failed, will retry", {
-          feedId,
+          feedId: getCandidateId(currentFeed) ?? feedId,
           attempt: attempt + 1,
           delayMs: DETAIL_RETRY_DELAYS_MS[attempt],
           error: lastError,
+          category: lastErrorCategory,
         });
         await sleep(DETAIL_RETRY_DELAYS_MS[attempt]);
         continue;
@@ -334,11 +289,11 @@ async function enrichWithDetailContent(
 
     if (!resolved) {
       logger.warn("Failed to fetch feed detail after retries, fallback to metadata-only", {
-        feedId,
+        feedId: getCandidateId(currentFeed) ?? feedId,
         error: lastError,
       });
       enriched.push({
-        ...feed,
+        ...currentFeed,
         _detailError: lastError || "detail content unavailable after retries",
         _detailErrorCategory: lastErrorCategory,
       });
@@ -373,12 +328,16 @@ export async function weeklyXiaohongshuSyncJob(data: WeeklyXhsSyncJobData = {}):
       throw new Error(`Xiaohongshu MCP is not logged in: ${JSON.stringify(loginStatus)}`);
     }
 
+    // 一轮同步同时吃两类输入：
+    // 1. 历史失败样本补偿
+    // 2. 当前关键词搜索新增候选
     const retryCandidates = await fetchRetryCandidates(limit);
     const searchCandidates = await fetchKeywordCandidates(page, limit, client, invokeMcp);
     const candidates = [...retryCandidates, ...searchCandidates]
       .filter((feed, index, arr) => {
         const id = getCandidateId(feed);
         if (!id) return false;
+        // 先按 postId 去重，避免同一轮里历史失败样本和新搜索结果重复入队。
         return arr.findIndex((x) => getCandidateId(x) === id) === index;
       })
       .slice(0, limit);
@@ -394,15 +353,22 @@ export async function weeklyXiaohongshuSyncJob(data: WeeklyXhsSyncJobData = {}):
     const detailErrorBreakdown = feeds.reduce(
       (acc, feed) => {
         if (!feed?._detailError) return acc;
+        // 这里的 breakdown 主要给看板和日志使用，帮助判断失败是不是集中在某一类问题上。
         const category = ((feed?._detailErrorCategory as DetailFailCategory) ||
           classifyDetailError(String(feed?._detailError ?? ""))) as DetailFailCategory;
-        acc[category] += 1;
+        if (acc[category] !== undefined) {
+          acc[category] += 1;
+        } else {
+          acc.unknown += 1;
+        }
         return acc;
       },
       {
         access_denied: 0,
         transient: 0,
         parse_empty: 0,
+        login_required: 0,
+        invalid_param: 0,
         unknown: 0,
       } as Record<DetailFailCategory, number>
     );

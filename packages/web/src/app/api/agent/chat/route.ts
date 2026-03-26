@@ -92,6 +92,9 @@ export async function POST(request: NextRequest) {
     let userState = getCachedState(effectiveUserId, effectiveConversationId);
     let stateLoadSource: "cache" | "db" | "init" = "cache";
     // 优先从缓存取状态，未命中再回源 DB，最后才初始化默认状态。
+    // 这样可以兼顾：
+    // 1. 当前进程内连续多轮对话的性能
+    // 2. 刷新页面或服务重启后的状态恢复
     if (!userState) {
       const persisted = await agentStateRepo.findByUserConversation(effectiveUserId, effectiveConversationId);
       if (persisted?.stateData) {
@@ -121,6 +124,7 @@ export async function POST(request: NextRequest) {
       ...userState,
       messages: updatedMessages,
       schemaVersion: userState?.schemaVersion ?? 1,
+      // stateVersion 在 turn 提交成功后才递增，这样能更清楚地区分“准备态”和“已提交态”。
       stateVersion: Number(userState?.stateVersion ?? 0),
     };
 
@@ -134,6 +138,8 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          // 这里直接消费 LangGraph 的流式输出；在拿到完整 assistant 文本前，
+          // 不急着落库，避免把半截回复写进 messages。
           const streamGenerator = agentGraph.processStateStream(updatedState);
           let finalState: any = null;
           let iterator = streamGenerator[Symbol.asyncIterator]();
@@ -162,6 +168,7 @@ export async function POST(request: NextRequest) {
             };
             const persistedState = {
               ...finalState,
+              // 只有拿到完整 finalState 并准备提交事务时，才把版本号推进到下一版。
               stateVersion: Number(finalState?.stateVersion ?? updatedState.stateVersion ?? 0) + 1,
               schemaVersion: Number(finalState?.schemaVersion ?? 1),
             };
@@ -209,6 +216,7 @@ export async function POST(request: NextRequest) {
               const maybeTitle =
                 currentConversation?.title && currentConversation.title !== "新对话"
                   ? currentConversation.title
+                  // 标题只在“仍是默认标题”时才自动覆盖，避免把用户手改标题又顶掉。
                   : generateConversationTitle(message);
 
               await tx.conversation.update({
@@ -249,6 +257,7 @@ export async function POST(request: NextRequest) {
           console.error(
             `[Agent API] turn_commit_fail user=${effectiveUserId} conversation=${effectiveConversationId} turn=${turnId}`
           );
+          // 发生流式异常时不做消息落库，避免数据库里出现“只有半截 assistant 回复”的脏数据。
           controller.enqueue(
             encoder.encode(
               `data: ${JSON.stringify({
@@ -301,6 +310,8 @@ export async function GET(request: NextRequest) {
 
     const cacheState = getCachedState(userId, conversationId);
     const persisted = await agentStateRepo.findByUserConversation(userId, conversationId);
+    // GET 允许优先读缓存，是为了让前端调试/联调时能看到当前进程中的最新状态；
+    // 但 persisted 仍然必须存在，否则说明这条会话还没有完成过一次有效提交。
     const state = cacheState ?? parseStateData(persisted?.stateData);
     const stateLoadSource = cacheState ? "cache" : "db";
 

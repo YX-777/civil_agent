@@ -61,6 +61,7 @@ export default function ChatPage() {
         }
 
         // Prevent duplicate initialization side effects on re-render.
+        // 这里是修复“刷新页面重复创建新会话”的关键保护。
         if (hasInitializedConversationRef.current) {
           return;
         }
@@ -78,6 +79,7 @@ export default function ChatPage() {
           console.log(`Auto-selected most recent conversation: ${conversations[0].title}`);
         } else {
           // Ensure first chat turn has a valid conversationId before user input.
+          // 只有在确认数据库里一条会话都没有时，才自动创建默认新会话。
           const created = await createConversation("新对话");
           console.log(`No existing conversations, auto-created conversation: ${created.id}`);
         }
@@ -93,6 +95,8 @@ export default function ChatPage() {
     const loadConversationMessages = async () => {
       if (currentConversationId) {
         try {
+          // 当前选中会话一旦变化，就按 conversationId 回源拉消息，
+          // 保证刷新页面和切换历史会话都能恢复到数据库中的真实消息序列。
           const response = await fetch(`/api/conversations/${currentConversationId}?userId=${userId}`);
           if (response.ok) {
             const data = await response.json();
@@ -126,6 +130,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (currentConversationId && messages.length > 0) {
+      // 前端本地消息变化后，先同步到 sidebar 使用的会话列表缓存，
+      // 这样用户在当前页里切换/返回时能更快看到最新内容。
       updateConversation(currentConversationId, { messages });
     }
   }, [messages, currentConversationId, updateConversation]);
