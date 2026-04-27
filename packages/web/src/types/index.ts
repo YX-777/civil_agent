@@ -26,6 +26,23 @@ export interface Stats {
   consecutiveDays: number;
   completedTasks: number;
   progressPercentage: number;
+  studyDays?: number;
+  remainingDays?: number | null;
+  accuracyTrend?: Array<{
+    date: string;
+    accuracy: number;
+  }>;
+  modules?: Array<{
+    name: string;
+    accuracy: number;
+    totalQuestions: number;
+    correctAnswers: number;
+  }>;
+  suggestion?: {
+    level: "info" | "warning" | "success";
+    title: string;
+    description: string;
+  };
 }
 
 export interface Task {
@@ -34,6 +51,14 @@ export interface Task {
   status: "todo" | "in_progress" | "completed" | "overdue";
   progress: number;
   dueDate: string;
+  description?: string | null;
+  module?: string | null;
+  difficulty?: string | null;
+  actualMinutes?: number;
+  estimatedMinutes?: number;
+  completedAt?: string | null;
+  createdAt?: string;
+  source?: "manual" | "agent";
 }
 
 export interface CalendarDay {
@@ -49,12 +74,14 @@ export interface FocusSession {
   completed: boolean;
   startTime: Date;
   endTime?: Date;
+  userId?: string;
+  createdAt?: string;
 }
 
 export interface UserProfile {
   nickname: string;
   targetScore: number;
-  examDate: string;
+  examDate: string | null;
   totalStudyDays: number;
 }
 

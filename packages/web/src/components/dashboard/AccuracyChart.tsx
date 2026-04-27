@@ -18,6 +18,11 @@ export default function AccuracyChart({ data }: AccuracyChartProps) {
       <Title level={4} style={{ marginBottom: 16 }}>
         正确率趋势
       </Title>
+      {data.length === 0 && (
+        <div style={{ color: "#666", fontSize: 14, marginBottom: 16 }}>
+          暂无足够的历史正确率数据
+        </div>
+      )}
       <div style={{ height: 256 }}>
         <ResponsiveContainer width="100%" height="100%">
           <LineChart data={data}>

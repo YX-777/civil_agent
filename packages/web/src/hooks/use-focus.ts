@@ -2,50 +2,100 @@ import { useState, useCallback, useEffect } from "react";
 import { FocusSession } from "@/types";
 
 type FocusPhase = "setup" | "active" | "complete";
+const DEFAULT_USER_ID = "default-user";
 
 export function useFocus() {
   const [phase, setPhase] = useState<FocusPhase>("setup");
   const [session, setSession] = useState<FocusSession | null>(null);
   const [timeRemaining, setTimeRemaining] = useState(0);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const startSession = useCallback(
-    (duration: number, module: string) => {
-      const newSession: FocusSession = {
-        id: Date.now().toString(),
-        duration,
-        module,
-        completed: false,
-        startTime: new Date(),
-      };
+    async (duration: number, module: string) => {
+      setIsSubmitting(true);
+      try {
+        const response = await fetch("/api/focus/start", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            userId: DEFAULT_USER_ID,
+            duration,
+            module,
+          }),
+        });
 
-      setSession(newSession);
-      setPhase("active");
-      setTimeRemaining(duration * 60);
+        if (!response.ok) {
+          throw new Error("Failed to start focus session");
+        }
+
+        const data = await response.json();
+        const newSession: FocusSession = {
+          id: data.session.id,
+          duration: data.session.duration,
+          module: data.session.module,
+          completed: data.session.completed,
+          startTime: new Date(data.session.startTime),
+          endTime: data.session.endTime ? new Date(data.session.endTime) : undefined,
+          userId: data.session.userId,
+          createdAt: data.session.createdAt,
+        };
+
+        setSession(newSession);
+        setPhase("active");
+        setTimeRemaining(duration * 60);
+      } finally {
+        setIsSubmitting(false);
+      }
     },
     []
   );
 
   const completeSession = useCallback(async () => {
     if (!session) return;
-
-    const completedSession = {
-      ...session,
-      completed: true,
-      endTime: new Date(),
-    };
+    setIsSubmitting(true);
 
     try {
-      await fetch("/api/focus/complete", {
+      const actualMinutes = Math.max(1, Math.round((session.duration * 60 - timeRemaining) / 60));
+      const response = await fetch("/api/focus/complete", {
         method: "POST",
-        body: JSON.stringify(completedSession),
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: DEFAULT_USER_ID,
+          sessionId: session.id,
+          actualMinutes,
+          reflection: "专注模式完成",
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error("Failed to complete focus session");
+      }
+
+      const data = await response.json();
+      const completedSession = {
+        id: data.session.id,
+        duration: data.session.duration,
+        module: data.session.module,
+        completed: data.session.completed,
+        startTime: new Date(data.session.startTime),
+        endTime: data.session.endTime ? new Date(data.session.endTime) : new Date(),
+        userId: data.session.userId,
+        createdAt: data.session.createdAt,
+      };
+
+      setSession(completedSession);
+      setPhase("complete");
     } catch (error) {
       console.error("Failed to complete session:", error);
+      throw error;
+    } finally {
+      setIsSubmitting(false);
     }
-
-    setSession(completedSession);
-    setPhase("complete");
-  }, [session]);
+  }, [session, timeRemaining]);
 
   const resetSession = useCallback(() => {
     setSession(null);
@@ -89,5 +139,6 @@ export function useFocus() {
     completeSession,
     resetSession,
     getEncouragement,
+    isSubmitting,
   };
 }

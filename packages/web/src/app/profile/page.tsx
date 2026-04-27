@@ -1,33 +1,90 @@
 "use client";
 
-import { useState } from "react";
-import { Layout, Card, Button, Form, Input, InputNumber, DatePicker, Row, Col, Statistic, Typography, Space, Divider, List } from "antd";
-import { UserOutlined, ClockCircleOutlined, TrophyOutlined, LineChartOutlined, FireOutlined, BellOutlined, SettingOutlined, DownloadOutlined, QuestionCircleOutlined, RightOutlined, EditOutlined, SaveOutlined, CloseOutlined } from "@ant-design/icons";
+import { useEffect, useState } from "react";
+import { Layout, Card, Button, Form, Input, InputNumber, DatePicker, Row, Col, Statistic, Typography, Space, List, Spin, message } from "antd";
+import { UserOutlined, ClockCircleOutlined, TrophyOutlined, BellOutlined, SettingOutlined, DownloadOutlined, QuestionCircleOutlined, RightOutlined, EditOutlined, SaveOutlined, CloseOutlined } from "@ant-design/icons";
 import Navbar from "@/components/shared/Navbar";
 import BottomNav from "@/components/shared/BottomNav";
 import dayjs from "dayjs";
+import { Stats, UserProfile } from "@/types";
 
 const { Title, Text } = Typography;
 const { Content } = Layout;
+const DEFAULT_USER_ID = "default-user";
 
 export default function ProfilePage() {
-  const [profile, setProfile] = useState({
-    nickname: "小明",
+  const [messageApi, contextHolder] = message.useMessage();
+  const [profile, setProfile] = useState<UserProfile>({
+    nickname: "考生",
     targetScore: 75,
-    examDate: "2025-04-25",
-    totalStudyDays: 45,
+    examDate: null,
+    totalStudyDays: 0,
   });
-
+  const [summary, setSummary] = useState<Stats | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState({ ...profile });
+
+  useEffect(() => {
+    void fetchProfile();
+  }, []);
+
+  const fetchProfile = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(`/api/profile?userId=${DEFAULT_USER_ID}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch profile");
+      }
+      const data = await response.json();
+      setProfile(data.profile);
+      setEditForm(data.profile);
+      setSummary(data.summary);
+    } catch (error) {
+      console.error("Failed to fetch profile:", error);
+      messageApi.error("个人资料加载失败，请稍后重试");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const handleEdit = () => {
     setIsEditing(true);
   };
 
-  const handleSave = () => {
-    setProfile(editForm);
-    setIsEditing(false);
+  const handleSave = async () => {
+    try {
+      setIsSaving(true);
+      const response = await fetch("/api/profile", {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          userId: DEFAULT_USER_ID,
+          nickname: editForm.nickname,
+          targetScore: editForm.targetScore,
+          examDate: editForm.examDate,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update profile");
+      }
+
+      const data = await response.json();
+      setProfile(data.profile);
+      setEditForm(data.profile);
+      setSummary(data.summary);
+      setIsEditing(false);
+      messageApi.success("个人资料已更新");
+    } catch (error) {
+      console.error("Failed to update profile:", error);
+      messageApi.error("个人资料更新失败，请稍后重试");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleCancel = () => {
@@ -36,6 +93,7 @@ export default function ProfilePage() {
   };
 
   const getDaysUntilExam = () => {
+    if (!profile.examDate) return 0;
     const examDate = new Date(profile.examDate);
     const today = new Date();
     const diffTime = examDate.getTime() - today.getTime();
@@ -50,8 +108,26 @@ export default function ProfilePage() {
     { icon: <QuestionCircleOutlined />, title: "帮助与反馈", description: "获取帮助或提交反馈" },
   ];
 
+  if (isLoading) {
+    return (
+      <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+        {contextHolder}
+        <Navbar />
+        <Content style={{ padding: "16px", paddingBottom: 80 }}>
+          <div style={{ maxWidth: 1200, margin: "0 auto" }}>
+            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 400 }}>
+              <Spin size="large" />
+            </div>
+          </div>
+        </Content>
+        <BottomNav />
+      </Layout>
+    );
+  }
+
   return (
     <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+      {contextHolder}
       <Navbar />
       <Content style={{ padding: "16px", paddingBottom: 80 }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -135,6 +211,7 @@ export default function ProfilePage() {
                   <Button
                     type="primary"
                     icon={<SaveOutlined />}
+                    loading={isSaving}
                     onClick={handleSave}
                   >
                     保存
@@ -172,18 +249,20 @@ export default function ProfilePage() {
               <Form.Item label="考试日期">
                 {isEditing ? (
                   <DatePicker
-                    value={dayjs(editForm.examDate)}
-                    onChange={(date) => setEditForm({ ...editForm, examDate: date?.format("YYYY-MM-DD") || "" })}
+                    value={editForm.examDate ? dayjs(editForm.examDate) : null}
+                    onChange={(date) => setEditForm({ ...editForm, examDate: date?.format("YYYY-MM-DD") || null })}
                     size="large"
                     style={{ width: "100%" }}
                   />
                 ) : (
                   <Text style={{ fontSize: 16 }}>
-                    {new Date(profile.examDate).toLocaleDateString("zh-CN", {
-                      year: "numeric",
-                      month: "long",
-                      day: "numeric",
-                    })}
+                    {profile.examDate
+                      ? new Date(profile.examDate).toLocaleDateString("zh-CN", {
+                          year: "numeric",
+                          month: "long",
+                          day: "numeric",
+                        })
+                      : "未设置"}
                   </Text>
                 )}
               </Form.Item>
@@ -199,25 +278,33 @@ export default function ProfilePage() {
             <Row gutter={16}>
               <Col xs={12} sm={6}>
                 <Card size="small" style={{ background: "#f5f5f5", border: "none", textAlign: "center" }}>
-                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#3b82f6", marginBottom: 4 }}>120</div>
+                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#3b82f6", marginBottom: 4 }}>
+                    {summary?.totalHours || 0}
+                  </div>
                   <Text type="secondary" style={{ fontSize: 12 }}>总学习时长(小时)</Text>
                 </Card>
               </Col>
               <Col xs={12} sm={6}>
                 <Card size="small" style={{ background: "#f5f5f5", border: "none", textAlign: "center" }}>
-                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#6366f1", marginBottom: 4 }}>45</div>
+                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#6366f1", marginBottom: 4 }}>
+                    {profile.totalStudyDays}
+                  </div>
                   <Text type="secondary" style={{ fontSize: 12 }}>总学习天数</Text>
                 </Card>
               </Col>
               <Col xs={12} sm={6}>
                 <Card size="small" style={{ background: "#f5f5f5", border: "none", textAlign: "center" }}>
-                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#10b981", marginBottom: 4 }}>78%</div>
+                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#10b981", marginBottom: 4 }}>
+                    {`${(((summary?.avgAccuracy || 0) * 100)).toFixed(1)}%`}
+                  </div>
                   <Text type="secondary" style={{ fontSize: 12 }}>平均正确率</Text>
                 </Card>
               </Col>
               <Col xs={12} sm={6}>
                 <Card size="small" style={{ background: "#f5f5f5", border: "none", textAlign: "center" }}>
-                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#f59e0b", marginBottom: 4 }}>7</div>
+                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#f59e0b", marginBottom: 4 }}>
+                    {summary?.consecutiveDays || 0}
+                  </div>
                   <Text type="secondary" style={{ fontSize: 12 }}>连续天数</Text>
                 </Card>
               </Col>

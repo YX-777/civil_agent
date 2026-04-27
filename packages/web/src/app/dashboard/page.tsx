@@ -13,27 +13,16 @@ import ModuleBar from "@/components/dashboard/ModuleBar";
 
 const { Content } = Layout;
 
-const modules = [
-  { name: "资料分析", accuracy: 85, color: "#3b82f6" },
-  { name: "数量关系", accuracy: 72, color: "#8b5cf6" },
-  { name: "判断推理", accuracy: 78, color: "#10b981" },
-  { name: "言语理解", accuracy: 82, color: "#f59e0b" },
-  { name: "常识判断", accuracy: 68, color: "#ef4444" },
-];
-
-const accuracyData = [
-  { date: "周一", accuracy: 75 },
-  { date: "周二", accuracy: 78 },
-  { date: "周三", accuracy: 72 },
-  { date: "周四", accuracy: 80 },
-  { date: "周五", accuracy: 82 },
-  { date: "周六", accuracy: 85 },
-  { date: "周日", accuracy: 78 },
-];
+const MODULE_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#14b8a6"];
 
 export default function DashboardPage() {
   const [timeRange, setTimeRange] = useState<"week" | "month" | "all">("month");
   const { stats, isLoading, error } = useStats(timeRange);
+  const suggestionType = stats?.suggestion?.level === "success"
+    ? "success"
+    : stats?.suggestion?.level === "info"
+      ? "info"
+      : "warning";
 
   if (isLoading) {
     return (
@@ -121,17 +110,19 @@ export default function DashboardPage() {
 
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col xs={24} lg={12}>
-              <AccuracyChart data={accuracyData} />
+              <AccuracyChart data={stats?.accuracyTrend || []} />
             </Col>
             <Col xs={24} lg={12}>
               <Card style={{ borderRadius: 12 }}>
                 <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>模块分析</h3>
-                {modules.map((module) => (
+                {(stats?.modules || []).length === 0 ? (
+                  <div style={{ color: "#666", fontSize: 14 }}>暂无模块练习数据</div>
+                ) : (stats?.modules || []).map((module, index) => (
                   <ModuleBar
                     key={module.name}
                     name={module.name}
                     accuracy={module.accuracy}
-                    color={module.color}
+                    color={MODULE_COLORS[index % MODULE_COLORS.length]}
                   />
                 ))}
               </Card>
@@ -154,13 +145,17 @@ export default function DashboardPage() {
             <Row gutter={16} style={{ marginTop: 24 }}>
               <Col span={12}>
                 <Card size="small" style={{ background: "#f5f5f5", border: "none", textAlign: "center" }}>
-                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#3b82f6", marginBottom: 4 }}>45</div>
+                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#3b82f6", marginBottom: 4 }}>
+                    {stats?.studyDays || 0}
+                  </div>
                   <div style={{ fontSize: 14, color: "#666" }}>已学习天数</div>
                 </Card>
               </Col>
               <Col span={12}>
                 <Card size="small" style={{ background: "#f5f5f5", border: "none", textAlign: "center" }}>
-                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#6366f1", marginBottom: 4 }}>90</div>
+                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#6366f1", marginBottom: 4 }}>
+                    {stats?.remainingDays ?? "-"}
+                  </div>
                   <div style={{ fontSize: 14, color: "#666" }}>剩余天数</div>
                 </Card>
               </Col>
@@ -168,9 +163,9 @@ export default function DashboardPage() {
           </Card>
 
           <Alert
-            message="AI 建议"
-            description="你的常识判断模块正确率较低（68%），建议增加该模块的练习时间。同时，资料分析模块表现优秀，可以适当减少练习频率。"
-            type="warning"
+            message={stats?.suggestion?.title || "学习建议"}
+            description={stats?.suggestion?.description || "当前还没有足够的数据生成个性化建议，先继续完成任务和专注学习。"}
+            type={suggestionType}
             showIcon
             icon={<BulbOutlined />}
             style={{ borderRadius: 8 }}

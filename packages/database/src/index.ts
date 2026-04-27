@@ -11,6 +11,10 @@ import { XhsPostRepository } from './repositories/xhs-post.repository';
 import { XhsSyncRunRepository } from './repositories/xhs-sync-run.repository';
 import { EmbeddingService } from './services/embedding.service';
 import { XhsSyncService } from './services/xhs-sync.service';
+import { LearningRecordService } from './services/learning-record.service';
+import { TaskService } from './services/task.service';
+import { StatsService } from './services/stats.service';
+import { FocusService } from './services/focus.service';
 
 let prisma: PrismaClient | null = null;
 let embeddingService: EmbeddingService | null = null;
@@ -74,6 +78,39 @@ export function getXhsSyncService(): XhsSyncService {
   return new XhsSyncService(getXhsPostRepository(), getXhsSyncRunRepository());
 }
 
+export function getLearningRecordService(): LearningRecordService {
+  return new LearningRecordService(
+    getUserRepository(),
+    getLearningRecordRepository(),
+    getModuleProgressRepository()
+  );
+}
+
+export function getTaskService(): TaskService {
+  return new TaskService(
+    getUserRepository(),
+    getTaskRepository(),
+    getLearningRecordService()
+  );
+}
+
+export function getStatsService(): StatsService {
+  return new StatsService(
+    getUserRepository(),
+    getLearningRecordRepository(),
+    getTaskRepository(),
+    getModuleProgressRepository()
+  );
+}
+
+export function getFocusService(): FocusService {
+  return new FocusService(
+    getUserRepository(),
+    getFocusSessionRepository(),
+    getLearningRecordService()
+  );
+}
+
 export async function initializeDatabase(options?: { skipVectorDB?: boolean }): Promise<void> {
   if (!options?.skipVectorDB) {
     try {
@@ -101,7 +138,6 @@ export async function getSyncService(): Promise<any> {
 export {
   UserRepository,
   ConversationRepository,
-  ConversationWithMessages,
   MessageRepository,
   TaskRepository,
   FocusSessionRepository,
@@ -111,7 +147,13 @@ export {
   XhsPostRepository,
   XhsSyncRunRepository,
   EmbeddingService,
-  XhsSyncService
+  XhsSyncService,
+  LearningRecordService,
+  TaskService,
+  StatsService,
+  FocusService
 };
+
+export type { ConversationWithMessages };
 
 export * from '@prisma/client';

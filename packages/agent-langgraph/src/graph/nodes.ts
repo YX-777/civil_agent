@@ -20,6 +20,7 @@ import {
   resolveXiaohongshuKnowledge,
   shouldRouteToXiaohongshuRag,
 } from "./xiaohongshu-rag";
+import { parseTaskPlanFromText } from "./task-plan";
 
 /**
  * 创建 LLM 实例
@@ -203,6 +204,7 @@ export async function taskGenerationNode(
     ]);
 
     const quickReplies = ["确认计划", "调整任务", "取消"];
+    const parsedTaskPlan = parseTaskPlanFromText(response.content as string);
 
     LogTools.logAgentDecision(state.userId, state.userIntent, "Task generation");
 
@@ -211,6 +213,7 @@ export async function taskGenerationNode(
       quickReplyOptions: createQuickReplies(quickReplies),
       waitingForUserInput: true,
       ragResults: ragResult.success ? ragResult.data?.results : [],
+      pendingTaskPlan: parsedTaskPlan ?? undefined,
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -540,6 +543,7 @@ export async function* taskGenerationNodeStream(
     }
 
     const quickReplies = createQuickReplies(["确认计划", "调整任务", "取消"]);
+    const parsedTaskPlan = parseTaskPlanFromText(fullContent);
     LogTools.logAgentDecision(state.userId, state.userIntent, "Task generation Stream");
 
     return {
@@ -547,6 +551,7 @@ export async function* taskGenerationNodeStream(
       messages: [...state.messages, new AIMessage(fullContent)],
       quickReplyOptions: quickReplies,
       waitingForUserInput: true,
+      pendingTaskPlan: parsedTaskPlan ?? undefined,
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));

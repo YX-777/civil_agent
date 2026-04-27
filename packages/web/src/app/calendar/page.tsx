@@ -22,7 +22,9 @@ export default function CalendarPage() {
 
   const fetchCalendarData = async () => {
     try {
-      const response = await fetch(`/api/calendar?month=${currentMonth.getMonth()}`);
+      const response = await fetch(
+        `/api/calendar?year=${currentMonth.getFullYear()}&month=${currentMonth.getMonth()}&userId=default-user`
+      );
       const data = await response.json();
       setCalendarDays(data.days);
     } catch (error) {

@@ -13,6 +13,18 @@ export interface EmotionContext {
   copingStrategies?: string[];
 }
 
+export interface PendingTaskPlan {
+  title: string;
+  description: string;
+  module: string | null;
+  difficulty: "easy" | "medium" | "hard";
+  estimatedMinutes: number;
+  dailyQuestionCount: number | null;
+  periodDays: number | null;
+  reason?: string | null;
+  rawPlan: string;
+}
+
 export interface GraphStateType {
   userId: string;
   messages: any[];
@@ -22,6 +34,7 @@ export interface GraphStateType {
   ragResults: any[];
   feishuTaskIds: string[];
   emotionContext?: EmotionContext;
+  pendingTaskPlan?: PendingTaskPlan;
 }
 
 export const createInitialState = (userId: string): GraphStateType => ({
@@ -33,4 +46,5 @@ export const createInitialState = (userId: string): GraphStateType => ({
   ragResults: [],
   feishuTaskIds: [],
   emotionContext: undefined,
+  pendingTaskPlan: undefined,
 });

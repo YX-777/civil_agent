@@ -126,6 +126,15 @@ export class TaskRepository extends BaseRepository<Task> {
     });
   }
 
+  async getTaskByIdForUser(id: string, userId: string): Promise<Task | null> {
+    return this.prisma.task.findFirst({
+      where: {
+        id,
+        userId
+      }
+    });
+  }
+
   async getTasksByModule(userId: string, module: string): Promise<Task[]> {
     return this.prisma.task.findMany({
       where: {

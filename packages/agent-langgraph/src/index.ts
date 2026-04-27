@@ -9,5 +9,5 @@ export { getMCPToolClient } from "./tools/mcp-tools";
 export { getEmotionDetector } from "./middleware/emotion-detector";
 export { getContextEnhancer } from "./middleware/context-enhancer";
 
-export type { GraphStateType, EmotionContext } from "./graph/state";
+export type { GraphStateType, EmotionContext, PendingTaskPlan } from "./graph/state";
 export type { AgentConfig } from "./config/agent.config";

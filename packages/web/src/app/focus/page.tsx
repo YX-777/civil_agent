@@ -1,6 +1,7 @@
 "use client";
 
-import { Layout, Card, Button, Progress, Typography, Row, Col, Space } from "antd";
+import { useState } from "react";
+import { Layout, Card, Button, Progress, Typography, Row, Col, Space, message } from "antd";
 import { ClockCircleOutlined, TrophyOutlined, CheckCircleOutlined } from "@ant-design/icons";
 import { useFocus } from "@/hooks/use-focus";
 import Navbar from "@/components/shared/Navbar";
@@ -17,7 +18,10 @@ const durations = [
 ];
 
 export default function FocusPage() {
-  const { phase, session, timeRemaining, startSession, completeSession, resetSession, getEncouragement } =
+  const [messageApi, contextHolder] = message.useMessage();
+  const [selectedModule, setSelectedModule] = useState<string>(modules[0]);
+  const [selectedDuration, setSelectedDuration] = useState<number>(durations[1].hours);
+  const { phase, session, timeRemaining, startSession, completeSession, resetSession, getEncouragement, isSubmitting } =
     useFocus();
 
   const formatTime = (seconds: number) => {
@@ -31,6 +35,7 @@ export default function FocusPage() {
   if (phase === "setup") {
     return (
       <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+        {contextHolder}
         <Navbar />
         <Content style={{ padding: "16px", paddingBottom: 80 }}>
           <div style={{ maxWidth: 600, margin: "0 auto" }}>
@@ -49,6 +54,8 @@ export default function FocusPage() {
                       <Button
                         size="large"
                         block
+                        type={selectedDuration === duration.hours ? "primary" : "default"}
+                        onClick={() => setSelectedDuration(duration.hours)}
                         style={{ height: 100, display: "flex", flexDirection: "column", justifyContent: "center" }}
                       >
                         <div style={{ fontSize: 32, fontWeight: "bold", marginBottom: 8 }}>
@@ -71,6 +78,8 @@ export default function FocusPage() {
                       <Button
                         size="large"
                         block
+                        type={selectedModule === module ? "primary" : "default"}
+                        onClick={() => setSelectedModule(module)}
                         style={{ height: 60 }}
                       >
                         {module}
@@ -84,7 +93,15 @@ export default function FocusPage() {
                 type="primary"
                 size="large"
                 block
-                onClick={() => startSession(2, "资料分析")}
+                loading={isSubmitting}
+                onClick={async () => {
+                  try {
+                    await startSession(selectedDuration, selectedModule);
+                  } catch (error) {
+                    console.error("Failed to start focus session:", error);
+                    messageApi.error("专注开始失败，请稍后重试");
+                  }
+                }}
                 style={{ height: 48, fontSize: 16, fontWeight: "bold" }}
               >
                 开始专注
@@ -100,6 +117,7 @@ export default function FocusPage() {
   if (phase === "active") {
     return (
       <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+        {contextHolder}
         <Navbar />
         <Content style={{ padding: "16px", paddingBottom: 80 }}>
           <div style={{ maxWidth: 600, margin: "0 auto" }}>
@@ -133,7 +151,15 @@ export default function FocusPage() {
                 type="primary"
                 size="large"
                 icon={<CheckCircleOutlined />}
-                onClick={completeSession}
+                loading={isSubmitting}
+                onClick={async () => {
+                  try {
+                    await completeSession();
+                  } catch (error) {
+                    console.error("Failed to complete focus session:", error);
+                    messageApi.error("专注完成失败，请稍后重试");
+                  }
+                }}
                 style={{ height: 48, fontSize: 16, fontWeight: "bold" }}
               >
                 完成专注
@@ -148,6 +174,7 @@ export default function FocusPage() {
 
   return (
     <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+      {contextHolder}
       <Navbar />
       <Content style={{ padding: "16px", paddingBottom: 80 }}>
         <div style={{ maxWidth: 600, margin: "0 auto" }}>

@@ -21,6 +21,9 @@
       "@/*": [
         "./src/*"
       ],
+      "@civil-agent/database": [
+        "../database/src/index.ts"
+      ],
       "@civil-agent/scheduler": [
         "../scheduler/src/index.ts"
       ]
