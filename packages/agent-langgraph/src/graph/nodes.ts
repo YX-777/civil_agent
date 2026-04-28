@@ -415,6 +415,38 @@ export async function generateResponseNode(
  * 流式版本的节点函数
  */
 
+/**
+ * 规范化消息内容：从 DB 恢复的 state.messages 是纯 JSON 对象，
+ * content 字段可能为 undefined、数组或字符串。
+ * 此处统一转为字符串，避免传给 LangChain 消息构造函数时报错。
+ */
+function normalizeMessageContent(msg: any): string {
+  if (msg.content === undefined || msg.content === null) return "";
+  if (Array.isArray(msg.content)) {
+    return msg.content
+      .map((c: any) => (typeof c === "string" ? c : c?.text || ""))
+      .join(" ");
+  }
+  if (typeof msg.content !== "string") {
+    return JSON.stringify(msg.content);
+  }
+  return msg.content;
+}
+
+/**
+ * 将 state.messages 数组中可能混杂的 LangChain 消息对象和纯 JSON
+ * 对象统一映射为 LangChain 消息实例，用于构建 LLM prompt。
+ */
+function buildLLMMessages(messages: any[]): any[] {
+  return messages.map((msg: any) => {
+    if (msg.lc_serializable === true) return msg;
+    const content = normalizeMessageContent(msg);
+    if (msg.role === "user") return new HumanMessage(content);
+    if (msg.role === "assistant") return new AIMessage(content);
+    return new HumanMessage(content);
+  });
+}
+
 export async function* generalQANodeStream(
   state: GraphStateType
 ): AsyncGenerator<string, GraphStateType, unknown> {
@@ -443,21 +475,10 @@ export async function* generalQANodeStream(
     const userPrompt = buildGeneralAnswerPrompt(enhancedMessage, routedKnowledge);
 
     const systemPrompt = SYSTEM_PROMPTS.DEFAULT;
-    
+
     const stream = await llm.stream([
       new SystemMessage(systemPrompt),
-      ...state.messages.slice(0, -1).map((msg: any) => {
-        if (msg.lc_serializable === true) {
-          return msg;
-        }
-        if (msg.role === "user") {
-          return new HumanMessage(msg.content);
-        }
-        if (msg.role === "assistant") {
-          return new AIMessage(msg.content);
-        }
-        return new HumanMessage(msg.content);
-      }),
+      ...buildLLMMessages(state.messages.slice(0, -1)),
       new HumanMessage(userPrompt),
     ]);
 
@@ -520,18 +541,7 @@ export async function* taskGenerationNodeStream(
 
     const stream = await llm.stream([
       new SystemMessage(systemPrompt),
-      ...state.messages.slice(0, -1).map((msg: any) => {
-        if (msg.lc_serializable === true) {
-          return msg;
-        }
-        if (msg.role === "user") {
-          return new HumanMessage(msg.content);
-        }
-        if (msg.role === "assistant") {
-          return new AIMessage(msg.content);
-        }
-        return new HumanMessage(msg.content);
-      }),
+      ...buildLLMMessages(state.messages.slice(0, -1)),
       new HumanMessage(userPrompt),
     ]);
 
@@ -586,18 +596,7 @@ export async function* progressQueryNodeStream(
 
     const stream = await llm.stream([
       new SystemMessage(systemPrompt),
-      ...state.messages.slice(0, -1).map((msg: any) => {
-        if (msg.lc_serializable === true) {
-          return msg;
-        }
-        if (msg.role === "user") {
-          return new HumanMessage(msg.content);
-        }
-        if (msg.role === "assistant") {
-          return new AIMessage(msg.content);
-        }
-        return new HumanMessage(msg.content);
-      }),
+      ...buildLLMMessages(state.messages.slice(0, -1)),
       new HumanMessage(userPrompt),
     ]);
 
@@ -649,18 +648,7 @@ export async function* emotionSupportNodeStream(
 
     const stream = await llm.stream([
       new SystemMessage(systemPrompt),
-      ...state.messages.slice(0, -1).map((msg: any) => {
-        if (msg.lc_serializable === true) {
-          return msg;
-        }
-        if (msg.role === "user") {
-          return new HumanMessage(msg.content);
-        }
-        if (msg.role === "assistant") {
-          return new AIMessage(msg.content);
-        }
-        return new HumanMessage(msg.content);
-      }),
+      ...buildLLMMessages(state.messages.slice(0, -1)),
       new HumanMessage(userPrompt),
     ]);
 
