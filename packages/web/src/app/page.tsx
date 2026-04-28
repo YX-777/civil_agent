@@ -32,7 +32,6 @@ export default function ChatPage() {
 
   const handleAgentTurnDone = useCallback(async (conversationId: string) => {
     try {
-      // 每轮对话完成后主动回源，确保标题和更新时间即时反映到侧边栏。
       await loadConversations(conversationId);
     } catch (error) {
       console.error("Failed to refresh conversations after turn done:", error);
@@ -50,36 +49,28 @@ export default function ChatPage() {
 
   const hasInitializedConversationRef = useRef(false);
 
-  // 初始化：等待会话列表加载完成后再初始化
   useEffect(() => {
     const initializeConversation = async () => {
       try {
-        // 等待会话列表完成 bootstrap（含 localStorage + 远端会话列表）
         if (!hasBootstrapped || isLoadingConversations) {
           console.log("Waiting for conversations to load...");
           return;
         }
 
-        // Prevent duplicate initialization side effects on re-render.
-        // 这里是修复“刷新页面重复创建新会话”的关键保护。
         if (hasInitializedConversationRef.current) {
           return;
         }
         hasInitializedConversationRef.current = true;
 
-        // 如果已经有选中会话，不做处理
         if (currentConversationId) {
           console.log(`Already has current conversation: ${currentConversationId}`);
           return;
         }
 
-        // 如果有会话列表，选中最近的一个（第一个）
         if (conversations.length > 0) {
           await switchConversation(conversations[0].id);
           console.log(`Auto-selected most recent conversation: ${conversations[0].title}`);
         } else {
-          // Ensure first chat turn has a valid conversationId before user input.
-          // 只有在确认数据库里一条会话都没有时，才自动创建默认新会话。
           const created = await createConversation("新对话");
           console.log(`No existing conversations, auto-created conversation: ${created.id}`);
         }
@@ -89,14 +80,12 @@ export default function ChatPage() {
     };
 
     initializeConversation();
-  }, [hasBootstrapped, isLoadingConversations, currentConversationId, conversations, switchConversation, createConversation]); // 依赖加载状态
+  }, [hasBootstrapped, isLoadingConversations, currentConversationId, conversations, switchConversation, createConversation]);
 
   useEffect(() => {
     const loadConversationMessages = async () => {
       if (currentConversationId) {
         try {
-          // 当前选中会话一旦变化，就按 conversationId 回源拉消息，
-          // 保证刷新页面和切换历史会话都能恢复到数据库中的真实消息序列。
           const response = await fetch(`/api/conversations/${currentConversationId}?userId=${userId}`);
           if (response.ok) {
             const data = await response.json();
@@ -110,7 +99,6 @@ export default function ChatPage() {
               setAgentMessages(formattedMessages);
               console.log(`Loaded ${formattedMessages.length} messages for conversation ${currentConversationId}`);
             } else {
-              // 新会话没有消息时，清空消息列表
               setAgentMessages([]);
               console.log(`No messages found for conversation ${currentConversationId}, clearing messages`);
             }
@@ -130,22 +118,15 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (currentConversationId && messages.length > 0) {
-      // 前端本地消息变化后，先同步到 sidebar 使用的会话列表缓存，
-      // 这样用户在当前页里切换/返回时能更快看到最新内容。
       updateConversation(currentConversationId, { messages });
     }
   }, [messages, currentConversationId, updateConversation]);
 
   const handleCreateConversation = async () => {
     try {
-      // 先清空当前消息
       setAgentMessages([]);
-
-      // 创建新会话（会自动切换到新会话）
       const newConv = await createConversation("新对话");
       console.log(`Created new conversation: ${newConv.id}`);
-
-      // 新会话没有消息，保持空状态
     } catch (error) {
       console.error("Failed to create conversation:", error);
       message.error("创建会话失败");
@@ -155,7 +136,6 @@ export default function ChatPage() {
   const handleSelectConversation = async (conversationId: string) => {
     try {
       await switchConversation(conversationId);
-      // useEffect 会自动加载消息
     } catch (error) {
       console.error("Failed to switch conversation:", error);
     }
@@ -192,7 +172,6 @@ export default function ChatPage() {
       const data = await response.json();
       console.log(`Updated conversation title: ${conversationId} -> ${newTitle}`);
 
-      // 更新本地状态
       updateConversation(conversationId, { title: newTitle });
 
       message.success("标题更新成功");
@@ -203,7 +182,7 @@ export default function ChatPage() {
   };
 
   return (
-    <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+    <Layout className="gradient-bg" style={{ minHeight: "100vh" }}>
       <ChatSidebar
         conversations={conversations}
         currentConversationId={currentConversationId}
@@ -219,31 +198,44 @@ export default function ChatPage() {
         style={{
           marginLeft: sidebarCollapsed ? 80 : 280,
           transition: "margin-left 0.2s",
+          background: "transparent",
         }}
       >
         <Navbar
           extra={
             <button
               onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+              className="hover-lift"
               style={{
                 border: "none",
-                background: "none",
+                background: "rgba(13, 148, 136, 0.1)",
                 cursor: "pointer",
                 fontSize: 18,
                 padding: 8,
+                borderRadius: 10,
+                color: "#0D9488",
+                transition: "all 0.2s ease",
               }}
             >
               {sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
             </button>
           }
         />
-        <Content style={{ padding: "16px", paddingBottom: 80 }}>
-          <div style={{ maxWidth: 800, margin: "0 auto" }}>
+        <Content style={{ padding: "24px", paddingBottom: 100 }}>
+          <div 
+            className="glass-card"
+            style={{ 
+              maxWidth: 800, 
+              margin: "0 auto", 
+              padding: "24px",
+              minHeight: "calc(100vh - 200px)",
+            }}
+          >
             {messages.length === 0 ? (
               <Empty
-                image={<MessageOutlined style={{ fontSize: 64, color: "#d9d9d9" }} />}
+                image={<MessageOutlined style={{ fontSize: 64, color: "#0D9488" }} />}
                 description={
-                  <span style={{ fontSize: 16, color: "#666" }}>
+                  <span style={{ fontSize: 16, color: "#134E4A", fontWeight: 500 }}>
                     开始与 AI 助手对话吧
                   </span>
                 }
@@ -259,12 +251,13 @@ export default function ChatPage() {
 
             {isLoading && (
               <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 16 }}>
-                <div style={{ 
-                  background: "#f5f5f5", 
-                  borderRadius: 12,
-                  padding: "12px 16px",
-                  borderBottomLeftRadius: 0,
-                }}>
+                <div 
+                  className="glass-card"
+                  style={{ 
+                    padding: "12px 16px",
+                    borderBottomLeftRadius: 4,
+                  }}
+                >
                   <Spin size="small" />
                 </div>
               </div>
@@ -275,10 +268,22 @@ export default function ChatPage() {
             )}
           </div>
         </Content>
-        <BottomNav />
-        <div style={{ position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100 }}>
+        <div 
+          className="glass-card"
+          style={{ 
+            position: "fixed", 
+            bottom: 16, 
+            left: sidebarCollapsed ? 96 : 296,
+            right: 16,
+            zIndex: 100,
+            borderRadius: 16,
+            padding: "12px 16px",
+            boxShadow: "0 8px 32px rgba(13, 148, 136, 0.15)",
+          }}
+        >
           <ChatInput onSend={sendMessage} disabled={isLoading} />
         </div>
+        <BottomNav />
       </Layout>
     </Layout>
   );

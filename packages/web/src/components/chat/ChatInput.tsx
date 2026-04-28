@@ -28,33 +28,42 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
 
   return (
     <div style={{ 
-      padding: "16px", 
-      background: "#fff", 
-      borderTop: "1px solid #f0f0f0",
+      display: "flex",
+      gap: 12,
+      alignItems: "center",
     }}>
-      <div style={{ maxWidth: 800, margin: "0 auto" }}>
-        <Space.Compact style={{ width: "100%", display: "flex" }}>
-          <Input
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyPress={handleKeyPress}
-            placeholder="输入消息..."
-            disabled={disabled}
-            size="large"
-            style={{ flex: 1 }}
-            allowClear
-          />
-          <Button
-            type="primary"
-            icon={<SendOutlined />}
-            onClick={handleSubmit}
-            disabled={disabled || !input.trim()}
-            size="large"
-          >
-            发送
-          </Button>
-        </Space.Compact>
-      </div>
+      <Input
+        value={input}
+        onChange={(e) => setInput(e.target.value)}
+        onKeyPress={handleKeyPress}
+        placeholder="输入消息..."
+        disabled={disabled}
+        size="large"
+        style={{ 
+          flex: 1,
+          borderRadius: 12,
+          background: "rgba(255, 255, 255, 0.9)",
+          border: "1px solid rgba(13, 148, 136, 0.15)",
+        }}
+        allowClear
+      />
+      <Button
+        type="primary"
+        icon={<SendOutlined />}
+        onClick={handleSubmit}
+        disabled={disabled || !input.trim()}
+        size="large"
+        className="hover-lift"
+        style={{
+          borderRadius: 12,
+          background: "linear-gradient(135deg, #0D9488 0%, #14B8A6 100%)",
+          border: "none",
+          boxShadow: "0 4px 12px rgba(13, 148, 136, 0.25)",
+          minWidth: 80,
+        }}
+      >
+        发送
+      </Button>
     </div>
   );
 }

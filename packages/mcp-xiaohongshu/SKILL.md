@@ -116,6 +116,9 @@ XIAOHONGSHU_MCP_URL=http://localhost:18060/mcp
 
 # 小红书 MCP 服务超时时间（毫秒）
 XIAOHONGSHU_MCP_TIMEOUT=30000
+
+# 是否启用小红书功能（可选）
+XIAOHONGSHU_ENABLED=true
 ```
 
 ### MCP 服务要求
@@ -219,6 +222,30 @@ const response = await modelWithTools.invoke([
 
 所有工具都包含完善的错误处理，当调用失败时会抛出详细的错误信息。
 
+## 项目结构
+
+```text
+packages/
+├── mcp-xiaohongshu/          # 小红书 MCP 客户端包
+│   ├── src/
+│   │   ├── config/
+│   │   │   └── xiaohongshu.config.ts
+│   │   ├── client/
+│   │   │   └── xiaohongshu-client.ts
+│   │   ├── tools/
+│   │   │   └── xiaohongshu-tools.ts
+│   │   └── index.ts
+│   ├── package.json
+│   ├── tsconfig.json
+│   └── SKILL.md
+└── agent-langgraph/
+    ├── src/
+    │   ├── tools/
+    │   │   └── xiaohongshu-tools.ts    # 小红书工具集成
+    │   └── config/
+    │       └── agent.config.ts
+```
+
 ## 注意事项
 
 1. **登录状态**
@@ -273,6 +300,23 @@ const response = await modelWithTools.invoke([
    - `/tmp/mcp-service.log`
 3. 先确认 Web 可达，再确认 `_next` 静态资源可达，避免仅凭首页 200 判断“服务正常”
 4. 若仍异常，保留失败 URL 和日志片段，再继续分析是否为进程退出或缓存问题
+
+## 测试
+
+### 运行测试脚本
+
+```bash
+# 在 mcp-xiaohongshu 目录下
+node test.mjs
+```
+
+### 测试内容
+
+测试脚本会依次执行以下测试：
+
+1. ✅ 检查登录状态
+2. ✅ 获取推荐列表
+3. ✅ 搜索内容
 
 ## 参考资料
 

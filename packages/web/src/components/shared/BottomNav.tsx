@@ -42,23 +42,58 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <div className="fixed bottom-0 left-0 right-0 md:hidden z-50">
+    <div 
+      className="glass-nav"
+      style={{
+        position: "fixed",
+        bottom: 0,
+        left: 0,
+        right: 0,
+        zIndex: 50,
+        display: "none",
+      }}
+    >
+      <style jsx>{`
+        @media (max-width: 768px) {
+          div {
+            display: block !important;
+          }
+        }
+      `}</style>
       <Tabs
         activeKey={pathname}
         items={navItems.map((item) => ({
           key: item.key,
           label: (
             <Link href={item.href} style={{ textDecoration: "none" }}>
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4 }}>
-                {item.icon}
-                <span style={{ fontSize: 12 }}>{item.label}</span>
+              <div style={{ 
+                display: "flex", 
+                flexDirection: "column", 
+                alignItems: "center", 
+                gap: 4,
+                color: pathname === item.key ? "#0D9488" : "#134E4A",
+              }}>
+                <span style={{ 
+                  fontSize: 20,
+                  color: pathname === item.key ? "#0D9488" : "#14B8A6",
+                }}>
+                  {item.icon}
+                </span>
+                <span style={{ 
+                  fontSize: 12,
+                  fontWeight: pathname === item.key ? 600 : 400,
+                  color: pathname === item.key ? "#0D9488" : "#134E4A",
+                }}>
+                  {item.label}
+                </span>
               </div>
             </Link>
           ),
         }))}
         style={{
-          background: "#fff",
-          borderTop: "1px solid #f0f0f0",
+          background: "rgba(255, 255, 255, 0.85)",
+          borderTop: "1px solid rgba(13, 148, 136, 0.1)",
+          boxShadow: "0 -4px 20px rgba(13, 148, 136, 0.08)",
         }}
         tabBarStyle={{
           marginBottom: 0,

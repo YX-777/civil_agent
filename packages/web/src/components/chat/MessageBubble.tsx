@@ -23,40 +23,48 @@ export default function MessageBubble({ message }: MessageBubbleProps) {
         display: "flex", 
         flexDirection: isUser ? "row-reverse" : "row", 
         alignItems: "flex-start",
-        gap: 8,
+        gap: 12,
       }}>
         <Avatar 
           icon={isUser ? <UserOutlined /> : <RobotOutlined />} 
+          className="hover-lift"
           style={{ 
-            backgroundColor: isUser ? "#3b82f6" : "#10b981",
+            backgroundColor: isUser ? "#0D9488" : "#14B8A6",
+            boxShadow: isUser 
+              ? "0 4px 12px rgba(13, 148, 136, 0.25)" 
+              : "0 4px 12px rgba(20, 184, 166, 0.25)",
           }}
         />
         <Card
+          className={isUser ? "" : "glass-card hover-lift"}
           style={{
             maxWidth: "80%",
-            borderRadius: 12,
-            backgroundColor: isUser ? "#3b82f6" : "#f5f5f5",
-            border: "none",
-            boxShadow: "0 1px 2px rgba(0, 0, 0, 0.1)",
+            borderRadius: 16,
+            background: isUser 
+              ? "linear-gradient(135deg, #0D9488 0%, #14B8A6 100%)"
+              : "rgba(255, 255, 255, 0.85)",
+            border: isUser ? "none" : "1px solid rgba(13, 148, 136, 0.1)",
+            boxShadow: isUser 
+              ? "0 8px 24px rgba(13, 148, 136, 0.2)" 
+              : "0 4px 16px rgba(13, 148, 136, 0.08)",
           }}
-          bodyStyle={{ padding: "12px 16px" }}
+          bodyStyle={{ padding: "14px 18px" }}
         >
           <Text 
             style={{ 
-              color: isUser ? "#fff" : "#000",
+              color: isUser ? "#fff" : "#134E4A",
               fontSize: 14,
               lineHeight: 1.6,
+              fontWeight: isUser ? 500 : 400,
             }}
           >
             {message.content}
           </Text>
           <div style={{ marginTop: 8 }}>
             <Text 
-              type={isUser ? "secondary" : "secondary"}
               style={{ 
-                fontSize: 12, 
-                opacity: isUser ? 0.8 : 0.6,
-                color: isUser ? "#fff" : "#666",
+                fontSize: 12,
+                color: isUser ? "rgba(255, 255, 255, 0.8)" : "#0F766E",
               }}
             >
               {new Date(message.timestamp).toLocaleTimeString("zh-CN", {

@@ -59,8 +59,6 @@ export default function ChatSidebar({
     };
 
     conversations.forEach((conv) => {
-      // 只使用 createdAt（创建时间）来判断分组
-      // 确保会话不会因为操作而在分组之间跳转
       const createDate = new Date(conv.createdAt);
       createDate.setHours(0, 0, 0, 0);
 
@@ -107,7 +105,6 @@ export default function ChatSidebar({
         setEditTitle("");
       } catch (error) {
         console.error("Failed to update conversation title:", error);
-        // 可以添加错误提示
       } finally {
         setIsEditing(false);
       }
@@ -139,7 +136,8 @@ export default function ChatSidebar({
             style={{
               flex: 1,
               fontSize: 14,
-              color: conv.id === currentConversationId ? "#1677ff" : "inherit",
+              color: conv.id === currentConversationId ? "#0D9488" : "#134E4A",
+              fontWeight: conv.id === currentConversationId ? 600 : 400,
             }}
           >
             {conv.title}
@@ -172,7 +170,7 @@ export default function ChatSidebar({
               icon={<MoreOutlined />}
               size="small"
               onClick={(e) => e.stopPropagation()}
-              style={{ padding: "0 4px" }}
+              style={{ padding: "0 4px", color: "#0D9488" }}
             />
           </Dropdown>
         </div>
@@ -188,7 +186,7 @@ export default function ChatSidebar({
     menuItems.push({
       key: "today-header",
       type: "group",
-      label: "今天",
+      label: <span style={{ color: "#0D9488", fontWeight: 600 }}>今天</span>,
       children: getConversationItems(grouped.today),
     });
   }
@@ -197,7 +195,7 @@ export default function ChatSidebar({
     menuItems.push({
       key: "yesterday-header",
       type: "group",
-      label: "昨天",
+      label: <span style={{ color: "#0D9488", fontWeight: 600 }}>昨天</span>,
       children: getConversationItems(grouped.yesterday),
     });
   }
@@ -206,7 +204,7 @@ export default function ChatSidebar({
     menuItems.push({
       key: "earlier-header",
       type: "group",
-      label: "更早",
+      label: <span style={{ color: "#0D9488", fontWeight: 600 }}>更早</span>,
       children: getConversationItems(grouped.earlier),
     });
   }
@@ -219,7 +217,7 @@ export default function ChatSidebar({
           <Empty
             image={Empty.PRESENTED_IMAGE_SIMPLE}
             description={
-              <Text type="secondary">暂无会话</Text>
+              <Text style={{ color: "#134E4A" }}>暂无会话</Text>
             }
           />
         </div>
@@ -235,9 +233,10 @@ export default function ChatSidebar({
         collapsed={collapsed}
         onCollapse={onCollapse}
         width={280}
+        className="glass-card"
         style={{
-          background: "#fff",
-          borderRight: "1px solid #f0f0f0",
+          background: "rgba(255, 255, 255, 0.85)",
+          borderRight: "1px solid rgba(13, 148, 136, 0.1)",
           height: "100vh",
           position: "fixed",
           left: 0,
@@ -245,21 +244,24 @@ export default function ChatSidebar({
           zIndex: 10,
           display: "flex",
           flexDirection: "column",
+          boxShadow: "4px 0 20px rgba(13, 148, 136, 0.08)",
         }}
         trigger={null}
       >
         <div
+          className="glass-card"
           style={{
             padding: "16px",
-            borderBottom: "1px solid #f0f0f0",
+            borderBottom: "1px solid rgba(13, 148, 136, 0.1)",
             display: "flex",
             alignItems: "center",
             justifyContent: "space-between",
             flexShrink: 0,
+            borderRadius: 0,
           }}
         >
           {!collapsed && (
-            <Text strong style={{ fontSize: 16 }}>
+            <Text strong style={{ fontSize: 16, color: "#134E4A" }}>
               对话历史
             </Text>
           )}
@@ -268,6 +270,12 @@ export default function ChatSidebar({
             icon={<PlusOutlined />}
             onClick={onCreateConversation}
             size={collapsed ? "small" : "middle"}
+            className="hover-lift"
+            style={{
+              background: "linear-gradient(135deg, #0D9488 0%, #14B8A6 100%)",
+              border: "none",
+              boxShadow: "0 4px 12px rgba(13, 148, 136, 0.25)",
+            }}
           >
             {collapsed ? "" : "新建会话"}
           </Button>
@@ -285,13 +293,13 @@ export default function ChatSidebar({
             mode="inline"
             selectedKeys={currentConversationId ? [currentConversationId] : []}
             items={menuItems}
-            style={{ border: "none" }}
+            style={{ border: "none", background: "transparent" }}
           />
         </div>
       </Sider>
 
       <Modal
-        title="确认删除"
+        title={<span style={{ color: "#134E4A" }}>确认删除</span>}
         open={deleteModalVisible}
         onOk={handleDeleteConfirm}
         onCancel={() => {
@@ -302,6 +310,7 @@ export default function ChatSidebar({
         cancelText="取消"
         okButtonProps={{ danger: true }}
         centered
+        className="glass-card"
       >
         <div
           style={{
@@ -314,27 +323,28 @@ export default function ChatSidebar({
           <ExclamationCircleOutlined
             style={{
               fontSize: 48,
-              color: "#ff4d4f",
+              color: "#ef4444",
               marginBottom: 16,
             }}
           />
-          <Text style={{ fontSize: 14 }}>
+          <Text style={{ fontSize: 14, color: "#134E4A" }}>
             确定要删除这个会话吗？删除后无法恢复。
           </Text>
         </div>
       </Modal>
 
       <Modal
-        title="编辑会话标题"
+        title={<span style={{ color: "#134E4A" }}>编辑会话标题</span>}
         open={editModalVisible}
         onOk={handleEditConfirm}
         onCancel={handleEditCancel}
         okText="保存"
         cancelText="取消"
         confirmLoading={isEditing}
+        className="glass-card"
       >
         <Space direction="vertical" style={{ width: "100%" }}>
-          <Text>请输入新的会话标题：</Text>
+          <Text style={{ color: "#134E4A" }}>请输入新的会话标题：</Text>
           <Input
             value={editTitle}
             onChange={(e) => setEditTitle(e.target.value)}
@@ -342,6 +352,7 @@ export default function ChatSidebar({
             maxLength={50}
             showCount
             onPressEnter={handleEditConfirm}
+            style={{ borderRadius: 10 }}
           />
         </Space>
       </Modal>

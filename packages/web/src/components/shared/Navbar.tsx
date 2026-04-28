@@ -48,13 +48,18 @@ export default function Navbar({ extra }: NavbarProps) {
   const pathname = usePathname();
 
   return (
-    <Header style={{ 
-      display: "flex", 
-      alignItems: "center", 
-      padding: "0 24px",
-      background: "#fff",
-      borderBottom: "1px solid #f0f0f0",
-    }}>
+    <Header 
+      className="glass-nav"
+      style={{ 
+        display: "flex", 
+        alignItems: "center", 
+        padding: "0 24px",
+        position: "sticky",
+        top: 0,
+        zIndex: 100,
+        boxShadow: "0 4px 20px rgba(13, 148, 136, 0.08)",
+      }}
+    >
       <div style={{ 
         display: "flex", 
         alignItems: "center", 
@@ -63,11 +68,14 @@ export default function Navbar({ extra }: NavbarProps) {
       }}>
         <Link 
           href="/" 
+          className="hover-lift"
           style={{ 
-            fontSize: "20px", 
-            fontWeight: "bold", 
-            color: "#3b82f6",
+            fontSize: "22px", 
+            fontWeight: 700, 
+            color: "#0D9488",
             textDecoration: "none",
+            letterSpacing: "-0.5px",
+            transition: "color 0.2s ease",
           }}
         >
           考公 Agent
@@ -81,6 +89,7 @@ export default function Navbar({ extra }: NavbarProps) {
           flex: 1, 
           minWidth: 0, 
           border: "none",
+          background: "transparent",
         }}
       />
       {extra && (

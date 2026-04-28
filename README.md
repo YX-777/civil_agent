@@ -16,7 +16,7 @@
 
 如果需要看“当前真实代码状态、已完成项、剩余待办”，请优先阅读：
 
-- [0318.md](/Users/sxh/Code/project/civil_agent/0318.md)
+- [PROJECT_STATUS.md](PROJECT_STATUS.md)
 
 ## 技术架构
 
@@ -127,12 +127,12 @@ cp .env.example .env
 
 与当前代码最相关的文档入口：
 
-- [0318.md](/Users/sxh/Code/project/civil_agent/0318.md)：当前真实阶段记录
-- [SKILL.md](/Users/sxh/Code/project/civil_agent/SKILL.md)：小红书 + Agent 增强总体方案
-- [packages/web/SKILL.md](/Users/sxh/Code/project/civil_agent/packages/web/SKILL.md)
-- [packages/agent-langgraph/SKILL.md](/Users/sxh/Code/project/civil_agent/packages/agent-langgraph/SKILL.md)
-- [packages/mcp-xiaohongshu/SKILL.md](/Users/sxh/Code/project/civil_agent/packages/mcp-xiaohongshu/SKILL.md)
-- [STARTUP_GUIDE.md](/Users/sxh/Code/project/civil_agent/STARTUP_GUIDE.md)
+- [PROJECT_STATUS.md](PROJECT_STATUS.md)：当前真实阶段记录
+- [PROJECT_STRUCTURE.md](PROJECT_STRUCTURE.md)：包结构速查表
+- [STARTUP_GUIDE.md](STARTUP_GUIDE.md)
+- [docs/architecture/xhs-mcp-rag-design.md](docs/architecture/xhs-mcp-rag-design.md)：小红书 + Agent 增强总体方案
+- [docs/architecture/database-design.md](docs/architecture/database-design.md)：数据库设计
+- 各包级文档：`packages/*/SKILL.md`
 
 ## 常用命令
 
