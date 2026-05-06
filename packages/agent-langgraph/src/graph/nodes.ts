@@ -23,7 +23,88 @@ import {
 import { parseTaskPlanFromText } from "./task-plan";
 
 /**
- * 创建 LLM 实例
+ * 直接调用百炼 API (绕过 LangChain 的兼容性问题)
+ */
+async function callDashscopeAPI(systemPrompt: string, userPrompt: string): Promise<string> {
+  const config = getAgentConfig();
+  const apiKey = config.llm.apiKey;
+
+  const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "qwen3.6-plus",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.2,
+      max_tokens: config.llm.maxTokens,
+    }),
+  });
+
+  const data = await response.json() as any;
+  return data.choices?.[0]?.message?.content || "";
+}
+
+/**
+ * 流式调用百炼 API
+ */
+async function* streamDashscopeAPI(systemPrompt: string, userPrompt: string): AsyncGenerator<string> {
+  const config = getAgentConfig();
+  const apiKey = config.llm.apiKey;
+
+  const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      model: "qwen3.6-plus",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      temperature: 0.2,
+      max_tokens: config.llm.maxTokens,
+      stream: true,
+    }),
+  });
+
+  const reader = response.body?.getReader();
+  if (!reader) return;
+
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+
+    buffer += decoder.decode(value, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (line.startsWith("data: ")) {
+        const dataStr = line.slice(6);
+        if (dataStr === "[DONE]") continue;
+        try {
+          const parsed = JSON.parse(dataStr) as any;
+          const content = parsed.choices?.[0]?.delta?.content || "";
+          if (content) yield content;
+        } catch {}
+      }
+    }
+  }
+}
+
+/**
+ * 创建 LLM 实例 (备用)
  */
 function createLLM() {
   const config = getAgentConfig();
@@ -529,7 +610,6 @@ export async function* taskGenerationNodeStream(
   logger.info("Task generation stream node executing");
 
   try {
-    const llm = createLLM();
     const mcpClient = getMCPToolClient();
 
     // 获取用户原始消息
@@ -549,40 +629,111 @@ export async function* taskGenerationNodeStream(
       ragContext = ragResult.data.results.map((r: any) => r.content).join("\n");
     }
 
-    const systemPrompt = SYSTEM_PROMPTS.TASK_GENERATION;
-    const userPrompt = TASK_PROMPTS.GENERATE_TASK_PLAN
-      .replace("{userId}", state.userId)
-      .replace("{progress}", ragContext || "暂无进度数据")
-      .replace("{weakModules}", "待分析")
-      .replace("{studyHabits}", "待分析");
+    // Step 1: 调用模型生成 JSON 格式的任务计划（不 yield）
+    const planSystemPrompt = `你是 TechMate 任务规划引擎。请严格按照 JSON 格式输出学习计划，不要输出其他内容。
 
-    // 把用户原始需求也传递给模型，强调技术学习场景
-    const enhancedUserPrompt = `用户具体需求：${userRequest}
+输出格式示例：
+{"tech_stack":"React开发","daily_practice":"每天3个案例","difficulty":"基础","duration":"预计7天完成","reason":"React是前端核心框架"}
 
-${userPrompt}`;
+技术栈选项：React开发、Next.js实战、TypeScript进阶、JavaScript深入、CSS布局、Node.js后端、算法刷题、前端面试
 
-    const stream = await llm.stream([
-      new SystemMessage(systemPrompt),
-      new HumanMessage(enhancedUserPrompt),
-    ]);
+禁止使用考公、行测、申论等词汇。`;
 
-    let fullContent = "";
-    for await (const chunk of stream) {
-      const chunkContent = chunk.content as string;
-      fullContent += chunkContent;
-      yield chunkContent;
+    const planUserPrompt = `用户需求：${userRequest}
+
+请生成 JSON 格式的技术学习计划。`;
+
+    let planJson = "";
+    for await (const chunk of streamDashscopeAPI(planSystemPrompt, planUserPrompt)) {
+      planJson += chunk;
+      // 不 yield，先收集
+    }
+
+    // Step 2: 解析 JSON
+    let parsedPlan: any = null;
+    try {
+      // 提取 JSON（模型可能返回 ```json 包裹的内容）
+      const jsonMatch = planJson.match(/\{[^}]+\}/);
+      if (jsonMatch) {
+        parsedPlan = JSON.parse(jsonMatch[0]);
+      }
+    } catch (e) {
+      logger.warn("Failed to parse plan JSON, using raw text");
+    }
+
+    // 映射 parsedPlan 到 PendingTaskPlan 格式
+    function mapDifficulty(diff: string): "easy" | "medium" | "hard" {
+      if (diff?.includes("基础") || diff?.includes("简单") || diff?.includes("easy")) return "easy";
+      if (diff?.includes("进阶") || diff?.includes("中等") || diff?.includes("medium")) return "medium";
+      return "hard";
+    }
+
+    function extractPeriodDays(duration: string): number | null {
+      const match = duration?.match(/(\d+)\s*[天周]/);
+      if (match) return parseInt(match[1]);
+      // 如果是"周"，乘以7
+      if (duration?.includes("周")) {
+        const weekMatch = duration.match(/(\d+)\s*周/);
+        if (weekMatch) return parseInt(weekMatch[1]) * 7;
+      }
+      return 7; // 默认7天
+    }
+
+    function extractEstimatedMinutes(practice: string): number {
+      // 尝试从 daily_practice 提取时间
+      const hourMatch = practice?.match(/(\d+)\s*小时/);
+      if (hourMatch) return parseInt(hourMatch[1]) * 60;
+      const minMatch = practice?.match(/(\d+)\s*分钟/);
+      if (minMatch) return parseInt(minMatch[1]);
+      return 60; // 默认60分钟
+    }
+
+    const mappedPlan = parsedPlan ? {
+      title: parsedPlan.tech_stack || "技术学习计划",
+      description: parsedPlan.reason || "技术栈学习计划",
+      module: parsedPlan.tech_stack || null,
+      difficulty: mapDifficulty(parsedPlan.difficulty),
+      estimatedMinutes: extractEstimatedMinutes(parsedPlan.daily_practice),
+      dailyQuestionCount: null,
+      periodDays: extractPeriodDays(parsedPlan.duration),
+      reason: parsedPlan.reason || null,
+      rawPlan: planJson,
+    } : null;
+
+    // Step 3: 再调用模型，将计划转换成友好文本（这次 yield）
+    const explainSystemPrompt = `你是 TechMate 技术学习助手。请用亲切、鼓励的语气向用户介绍学习计划。
+
+回复要求：
+1. 使用自然语言，不要输出 JSON
+2. 简洁明了，控制在 100 字以内
+3. 用表情符号增加亲和力（如 📚、💪、🎯）
+4. 结尾提示用户可以确认或调整计划`;
+
+    const explainUserPrompt = parsedPlan
+      ? `请用友好语气介绍以下学习计划：
+- 技术栈：${parsedPlan.tech_stack}
+- 每日练习：${parsedPlan.daily_practice}
+- 难度：${parsedPlan.difficulty}
+- 预计周期：${parsedPlan.duration}
+- 推荐理由：${parsedPlan.reason}`
+      : `请用友好语气介绍这个学习计划：${planJson}`;
+
+    // Step 4: yield 友好文本
+    let friendlyContent = "";
+    for await (const chunk of streamDashscopeAPI(explainSystemPrompt, explainUserPrompt)) {
+      friendlyContent += chunk;
+      yield chunk;
     }
 
     const quickReplies = createQuickReplies(["确认计划", "调整任务", "取消"]);
-    const parsedTaskPlan = parseTaskPlanFromText(fullContent);
     LogTools.logAgentDecision(state.userId, state.userIntent, "Task generation Stream");
 
     return {
       ...state,
-      messages: [...state.messages, new AIMessage(fullContent)],
+      messages: [...state.messages, new AIMessage(friendlyContent)],
       quickReplyOptions: quickReplies,
       waitingForUserInput: true,
-      pendingTaskPlan: parsedTaskPlan ?? undefined,
+      pendingTaskPlan: mappedPlan ?? undefined,
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));

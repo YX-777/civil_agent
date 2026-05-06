@@ -30,8 +30,8 @@ export const CRON_JOBS: CronJobConfig[] = [
   },
   {
     name: "weekly-xiaohongshu-sync",
-    expression: "0 3 * * 0",
-    description: "小红书每周同步 - 每周日 03:00",
+    expression: "0 6 * * *",
+    description: "小红书每日同步 - 每天 06:00",
     concurrency: 1,
   },
 ];

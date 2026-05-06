@@ -1,0 +1,23 @@
+{
+  "name": "@civil-agent/rag-engine",
+  "version": "1.0.0",
+  "description": "TechMate RAG Engine - Hybrid retrieval with LlamaIndex + Chroma + BM25 + BGE-M3 reranking",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@civil-agent/core": "workspace:*",
+    "@civil-agent/database": "workspace:*",
+    "axios": "^1.6.5",
+    "natural": "^6.10.0"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0",
+    "typescript": "^5.3.0",
+    "vitest": "^1.0.0"
+  }
+}

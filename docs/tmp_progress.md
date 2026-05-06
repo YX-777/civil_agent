@@ -1,0 +1,442 @@
+# TechMate 改造进度记录
+
+> 最后更新：2026-05-07
+
+---
+
+## 一、本次会话总结（2026-05-07）
+
+### 1.1 小红书采集定时任务完成 ✅
+
+**功能实现**：
+- MCP 小红书采集链路调试完成
+- 搜索 → 详情获取 → 正文提取 → 数据入库全流程验证
+- 定时任务配置（node-cron，不依赖 Redis）
+
+**修复问题**：
+| 问题 | 解决方案 |
+|------|----------|
+| MCP 搜索超时 | timeout 增加到 180秒，简化搜索参数（去掉筛选条件） |
+| 正文字段映射错误 | `contentClean` → `_detailText`（入库服务识别此字段） |
+| Scheduler 依赖 Redis | 创建简化版定时任务 `xhs-sync-cron.mjs` |
+| 多关键词搜索耗时过长 | 减少到 3 个关键词：Agent开发、前端面试、LangChain |
+
+**脚本文件**：
+- `start-xhs-sync.sh` - 启动脚本
+- `stop-xhs-sync.sh` - 停止脚本
+- `check-xhs-login.sh` - 登录状态检查
+
+**定时配置**：
+- Cron 表达式：`10 11 * * *`（每天 11:10）
+- 采集量：默认 50 条
+- 节流间隔：5秒（避免触发风控）
+
+### 1.2 重试机制说明
+
+**详情获取重试**：
+- 最多 2 次重试（间隔 4秒、8秒）
+- lookup_miss 特殊处理：基于标题重新搜索获取新 xsec_token
+
+**可重试错误类型**：
+| 类型 | 说明 | 是否重试 |
+|------|------|----------|
+| transient | 网络临时错误、超时 | ✅ |
+| parse_empty | 解析结果为空 | ✅ |
+| lookup_miss | 详情映射失效 | ✅ + 回搜 |
+| access_denied | 笔记不可访问 | ❌ |
+| login_required | 需要登录 | ❌ |
+
+**历史失败补偿**：
+- 失败记录入库为 `detail_unavailable` 状态
+- 下次同步任务自动带上历史失败样本重试
+
+### 1.3 账号风控问题 ⚠️
+
+**现象**：小红书账号收到违规提示
+
+**处理**：
+1. 已停止定时任务
+2. 暂停采集等待风控解除
+3. 或更换其他小红书账号
+
+**换账号步骤**：
+```bash
+rm xiaohongshu-mcp-bin/cookies.json
+cd xiaohongshu-mcp-bin && ./xiaohongshu-login-darwin-arm64
+# 扫码登录新账号
+./start-xhs-sync.sh
+```
+
+### 1.4 当前数据统计
+
+| 状态 | 数量 |
+|------|------|
+| 总记录 | 12 条 |
+| new（成功） | 8 条 |
+| detail_unavailable | 4 条 |
+
+---
+
+## 二、本次会话总结（2026-05-06）
+
+### 1.1 修复"确认计划"字段映射问题
+
+**问题描述**：
+用户在聊天中说"确认计划"后返回"服务暂时不可用"。
+
+**根因分析**：
+`taskGenerationNodeStream` 生成的 `parsedPlan` 字段与 `route.ts` 期望的 `PendingTaskPlan` 字段不匹配：
+- parsedPlan: `tech_stack`, `daily_practice`, `difficulty`（如"基础"), `duration`, `reason`
+- PendingTaskPlan: `title`, `description`, `module`, `difficulty`（必须是 "easy"|"medium"|"hard"), `estimatedMinutes`, `periodDays`
+
+**解决方案**：
+在 `nodes.ts` 中添加字段映射函数：
+```typescript
+// 将模型返回的难度描述转换为标准枚举值
+function mapDifficulty(diff: string): "easy" | "medium" | "hard" {
+  if (diff?.includes("基础") || diff?.includes("简单")) return "easy";
+  if (diff?.includes("进阶") || diff?.includes("中等")) return "medium";
+  return "hard";
+}
+
+// 从 duration 字段提取学习周期天数
+// 示例: "预计7天完成" → 7, "2周" → 14
+function extractPeriodDays(duration: string): number | null {
+  const match = duration?.match(/(\d+)\s*[天周]/);
+  if (match) return parseInt(match[1]);
+  if (duration?.includes("周")) {
+    const weekMatch = duration.match(/(\d+)\s*周/);
+    if (weekMatch) return parseInt(weekMatch[1]) * 7;
+  }
+  return 7; // 默认7天
+}
+
+// 从 daily_practice 字段提取每日预估时长
+// 示例: "每天2小时" → 120, "每天3个案例" → 60（默认）
+function extractEstimatedMinutes(practice: string): number {
+  const hourMatch = practice?.match(/(\d+)\s*小时/);
+  if (hourMatch) return parseInt(hourMatch[1]) * 60;
+  const minMatch = practice?.match(/(\d+)\s*分钟/);
+  if (minMatch) return parseInt(minMatch[1]);
+  return 60; // 默认60分钟
+}
+
+// 字段映射
+const mappedPlan = parsedPlan ? {
+  title: parsedPlan.tech_stack || "技术学习计划",
+  description: parsedPlan.reason || "技术栈学习计划",
+  module: parsedPlan.tech_stack || null,
+  difficulty: mapDifficulty(parsedPlan.difficulty),
+  estimatedMinutes: extractEstimatedMinutes(parsedPlan.daily_practice),
+  dailyQuestionCount: null,
+  periodDays: extractPeriodDays(parsedPlan.duration),
+  reason: parsedPlan.reason || null,
+  rawPlan: planJson,
+} : null;
+```
+
+**验证结果**：
+```bash
+# 测试创建任务
+curl -s http://localhost:3000/api/agent/chat -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"message":"确认计划","userId":"test-user","conversationId":"test-conv"}'
+
+# 返回成功
+"任务标题：React开发\n模块：React开发\n建议周期：14 天"
+
+# 任务已写入数据库
+curl -s "http://localhost:3000/api/tasks?userId=test-user"
+# 返回: {"title":"React开发","description":"React是目前最主流的前端UI库...","status":"todo","difficulty":"easy"}
+```
+
+---
+
+### 1.2 RAG Engine 实现情况分析
+
+#### 已实现模块
+
+| 模块 | 文件 | 功能 | 状态 |
+|------|------|------|------|
+| VectorRetriever | `vector-retriever.ts` | Chroma 向量检索 + 批量添加文档 | ✅ |
+| BM25Retriever | `bm25-retriever.ts` | BM25 关键词检索 + 中文分词 | ✅ |
+| HybridRetriever | `hybrid-retriever.ts` | RRF 融合 + 重排编排 + retrieveAndGenerate | ✅ |
+| BGEM3Reranker | `bge-m3-reranker.ts` | 远程 API 重排 + mockRerank fallback | ✅ |
+| ThreeTierStrategy | `three-tier-strategy.ts` | precise/candidates/expand/fallback 三级策略 | ✅ |
+| 知识库初始化 | `init-knowledge-base.ts` | React/TS/Next.js/算法 知识文档（10条） | ✅ |
+
+#### 与简历描述的差距
+
+| 差距项 | 现状 | 简历描述 | 影响 |
+|--------|------|----------|------|
+| **LlamaIndex** | 未使用，直接调用 Chroma SDK | 基于 LlamaIndex | 面试可能被追问 |
+| **Agent 集成** | HybridRetriever 未被 nodes.ts 调用 | 实际使用中 | 核心功能未生效 |
+| **扩展知识库** | 未实现扩展检索层 | 扩展知识库泛化检索 | 三级策略不完整 |
+| **知识库初始化** | 启动时未自动调用 init | 服务启动时初始化 | BM25 索引为空 |
+
+#### RAG 核心流程（面试重点）
+
+```
+用户 Query → Embedding 生成 → 
+并行检索（向量 + BM25） → RRF 融合 → 
+BGE-M3 重排 → 三级策略分类 → 
+构建 LLM Prompt → 生成答案
+```
+
+---
+
+### 1.3 ChromaDB Web UI 查看器创建
+
+**背景**：
+- ChromaDB 新版（1.5.x）无内置 Web UI
+- 需要可视化查看向量数据库内容
+
+**解决方案**：
+创建 `/packages/chroma-web-ui/` Next.js 应用。
+
+**核心文件**：
+
+| 文件 | 功能 |
+|------|------|
+| `package.json` | 项目配置，依赖 next/react/antd/axios |
+| `next.config.js` | API 代理配置（解决 CORS 问题） |
+| `src/app/page.tsx` | 主页面，展示 Collections、文档列表、搜索功能 |
+| `src/app/layout.tsx` | 根布局 |
+
+**关键配置**：
+```javascript
+// next.config.js - API 代理解决 CORS
+async rewrites() {
+  return [
+    {
+      source: '/api/chroma/:path*',
+      destination: 'http://localhost:8000/api/v2/:path*',
+    },
+  ]
+}
+
+// page.tsx - API 调用路径
+const CHROMA_URL = '/api/chroma'  // 通过代理访问 ChromaDB
+```
+
+**启动方式**：
+```bash
+cd /Users/sxh/Code/project/civil_agent/chroma-web-ui
+npm run dev
+# 访问 http://localhost:3001
+```
+
+**当前状态**：
+- ChromaDB Server ✅ 运行中（localhost:8000）
+- Web UI ✅ 运行中（localhost:3001）
+- Collection `tech_knowledge` ✅ 已创建
+- 数据记录 ❌ 0条（嵌入模型下载失败，网络问题）
+
+---
+
+### 1.4 LlamaIndex 考点梳理
+
+**什么是 LlamaIndex？**
+LlamaIndex 是专门为 RAG 应用设计的数据框架，核心定位是"连接自定义数据源到 LLM"。
+
+**核心组件**：
+| 组件 | 功能 |
+|------|------|
+| Reader | 数据导入（PDF/数据库/API） |
+| Index | 索引构建（向量/关键词/树形） |
+| Retriever | 检索执行 |
+| QueryEngine | 查询编排 + LLM 调用 |
+
+**与 LangChain 的区别**：
+| 对比项 | LlamaIndex | LangChain |
+|--------|------------|-----------|
+| 定位 | 数据框架，专注 RAG | Agent 编排框架，专注流程控制 |
+| 核心能力 | 索引构建、检索优化 | Chain、Tool、Memory 编排 |
+| 适用场景 | 文档问答、知识库 | 多步骤任务、工具调用 Agent |
+
+**面试高频问题**：
+1. 什么是 LlamaIndex？→ 数据框架，连接私有数据到 LLM
+2. 核心组件有哪些？→ Reader → Index → Retriever → QueryEngine
+3. 与 LangChain 的区别？→ 数据框架 vs Agent 编排框架
+4. RAG 流程？→ Query → Embedding → 检索 → Prompt → LLM
+
+**是否高频考点？**
+- 大厂前端面试：中频（Agent/RAG 相关岗位会问）
+- AI/AIGC 岗位：高频（核心知识点）
+- 建议：重点准备 RAG 流程、Hybrid检索、Re-ranking 这些通用概念（比框架更重要）
+
+---
+
+## 二、当前进度总览
+
+| Phase | 任务 | 状态 |
+|-------|------|------|
+| P0-1 | Prompts 改造（考公 → 技术学习） | ✅ 完成 |
+| P0-2 | 关键词改造（小红书采集关键词） | ✅ 完成 |
+| P0 | UI 改造（TechMate 标题 + 技术模块） | ✅ 完成 |
+| P0 | 数据库默认值（"考生" → "学习者"） | ✅ 完成 |
+| P1-1 | RAG Engine 包创建 | ✅ 完成 |
+| P1-1 | 直接 API 调用集成（绕过 LangChain） | ✅ 完成 |
+| P1-1 | 技术知识库初始化脚本 | ✅ 完成 |
+| P1-1 | 任务计划字段映射修复 | ✅ 完成 |
+| P1-1 | ChromaDB Web UI 查看器 | ✅ 完成 |
+| P1-1 | RAG Engine 完整集成到所有节点 | ⏳ 部分（仅 taskGenerationNode） |
+| P1-2 | 四阶分层记忆系统 | 🔜 待开始 |
+| P1-3 | GuardRail 三层防护 | 🔜 待开始 |
+| P2 | OpenTelemetry 可观测 | 🔜 待开始 |
+
+---
+
+## 三、搁置问题
+
+### 3.1 聊天制定计划与任务管理页面未联动
+- **现状**：聊天中"确认计划"创建的任务存入数据库，但任务管理页面未实时刷新显示
+- **需要**：实现实时联动（WebSocket/SSE 推送或前端轮询刷新）
+- **优先级**：后续补充
+
+### 3.2 RAG Engine 未完全集成到 Agent 流程
+- **现状**：HybridRetriever 未被 nodes.ts 调用，仅 taskGenerationNodeStream 使用直接 API
+- **待做**：将 HybridRetriever 集成到 generalQANode、emotionSupportNode 等
+- **优先级**：后续继续完善
+
+### 3.3 ChromaDB 数据未初始化
+- **现状**：嵌入模型下载失败（网络超时），tech_knowledge Collection 有 0 条记录
+- **待做**：网络稳定后运行 `python3 init_chroma.py` 或通过 Web UI 手动添加
+- **优先级**：后续补充
+
+### 3.4 BM25 索引未初始化
+- **现状**：BM25Retriever.buildIndex() 需要在服务启动时调用
+- **待做**：添加启动脚本初始化技术知识库
+- **优先级**：后续补充
+
+### 3.5 百炼 API 偶发 403 Forbidden
+- **现状**：部分请求返回 403
+- **原因**：可能是配额限制或并发请求过多
+- **状态**：观察中
+
+---
+
+## 四、待确认问题
+
+### 是否需要引入 LlamaIndex
+- **简历描述**：基于 LlamaIndex 搭建混合分层 RAG 检索
+- **现状**：直接使用 Chroma SDK，未引入 LlamaIndex
+- **权衡**：
+  - 引入 LlamaIndex：简历真实，但需额外学习成本
+  - 不引入：修改简历描述为"基于 Chroma + BM25 混合检索"，更诚实
+- **决策**：待确认，面试前决定
+- **面试准备**：
+  - LlamaIndex 核心概念（Reader → Index → Retriever → QueryEngine）
+  - 与 LangChain 的区别（数据框架 vs Agent 编排框架）
+  - RAG 流程（Query → Embedding → 检索 → Prompt → LLM）
+
+---
+
+## 五、下一步计划
+
+### 优先级排序
+
+| 优先级 | 任务 | 说明 | 预估时间 |
+|--------|------|------|----------|
+| **高** | 完善 RAG Engine 集成 | 将 HybridRetriever 集成到 generalQANode 等 | 1-2天 |
+| **高** | 初始化 ChromaDB 数据 | 运行 init 脚本或手动添加测试数据 | 0.5天 |
+| **高** | 四阶分层记忆系统 | instant/short/long/meta + 衰减/强化机制 | 3-5天 |
+| **高** | GuardRail 三层防护 | prompt校验 + tool拦截 + 输出过滤 | 2-3天 |
+| **中** | OpenTelemetry 可观测 | Console 输出（面试展示用日志截图） | 2-3天 |
+| **中** | 聊天-任务页面联动 | WebSocket 或前端轮询 | 1天 |
+| **低** | Docker 部署配置 | Dockerfile + docker-compose | 1天 |
+
+### 建议下一步行动
+
+1. **初始化 ChromaDB 数据**（最快见效）
+   - 网络稳定后运行 `python3 init_chroma.py`
+   - 或通过 Web UI（http://localhost:3001）手动添加文档
+   - 验证 RAG 检索流程
+
+2. **集成 HybridRetriever 到 generalQANode**
+   - 修改 `/packages/agent-langgraph/src/graph/nodes.ts`
+   - 替换 MCP RAG 调用为 HybridRetriever.retrieveAndGenerate()
+   - 测试语义搜索效果
+
+3. **确认 LlamaIndex 决策**
+   - 如果决定引入：学习 LlamaIndex 基础，重构 RAG Engine
+   - 如果决定不引入：修改简历描述，准备面试追问应对
+
+---
+
+## 六、已完成的改造
+
+### Prompts 改造
+- `/packages/core/src/constants/prompts.ts` → 技术学习助手
+- `/packages/agent-langgraph/src/prompts/system-prompts.ts` → TechMate 场景
+- `/packages/agent-langgraph/src/prompts/task-prompts.ts` → 技术栈任务生成
+
+### 关键词改造
+- `/packages/agent-langgraph/src/graph/xiaohongshu-rag.ts` → 前端开发关键词
+- `/packages/scheduler/src/jobs/weekly-xiaohongshu-sync.ts` → 技术内容采集
+
+### UI 改造
+- `/packages/web/src/app/tasks/page.tsx` → 技术模块选项
+- `/packages/web/src/app/focus/page.tsx` → 技术模块选项
+- `/packages/web/src/components/shared/Navbar.tsx` → "TechMate" 标题
+- `/packages/web/src/hooks/use-agent.ts` → 技术学习欢迎语
+
+### RAG Engine 新增
+- `/packages/rag-engine/src/retrievers/vector-retriever.ts`
+- `/packages/rag-engine/src/retrievers/bm25-retriever.ts`
+- `/packages/rag-engine/src/retrievers/hybrid-retriever.ts`
+- `/packages/rag-engine/src/reranker/bge-m3-reranker.ts`
+- `/packages/rag-engine/src/strategies/three-tier-strategy.ts`
+- `/packages/rag-engine/src/scripts/init-knowledge-base.ts`
+
+### ChromaDB Web UI 新增
+- `/packages/chroma-web-ui/package.json`
+- `/packages/chroma-web-ui/next.config.js`
+- `/packages/chroma-web-ui/src/app/page.tsx`
+- `/packages/chroma-web-ui/src/app/layout.tsx`
+
+---
+
+## 七、测试验证
+
+### 启动服务
+```bash
+# 启动 TechMate 主服务
+./start-all.sh
+
+# 启动 ChromaDB Server（需单独启动）
+chroma run --host localhost --port 8000 --path ./data/chroma
+
+# 启动 ChromaDB Web UI
+cd /Users/sxh/Code/project/civil_agent/chroma-web-ui
+npm run dev
+```
+
+### API 测试
+```bash
+# 测试聊天
+curl -s http://localhost:3000/api/agent/chat -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"message":"我想学习React开发","userId":"test-user","conversationId":"test-001"}'
+
+# 测试确认计划
+curl -s http://localhost:3000/api/agent/chat -X POST \
+  -H "Content-Type: application/json" \
+  -d '{"message":"确认计划","userId":"test-user","conversationId":"test-001"}'
+
+# 查看创建的任务
+curl -s "http://localhost:3000/api/tasks?userId=test-user"
+```
+
+### UI 检查
+- 主应用：http://localhost:3000（Navbar 标题应为 TechMate）
+- ChromaDB Web UI：http://localhost:3001（查看向量数据库内容）
+
+### Python 脚本
+```bash
+# 查看 ChromaDB 内容
+python3 /Users/sxh/Code/project/civil_agent/chroma_viewer.py
+
+# 初始化 ChromaDB 数据（网络稳定后）
+python3 /Users/sxh/Code/project/civil_agent/init_chroma.py
+```

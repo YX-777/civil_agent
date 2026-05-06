@@ -13,10 +13,13 @@ export class XiaohongshuMCPClient {
   private client: MultiServerMCPClient;
   private serverName: string;
   private initialized: boolean = false;
+  private timeout: number;
 
   constructor(options: XiaohongshuMCPClientOptions = {}) {
     const url = options.url || "http://localhost:18060/mcp";
     this.serverName = "xiaohongshu";
+    // 默认 timeout 120秒，因为搜索操作可能需要较长时间
+    this.timeout = Number(process.env.XIAOHONGSHU_MCP_TIMEOUT ?? 120000);
 
     this.client = new MultiServerMCPClient({
       mcpServers: {
@@ -58,7 +61,7 @@ export class XiaohongshuMCPClient {
 
   async invokeTool(name: string, args: Record<string, any>) {
     const tool = await this.getToolByName(name);
-    const result = await tool.invoke(args);
+    const result = await tool.invoke(args, { timeout: this.timeout });
     return this.parseToolResult(result);
   }
 

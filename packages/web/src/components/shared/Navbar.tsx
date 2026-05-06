@@ -78,7 +78,7 @@ export default function Navbar({ extra }: NavbarProps) {
             transition: "color 0.2s ease",
           }}
         >
-          考公 Agent
+          TechMate
         </Link>
       </div>
       <Menu

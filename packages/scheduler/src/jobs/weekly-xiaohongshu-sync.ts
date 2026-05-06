@@ -21,10 +21,12 @@ export interface WeeklyXhsSyncJobData {
   page?: number;
 }
 
-const DEFAULT_KEYWORDS = ["前端开发技巧", "React实战", "Next.js教程", "算法刷题经验", "前端面试攻略"];
+const DEFAULT_KEYWORDS = ["Agent开发", "前端面试", "LangChain"];
 const DETAIL_RETRY_DELAYS_MS = [4000, 8000];
+// 搜索操作耗时较长（headless browser），设置更长的 timeout
+const SEARCH_TIMEOUT_MS = 180000;
 // 整个同步任务共用一套 MCP 调用节流，尽量把风控风险收敛在任务层。
-const MCP_CALL_INTERVAL_MS = Math.max(0, Number(process.env.XHS_MCP_CALL_INTERVAL_MS ?? 3000));
+const MCP_CALL_INTERVAL_MS = Math.max(0, Number(process.env.XHS_MCP_CALL_INTERVAL_MS ?? 5000));
 
 function isLoggedIn(result: any): boolean {
   const text = typeof result === "string" ? result : JSON.stringify(result);
@@ -144,12 +146,9 @@ async function fetchKeywordCandidates(
   for (const keyword of DEFAULT_KEYWORDS) {
     let feeds: any[] = [];
     try {
+      // 简化搜索参数，只传递关键词，避免 headless browser 执行过多操作导致超时
       const searchResult = await invokeMcp("search_feeds", () =>
-        client.searchFeeds(keyword, {
-          sort_by: "综合",
-          publish_time: "一周内",
-          note_type: "不限",
-        })
+        client.searchFeeds(keyword)
       );
       feeds = extractFeeds(searchResult).slice(0, targetPerKeyword);
       successKeywordCount += 1;
@@ -243,11 +242,7 @@ async function enrichWithDetailContent(
         for (const query of refreshQueries) {
           try {
             const searchResult = await invokeMcp("search_feeds_refresh", () =>
-              client.searchFeeds(query, {
-                sort_by: "综合",
-                publish_time: "一周内",
-                note_type: "不限",
-              })
+              client.searchFeeds(query)
             );
             const matchedFeed = selectRefreshFeedCandidate(currentFeed, extractFeeds(searchResult));
             if (matchedFeed) {
@@ -319,6 +314,8 @@ export async function weeklyXiaohongshuSyncJob(data: WeeklyXhsSyncJobData = {}):
 
   await initializeDatabase({ skipVectorDB: true });
   const xhsSyncService = getXhsSyncService();
+  // 设置更长的 timeout，headless browser 搜索耗时较长
+  process.env.XIAOHONGSHU_MCP_TIMEOUT = String(SEARCH_TIMEOUT_MS);
   const client = getXiaohongshuMCPClient();
   const invokeMcp = createMcpInvoker(client);
 

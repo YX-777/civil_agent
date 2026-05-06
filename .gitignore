@@ -49,3 +49,7 @@ xiaohongshu-mcp-bin/cookies.json
 xiaohongshu-mcp-bin/xiaohongshu-login-darwin-arm64
 xiaohongshu-mcp-bin/xiaohongshu-mcp-darwin-arm64
 packages/mcp-xiaohongshu/.mcp-server.pid
+
+# Python 临时脚本
+chroma_viewer.py
+init_chroma.py

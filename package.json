@@ -1,8 +1,8 @@
 {
-  "name": "civil-service-agent",
+  "name": "techmate-agent",
   "version": "1.0.0",
   "private": true,
-  "description": "AI备考陪伴教练 - 考公Agent项目",
+  "description": "TechMate - 技术学习陪伴Agent，帮助开发者提升前端技术能力",
   "scripts": {
     "dev": "pnpm --filter @civil-agent/web dev",
     "build": "pnpm -r build",
@@ -19,9 +19,10 @@
     "langgraph",
     "rag",
     "mcp",
-    "civil-service-exam",
-    "考公",
-    "备考"
+    "tech-learning",
+    "前端开发",
+    "React",
+    "TypeScript"
   ],
   "author": "sxh",
   "license": "MIT",
