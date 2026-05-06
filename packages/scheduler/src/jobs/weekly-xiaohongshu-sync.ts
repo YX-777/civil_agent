@@ -21,7 +21,7 @@ export interface WeeklyXhsSyncJobData {
   page?: number;
 }
 
-const DEFAULT_KEYWORDS = ["杭州考公", "浙江省考", "杭州事业单位考试"];
+const DEFAULT_KEYWORDS = ["前端开发技巧", "React实战", "Next.js教程", "算法刷题经验", "前端面试攻略"];
 const DETAIL_RETRY_DELAYS_MS = [4000, 8000];
 // 整个同步任务共用一套 MCP 调用节流，尽量把风控风险收敛在任务层。
 const MCP_CALL_INTERVAL_MS = Math.max(0, Number(process.env.XHS_MCP_CALL_INTERVAL_MS ?? 3000));

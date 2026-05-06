@@ -1,14 +1,16 @@
 export const LEARNING_MODULES = [
-  '资料分析',
-  '数量关系',
-  '言语理解',
-  '判断推理',
-  '常识判断',
-  '申论写作',
-  '面试技巧',
-  '时政热点',
-  '法律基础',
-  '经济管理',
+  'React开发',
+  'Next.js实战',
+  'TypeScript进阶',
+  'JavaScript深入',
+  'CSS布局',
+  'Node.js后端',
+  '前端性能优化',
+  '前端架构设计',
+  '算法刷题',
+  '前端面试',
+  'Vue开发',
+  '前端工程化',
 ] as const;
 
 export type LearningModule = typeof LEARNING_MODULES[number];

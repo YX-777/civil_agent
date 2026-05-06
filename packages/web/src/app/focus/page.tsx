@@ -10,7 +10,7 @@ import BottomNav from "@/components/shared/BottomNav";
 const { Title, Text } = Typography;
 const { Content } = Layout;
 
-const modules = ["资料分析", "数量关系", "判断推理", "言语理解", "常识判断"];
+const modules = ["React开发", "TypeScript进阶", "JavaScript深入", "CSS布局", "算法刷题"];
 const durations = [
   { hours: 1, label: "1小时" },
   { hours: 2, label: "2小时" },

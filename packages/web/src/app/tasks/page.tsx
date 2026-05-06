@@ -10,7 +10,7 @@ import BottomNav from "@/components/shared/BottomNav";
 const { Title, Text } = Typography;
 const { Content } = Layout;
 const DEFAULT_USER_ID = "default-user";
-const MODULE_OPTIONS = ["言语理解", "数量关系", "判断推理", "资料分析", "常识判断", "申论"];
+const MODULE_OPTIONS = ["React开发", "Next.js实战", "TypeScript进阶", "JavaScript深入", "算法刷题", "前端面试"];
 const DIFFICULTY_OPTIONS = [
   { label: "简单", value: "easy" },
   { label: "中等", value: "medium" },

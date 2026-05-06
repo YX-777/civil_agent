@@ -40,8 +40,8 @@ export interface AgentConfig {
 
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   llm: {
-    model: "qwen-turbo",
-    temperature: 0.7,
+    model: "qwen3.6-plus",  // 前端编程能力增强的模型
+    temperature: 0.2,  // 低温度提高 prompt 遵循度
     maxTokens: 4096,
     apiKey: process.env.DASHSCOPE_API_KEY,
   },

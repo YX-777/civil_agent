@@ -178,16 +178,21 @@ export async function taskGenerationNode(
   try {
     const llm = createLLM();
     const mcpClient = getMCPToolClient();
+
+    // 获取用户原始消息
+    const lastUserMessage = state.messages.filter(m => m.role === "user").pop();
+    const userRequest = typeof lastUserMessage?.content === "string"
+      ? lastUserMessage.content
+      : "用户想学习技术";
+
     const ragResult = await mcpClient.searchKnowledge({
-      query: `用户 ${state.userId} 的学习进度和薄弱模块`,
+      query: `用户 ${state.userId} 的技术学习进度`,
       category: "user_history",
       topK: 3,
     });
 
     let ragContext = "";
     if (ragResult.success && ragResult.data?.results?.length > 0) {
-      // 这里先用最轻量的拼接方式把历史学习信息带给模型，
-      // 后续如果任务生成需要更强结构化，再单独升级 prompt 组织方式。
       ragContext = ragResult.data.results.map((r: any) => r.content).join("\n");
     }
 
@@ -198,9 +203,14 @@ export async function taskGenerationNode(
       .replace("{weakModules}", "待分析")
       .replace("{studyHabits}", "待分析");
 
+    // 把用户原始需求也传递给模型，强调技术学习场景
+    const enhancedUserPrompt = `用户具体需求：${userRequest}
+
+${userPrompt}`;
+
     const response = await llm.invoke([
       new SystemMessage(systemPrompt),
-      new HumanMessage(userPrompt),
+      new HumanMessage(enhancedUserPrompt),
     ]);
 
     const quickReplies = ["确认计划", "调整任务", "取消"];
@@ -360,12 +370,12 @@ export async function generalQANode(
     const config = getAgentConfig();
     const mcpClient = getMCPToolClient();
 
-    // 命中考公经验类白名单时，优先查本地沉淀的小红书经验，不触发实时搜索。
+    // 命中技术经验类白名单时，优先查本地沉淀的技术经验，不触发实时搜索。
     const ragResult =
       config.features.ragEnabled && shouldRouteToXiaohongshuRag(content)
         ? await mcpClient.searchKnowledge({
             query: content,
-            category: "exam_experience",
+            category: "tech_experience",
             topK: 3,
           })
         : { success: false };
@@ -521,8 +531,15 @@ export async function* taskGenerationNodeStream(
   try {
     const llm = createLLM();
     const mcpClient = getMCPToolClient();
+
+    // 获取用户原始消息
+    const lastUserMessage = state.messages.filter(m => m.role === "user").pop();
+    const userRequest = typeof lastUserMessage?.content === "string"
+      ? lastUserMessage.content
+      : "用户想学习技术";
+
     const ragResult = await mcpClient.searchKnowledge({
-      query: `用户 ${state.userId} 的学习进度和薄弱模块`,
+      query: `用户 ${state.userId} 的技术学习进度`,
       category: "user_history",
       topK: 3,
     });
@@ -539,10 +556,14 @@ export async function* taskGenerationNodeStream(
       .replace("{weakModules}", "待分析")
       .replace("{studyHabits}", "待分析");
 
+    // 把用户原始需求也传递给模型，强调技术学习场景
+    const enhancedUserPrompt = `用户具体需求：${userRequest}
+
+${userPrompt}`;
+
     const stream = await llm.stream([
       new SystemMessage(systemPrompt),
-      ...buildLLMMessages(state.messages.slice(0, -1)),
-      new HumanMessage(userPrompt),
+      new HumanMessage(enhancedUserPrompt),
     ]);
 
     let fullContent = "";

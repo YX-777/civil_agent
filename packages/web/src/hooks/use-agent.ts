@@ -32,7 +32,7 @@ export function useAgent(
       const welcomeMessage: Message = {
         id: "welcome",
         role: "assistant",
-        content: "你好呀！😊 我是你的考公备考助手。\n\n我可以帮你：\n✅ 制定学习计划\n✅ 查询学习进度\n✅ 分析错题和薄弱模块\n✅ 提供备考建议和情感支持\n\n今天想聊点什么呢？",
+        content: "你好！😊 我是 TechMate，你的技术学习助手。\n\n我可以帮你：\n✅ 制定技术学习计划\n✅ 查询学习进度\n✅ 解答前端/React/Next.js技术问题\n✅ 分析算法题解和代码优化\n✅ 提供面试备考建议和技术困惑疏导\n\n今天想学点什么？",
         timestamp: new Date(),
       };
       setMessages([welcomeMessage]);
