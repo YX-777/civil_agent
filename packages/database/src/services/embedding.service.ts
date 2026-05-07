@@ -1,8 +1,13 @@
 import axios, { AxiosInstance } from 'axios';
 
+export interface EmbeddingItem {
+  embedding: number[];
+  text_index: number;
+}
+
 export interface EmbeddingResponse {
   output: {
-    embeddings: number[][];
+    embeddings: EmbeddingItem[];
   };
   usage: {
     total_tokens: number;
@@ -18,7 +23,7 @@ export class EmbeddingService {
 
   constructor(apiKey?: string, apiUrl?: string, model?: string) {
     this.apiKey = apiKey || process.env.EMBEDDING_API_KEY || '';
-    this.apiUrl = apiUrl || process.env.EMBEDDING_API_URL || 'https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding-v2';
+    this.apiUrl = apiUrl || process.env.EMBEDDING_API_URL || 'https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding';
     this.model = model || 'text-embedding-v2';
 
     this.axiosInstance = axios.create({
@@ -44,7 +49,7 @@ export class EmbeddingService {
       });
 
       if (response.data.output.embeddings && response.data.output.embeddings.length > 0) {
-        return response.data.output.embeddings[0];
+        return response.data.output.embeddings[0].embedding;
       }
 
       throw new Error('No embedding returned from API');
@@ -81,7 +86,7 @@ export class EmbeddingService {
         });
 
         if (response.data.output.embeddings) {
-          allEmbeddings.push(...response.data.output.embeddings);
+          allEmbeddings.push(...response.data.output.embeddings.map(e => e.embedding));
         }
       } catch (error: unknown) {
         if (axios.isAxiosError(error)) {
@@ -109,7 +114,7 @@ export class EmbeddingService {
       });
 
       if (response.data.output.embeddings && response.data.output.embeddings.length > 0) {
-        return response.data.output.embeddings[0];
+        return response.data.output.embeddings[0].embedding;
       }
 
       throw new Error('No embedding returned from API');

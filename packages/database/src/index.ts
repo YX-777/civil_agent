@@ -10,6 +10,7 @@ import { AgentStateRepository } from './repositories/agent-state.repository';
 import { XhsPostRepository } from './repositories/xhs-post.repository';
 import { XhsSyncRunRepository } from './repositories/xhs-sync-run.repository';
 import { EmbeddingService } from './services/embedding.service';
+import { VectorDBService } from './services/vector-db.service';
 import { XhsSyncService } from './services/xhs-sync.service';
 import { LearningRecordService } from './services/learning-record.service';
 import { TaskService } from './services/task.service';
@@ -18,6 +19,7 @@ import { FocusService } from './services/focus.service';
 
 let prisma: PrismaClient | null = null;
 let embeddingService: EmbeddingService | null = null;
+let vectorDBService: VectorDBService | null = null;
 
 export function getPrismaClient(): PrismaClient {
   if (!prisma) {
@@ -31,6 +33,13 @@ export function getEmbeddingService(): EmbeddingService {
     embeddingService = new EmbeddingService();
   }
   return embeddingService;
+}
+
+export function getVectorDBService(): VectorDBService {
+  if (!vectorDBService) {
+    vectorDBService = new VectorDBService();
+  }
+  return vectorDBService;
 }
 
 export function getUserRepository(): UserRepository {
@@ -128,6 +137,7 @@ export async function disconnectDatabase(): Promise<void> {
     prisma = null;
   }
   embeddingService = null;
+  vectorDBService = null;
 }
 
 export async function getSyncService(): Promise<any> {
@@ -147,6 +157,7 @@ export {
   XhsPostRepository,
   XhsSyncRunRepository,
   EmbeddingService,
+  VectorDBService,
   XhsSyncService,
   LearningRecordService,
   TaskService,

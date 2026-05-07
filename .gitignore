@@ -53,3 +53,7 @@ packages/mcp-xiaohongshu/.mcp-server.pid
 # Python 临时脚本
 chroma_viewer.py
 init_chroma.py
+init_knowledge_base.py
+
+# ChromaDB 数据存储
+data/

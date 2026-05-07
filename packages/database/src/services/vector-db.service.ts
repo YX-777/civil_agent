@@ -46,7 +46,8 @@ export class VectorDBService {
       { name: 'user_messages', metadata: { description: 'User message embeddings' } },
       { name: 'user_preferences', metadata: { description: 'User preference embeddings' } },
       { name: 'user_knowledge_mastery', metadata: { description: 'User knowledge mastery embeddings' } },
-      { name: 'task_vectors', metadata: { description: 'Task embeddings' } }
+      { name: 'task_vectors', metadata: { description: 'Task embeddings' } },
+      { name: 'tech_knowledge', metadata: { description: 'Tech knowledge base for RAG' } }
     ];
 
     for (const config of collections) {

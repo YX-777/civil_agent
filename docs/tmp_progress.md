@@ -440,3 +440,159 @@ python3 /Users/sxh/Code/project/civil_agent/chroma_viewer.py
 # 初始化 ChromaDB 数据（网络稳定后）
 python3 /Users/sxh/Code/project/civil_agent/init_chroma.py
 ```
+
+---
+
+## 八、本次会话总结（2026-05-07 第二部分）
+
+### 8.1 Embedding API 问题修复 ✅
+
+**问题发现**：
+- API URL 错误：末尾多了 `-v2` 后缀
+- 类型定义错误：API 返回 `{ embedding: [], text_index: 0 }` 结构，代码期望 `number[][]`
+
+**修复内容**：
+| 文件 | 修改 |
+|------|------|
+| `packages/database/.env` | 配置 API Key，修正 URL |
+| `packages/database/src/services/embedding.service.ts` | URL 去掉 `-v2`，添加 `EmbeddingItem` 类型 |
+
+**验证结果**：
+- API Key 测试通过
+- 向量维度：1536
+- Embedding 生成成功
+
+### 8.2 ChromaDB 知识库初始化 ✅
+
+**数据构造**：
+- 从 React/TS/Next.js/Algorithm 改为 Agent/RAG/LangChain/大模型
+- 共 40 条知识数据：
+  - Agent：10 条
+  - RAG：12 条
+  - LangChain：9 条
+  - 大模型：9 条
+
+**修改文件**：
+| 文件 | 修改 |
+|------|------|
+| `packages/database/src/index.ts` | 添加 `getVectorDBService` 导出 |
+| `packages/database/src/services/vector-db.service.ts` | 添加 `tech_knowledge` Collection |
+| `packages/rag-engine/src/retrievers/vector-retriever.ts` | 重写，适配 VectorDBService |
+| `packages/rag-engine/src/scripts/init-knowledge-base.ts` | 40 条新知识数据 |
+| `init_knowledge_base.py` | Python 初始化脚本（备用） |
+
+**初始化结果**：
+```
+Collection: tech_knowledge
+记录数: 40 条
+向量维度: 1536
+Embedding 模型: text-embedding-v2 (阿里云 DashScope)
+```
+
+### 8.3 TypeScript 编译问题修复
+
+**问题**：知识数据中的代码示例包含嵌套模板字符串，导致编译错误
+
+**修复**：将嵌套模板字符串改为普通字符串拼接：
+```typescript
+// 修复前
+template: `示例：
+问题：{question}`
+// 修复后
+template: "示例：\\n问题：{question}"
+```
+
+### 8.4 当前数据统计
+
+| 分类 | 数量 |
+|------|------|
+| agent | 10 条 |
+| rag | 12 条 |
+| langchain | 9 条 |
+| llm | 9 条 |
+| **总计** | 40 条 |
+
+---
+
+## 九、当前进度总览（更新）
+
+| Phase | 任务 | 状态 |
+|-------|------|------|
+| P0-1 | Prompts 改造（考公 → 技术学习） | ✅ 完成 |
+| P0-2 | 关键词改造（小红书采集关键词） | ✅ 完成 |
+| P0 | UI 改造（TechMate 标题 + 技术模块） | ✅ 完成 |
+| P0 | 数据库默认值（"考生" → "学习者"） | ✅ 完成 |
+| P1-1 | RAG Engine 包创建 | ✅ 完成 |
+| P1-1 | Embedding API 修复 | ✅ 完成（本次） |
+| P1-1 | ChromaDB 知识库初始化（40条） | ✅ 完成（本次） |
+| P1-1 | RAG Engine 完整集成到所有节点 | ⏳ 部分（仅 taskGenerationNode） |
+| P1-2 | 四阶分层记忆系统 | 🔜 待开始 |
+| P1-3 | GuardRail 三层防护 | 🔜 待开始 |
+| P2 | OpenTelemetry 可观测 | 🔜 待开始 |
+
+---
+
+## 十、下一步计划
+
+### 优先级排序
+
+| 优先级 | 任务 | 说明 | 预估时间 |
+|--------|------|------|----------|
+| **高** | 完善 RAG Engine 集成 | 将 HybridRetriever 集成到 generalQANode 等 | 1-2天 |
+| **高** | 四阶分层记忆系统 | instant/short/long/meta + 衰减/强化机制 | 3-5天 |
+| **高** | GuardRail 三层防护 | prompt校验 + tool拦截 + 输出过滤 | 2-3天 |
+| **中** | OpenTelemetry 可观测 | Console 输出（面试展示用日志截图） | 2-3天 |
+| **中** | 聊天-任务页面联动 | WebSocket 或前端轮询 | 1天 |
+
+### 建议下一步行动
+
+1. **集成 HybridRetriever 到 generalQANode**
+   - 修改 `/packages/agent-langgraph/src/graph/nodes.ts`
+   - 替换 MCP RAG 调用为 HybridRetriever.retrieveAndGenerate()
+   - 测试语义搜索效果
+
+2. **四阶分层记忆系统设计**
+   - instant：当前对话上下文
+   - short：近期对话历史（7天内）
+   - long：长期记忆向量存储
+   - meta：用户画像、偏好、技能水平
+
+---
+
+## 十一、关键文件索引
+
+### Embedding 相关
+- `packages/database/src/services/embedding.service.ts` - Embedding API 服务
+- `packages/database/.env` - API Key 配置
+
+### RAG Engine 相关
+- `packages/rag-engine/src/retrievers/vector-retriever.ts` - 向量检索
+- `packages/rag-engine/src/retrievers/bm25-retriever.ts` - BM25 关键词检索
+- `packages/rag-engine/src/retrievers/hybrid-retriever.ts` - 混合检索
+- `packages/rag-engine/src/scripts/init-knowledge-base.ts` - 知识数据定义
+- `init_knowledge_base.py` - Python 初始化脚本
+
+### Database 相关
+- `packages/database/src/services/vector-db.service.ts` - VectorDB 服务
+- `packages/database/src/index.ts` - 导出 getVectorDBService
+
+---
+
+## 十二、运维脚本
+
+```bash
+# 初始化 ChromaDB 知识库
+python3 init_knowledge_base.py
+
+# 验证数据
+python3 -c "
+import chromadb
+client = chromadb.PersistentClient(path='./data/chroma')
+collection = client.get_collection('tech_knowledge')
+print('记录数:', collection.count())
+"
+
+# 查看 ChromaDB Web UI
+cd chroma-web-ui && npm run dev
+# 访问 http://localhost:3001
+```
