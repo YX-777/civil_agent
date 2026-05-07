@@ -5,14 +5,21 @@ set -euo pipefail
 ROOT_DIR="/Users/sxh/Code/project/civil_agent"
 MCP_DIR="$ROOT_DIR/packages/mcp-bailian-rag"
 WEB_DIR="$ROOT_DIR"
+CHROMA_WEB_UI_DIR="$ROOT_DIR/chroma-web-ui"
 
 MCP_LOG="/tmp/mcp-service.log"
 WEB_LOG="/tmp/web-service.log"
+CHROMA_LOG="/tmp/chroma-server.log"
+CHROMA_UI_LOG="/tmp/chroma-ui.log"
 MCP_PID_FILE="/tmp/mcp-service.pid"
 WEB_PID_FILE="/tmp/web-service.pid"
+CHROMA_PID_FILE="/tmp/chroma-server.pid"
+CHROMA_UI_PID_FILE="/tmp/chroma-ui.pid"
 
 MCP_PID=""
 WEB_PID=""
+CHROMA_PID=""
+CHROMA_UI_PID=""
 
 cleanup() {
     # 统一在退出时清理，避免残留孤儿进程占用端口
@@ -22,7 +29,13 @@ cleanup() {
     if [[ -n "${MCP_PID:-}" ]] && kill -0 "$MCP_PID" 2>/dev/null; then
         kill "$MCP_PID" 2>/dev/null || true
     fi
-    rm -f "$MCP_PID_FILE" "$WEB_PID_FILE"
+    if [[ -n "${CHROMA_PID:-}" ]] && kill -0 "$CHROMA_PID" 2>/dev/null; then
+        kill "$CHROMA_PID" 2>/dev/null || true
+    fi
+    if [[ -n "${CHROMA_UI_PID:-}" ]] && kill -0 "$CHROMA_UI_PID" 2>/dev/null; then
+        kill "$CHROMA_UI_PID" 2>/dev/null || true
+    fi
+    rm -f "$MCP_PID_FILE" "$WEB_PID_FILE" "$CHROMA_PID_FILE" "$CHROMA_UI_PID_FILE"
 }
 
 wait_for_http() {
@@ -72,9 +85,38 @@ trap cleanup EXIT INT TERM
 
 echo "🚀 启动完整的项目服务..."
 echo "🛑 停止旧服务..."
+lsof -ti:8000 | xargs kill -9 2>/dev/null || true
 lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+lsof -ti:3001 | xargs kill -9 2>/dev/null || true
 lsof -ti:3002 | xargs kill -9 2>/dev/null || true
 sleep 2
+
+echo "💾 启动 ChromaDB Server (端口 8000)..."
+cd "$ROOT_DIR"
+# 使用 chroma CLI 直接启动（不依赖 Python 脚本）
+/Users/sxh/Library/Python/3.9/bin/chroma run --host localhost --port 8000 --path ./data/chroma >"$CHROMA_LOG" 2>&1 &
+CHROMA_PID=$!
+echo "$CHROMA_PID" >"$CHROMA_PID_FILE"
+echo "   ChromaDB Server PID: $CHROMA_PID"
+
+if ! wait_for_http "http://localhost:8000/api/v2/heartbeat" "ChromaDB Server" 10 "$CHROMA_PID"; then
+    echo "   📄 ChromaDB 日志预览："
+    sed -n '1,50p' "$CHROMA_LOG" || true
+    exit 1
+fi
+
+echo "🎨 启动 ChromaDB Web UI (端口 3001)..."
+cd "$CHROMA_WEB_UI_DIR"
+npm run dev >"$CHROMA_UI_LOG" 2>&1 &
+CHROMA_UI_PID=$!
+echo "$CHROMA_UI_PID" >"$CHROMA_UI_PID_FILE"
+echo "   ChromaDB Web UI PID: $CHROMA_UI_PID"
+
+if ! wait_for_http "http://localhost:3001" "ChromaDB Web UI" 15 "$CHROMA_UI_PID"; then
+    echo "   📄 ChromaDB UI 日志预览："
+    sed -n '1,50p' "$CHROMA_UI_LOG" || true
+    exit 1
+fi
 
 echo "📡 启动 MCP HTTP 服务 (端口 3002)..."
 cd "$MCP_DIR"
@@ -112,12 +154,16 @@ echo ""
 echo "🎉 所有服务已启动！"
 echo ""
 echo "📋 服务列表："
-echo "   - Web 服务:     http://localhost:3000"
-echo "   - MCP 服务:     http://localhost:3002"
-echo "   - 健康检查:     http://localhost:3002/health"
+echo "   - ChromaDB Server: http://localhost:8000"
+echo "   - ChromaDB Web UI: http://localhost:3001 (可视化查看向量数据库)"
+echo "   - Web 服务:       http://localhost:3000"
+echo "   - MCP 服务:       http://localhost:3002"
+echo "   - 健康检查:       http://localhost:3002/health"
 echo ""
 echo "💡 提示："
 echo "   - 按 Ctrl+C 停止所有服务"
+echo "   - 查看 ChromaDB 日志: tail -f $CHROMA_LOG"
+echo "   - 查看 ChromaDB UI 日志: tail -f $CHROMA_UI_LOG"
 echo "   - 查看 Web 服务日志: tail -f $WEB_LOG"
 echo "   - 查看 MCP 服务日志: tail -f $MCP_LOG"
 echo ""

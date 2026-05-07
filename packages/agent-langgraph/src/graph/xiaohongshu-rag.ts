@@ -1,9 +1,9 @@
 import type { MCPToolResult } from "../tools/mcp-tools";
 
-// 这里不是做严格分类器，而是先用一组高价值关键词做 MVP 白名单命中。
-// 目标是把"前端开发经验/技术面试/算法刷题"这类问题优先路由到本地沉淀知识，
-// 避免回答时误走成"实时搜索小红书"。
+// RAG 检索白名单关键词
+// 包含前端开发 + Agent/RAG/LangChain/大模型关键词
 const XIAOHONGSHU_RAG_KEYWORDS = [
+  // 前端开发类
   "React最佳实践",
   "Next.js开发",
   "TypeScript进阶",
@@ -16,6 +16,33 @@ const XIAOHONGSHU_RAG_KEYWORDS = [
   "Node.js实战",
   "Vue开发技巧",
   "前端架构设计",
+  // Agent/AI 类
+  "Agent",
+  "智能代理",
+  "Tool Calling",
+  "Function Calling",
+  "LangChain",
+  "LangGraph",
+  // RAG 类
+  "RAG",
+  "检索增强",
+  "向量检索",
+  "Embedding",
+  "向量数据库",
+  "Chroma",
+  "BM25",
+  "混合检索",
+  "重排",
+  "Rerank",
+  // 大模型类
+  "LLM",
+  "大模型",
+  "GPT",
+  "Claude",
+  "Qwen",
+  "Prompt",
+  "Token",
+  "幻觉",
 ];
 
 export interface RoutedKnowledgeResult {

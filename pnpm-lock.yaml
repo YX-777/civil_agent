@@ -32,6 +32,9 @@ importers:
       '@civil-agent/mcp-xiaohongshu':
         specifier: workspace:*
         version: link:../mcp-xiaohongshu
+      '@civil-agent/rag-engine':
+        specifier: workspace:*
+        version: link:../rag-engine
       '@langchain/community':
         specifier: ^1.1.8
         version: 1.1.8(@browserbasehq/sdk@2.6.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.58.0)(deepmerge@4.3.1)(dotenv@17.2.3)(openai@6.32.0(ws@8.19.0)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.7)(@langchain/core@1.1.17(openai@6.32.0(ws@8.19.0)(zod@3.25.76)))(chromadb@1.10.5(openai@6.32.0(ws@8.19.0)(zod@3.25.76)))(ibm-cloud-sdk-core@5.4.5)(ioredis@5.9.2)(jsonwebtoken@9.0.3)(lodash@4.17.23)(mysql2@3.15.3)(openai@6.32.0(ws@8.19.0)(zod@3.25.76))(pg@8.20.0)(playwright@1.58.0)(ws@8.19.0)

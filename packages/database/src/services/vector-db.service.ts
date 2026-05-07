@@ -1,10 +1,26 @@
-import { getChromaDBClasses } from './chromadb-wrapper';
+// ChromaDB 动态导入包装（解决 Next.js 编译问题）
+let ChromaClient: any = null;
+let Collection: any = null;
+
+async function getChromaDBClasses() {
+  if (typeof (globalThis as any).window !== 'undefined') {
+    throw new Error('ChromaDB is not available in browser environment');
+  }
+
+  if (!ChromaClient || !Collection) {
+    const chromadb = await import('chromadb');
+    ChromaClient = chromadb.ChromaClient;
+    Collection = chromadb.Collection;
+  }
+  return { ChromaClient, Collection };
+}
 
 export interface VectorSearchResult {
   id: string;
   vector: number[];
   metadata?: any;
   distance?: number;
+  content?: string;  // 文档内容（需要 include documents）
 }
 
 export interface VectorCollectionConfig {
@@ -19,7 +35,16 @@ export class VectorDBService {
   private vectorDbPath: string;
 
   constructor(vectorDbPath?: string) {
-    this.vectorDbPath = vectorDbPath || process.env.VECTOR_DB_PATH || './data/chroma';
+    // ChromaDB JS SDK 需要连接 HTTP Server，默认 localhost:8000
+    // 如果传入的是文件路径（如 ./data/chroma），需要先启动 ChromaDB Server
+    this.vectorDbPath = vectorDbPath || process.env.CHROMADB_URL || 'http://localhost:8000';
+
+    // 兼容旧配置：如果 VECTOR_DB_PATH 是文件路径，转换为 HTTP URL
+    const envPath = process.env.VECTOR_DB_PATH;
+    if (envPath && !envPath.startsWith('http')) {
+      console.warn('[VectorDB] VECTOR_DB_PATH should be HTTP URL (e.g., http://localhost:8000). Start ChromaDB Server first.');
+      this.vectorDbPath = 'http://localhost:8000';
+    }
   }
 
   async initialize(): Promise<void> {
@@ -29,9 +54,7 @@ export class VectorDBService {
 
     try {
       const { ChromaClient } = await getChromaDBClasses();
-      this.chromaClient = new ChromaClient({
-        path: this.vectorDbPath
-      });
+      this.chromaClient = new ChromaClient({ path: this.vectorDbPath });
 
       await this.initializeCollections();
       this.initialized = true;
@@ -61,9 +84,13 @@ export class VectorDBService {
     }
 
     try {
+      // 使用 cosine 距离度量（余弦相似度，范围 0-1）
       const collection = await this.chromaClient.getOrCreateCollection({
         name,
-        metadata
+        metadata: {
+          ...metadata,
+          "hnsw:space": "cosine"  // 关键：设置距离函数为余弦相似度
+        }
       });
       this.collections.set(name, collection);
     } catch (error) {
@@ -143,7 +170,8 @@ export class VectorDBService {
       const results = await coll.query({
         queryEmbeddings: [queryVector],
         nResults: topK,
-        where: filter
+        where: filter,
+        include: ['documents', 'metadatas', 'distances']  // 必须包含 documents 才能获取内容
       });
 
       const searchResults: VectorSearchResult[] = [];
@@ -154,7 +182,8 @@ export class VectorDBService {
             id: results.ids[0][i],
             vector: results.embeddings?.[0]?.[i] || [],
             metadata: results.metadatas?.[0]?.[i],
-            distance: results.distances?.[0]?.[i]
+            distance: results.distances?.[0]?.[i],
+            content: results.documents?.[0]?.[i] || ""  // 获取文档内容
           });
         }
       }

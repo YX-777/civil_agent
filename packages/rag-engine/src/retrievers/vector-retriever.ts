@@ -12,31 +12,47 @@ export interface VectorSearchResult {
   metadata: Record<string, any>;
 }
 
+export interface VectorSearchOptions {
+  topK?: number;
+  collection?: string;
+  filter?: Record<string, any>;  // ChromaDB where filter（如 { category: "agent" }）
+}
+
 export class VectorRetriever {
   private config = getRAGConfig().vectorRetriever;
 
-  async search(query: string, options?: { topK?: number; collection?: string }): Promise<VectorSearchResult[]> {
+  async search(query: string, options?: VectorSearchOptions): Promise<VectorSearchResult[]> {
     const topK = options?.topK || this.config.topK;
+    console.log("[VectorRetriever] Searching for:", query);
+    console.log("[VectorRetriever] Options:", options);
 
     // 生成查询向量
     const embeddingService = getEmbeddingService();
+    console.log("[VectorRetriever] Generating embedding...");
     const queryVector = await embeddingService.generateEmbedding(query);
+    console.log("[VectorRetriever] Embedding generated, length:", queryVector?.length);
 
     // 搜索向量库
     const vectorDBService = getVectorDBService();
     const collection = options?.collection || "tech_knowledge";
+    const filter = options?.filter;  // 分类过滤
+    console.log("[VectorRetriever] Searching collection:", collection, "with filter:", filter);
 
-    const results = await vectorDBService.search(collection, queryVector, topK);
+    const results = await vectorDBService.search(collection, queryVector, topK, filter);
+    console.log("[VectorRetriever] Raw results from VectorDB:", results?.length, "items");
 
     // 过滤低分结果并转换格式
-    return results
+    const filteredResults = results
       .filter((r: any) => r.distance !== undefined && 1 - r.distance >= this.config.minScore)
       .map((r: any) => ({
         id: r.id,
-        content: r.metadata?.content || "",
+        content: r.content || "",  // 直接从 VectorSearchResult.content 获取
         score: r.distance !== undefined ? 1 - r.distance : 0,
         metadata: r.metadata || {},
       }));
+    console.log("[VectorRetriever] Filtered results:", filteredResults.length, "items");
+
+    return filteredResults;
   }
 
   async addDocument(content: string, metadata: Record<string, any>): Promise<string> {

@@ -8,6 +8,14 @@ import { BGEM3Reranker } from "../reranker/bge-m3-reranker";
 import { ThreeTierStrategy, TieredResponse } from "../strategies/three-tier-strategy";
 import { getRAGConfig } from "../config/rag.config";
 
+export interface RetrieveOptions {
+  topK?: number;           // 返回多少条结果
+  category?: string;       // 分类过滤：agent/rag/langchain/llm
+  rerankTopK?: number;     // 重排后返回多少条
+  skipRerank?: boolean;    // 跳过重排（性能优化）
+  minScore?: number;       // 最小分数阈值
+}
+
 export interface HybridSearchResult {
   tier: "precise" | "candidates" | "expand" | "fallback";
   answer?: string;
@@ -15,6 +23,7 @@ export interface HybridSearchResult {
   allResults: Array<{ id: string; content: string; score: number; metadata: Record<string, any> }>;
   message: string;
   promptForLLM: string;
+  retrievalSource?: "hybrid" | "vector_only" | "bm25_only" | "fallback";  // 检索来源标识
 }
 
 export class HybridRetriever {
@@ -67,32 +76,92 @@ export class HybridRetriever {
     return fused;
   }
 
-  async retrieve(query: string): Promise<HybridSearchResult> {
-    // Step 1: 并行执行向量 + BM25 检索
+  async retrieve(query: string, options?: RetrieveOptions): Promise<HybridSearchResult> {
+    // 合并默认配置和传入参数
+    const effectiveOptions = {
+      topK: options?.topK ?? this.config.vectorRetriever.topK,
+      category: options?.category,
+      rerankTopK: options?.rerankTopK ?? this.config.reranker.topK,
+      skipRerank: options?.skipRerank ?? false,
+      minScore: options?.minScore ?? this.config.vectorRetriever.minScore,
+    };
+
+    // 构建 ChromaDB where filter
+    const filter = effectiveOptions.category
+      ? { category: effectiveOptions.category }
+      : undefined;
+
+    // Step 1: 并行执行向量 + BM25 检索（带分类过滤）
+    console.log("[HybridRetriever] 开始检索, query:", query);
+    console.log("[HybridRetriever] options:", effectiveOptions);
+    console.log("[HybridRetriever] filter:", filter);
+
     const [vectorResults, bm25Results] = await Promise.all([
-      this.vectorRetriever.search(query, { topK: this.config.vectorRetriever.topK }),
-      this.bm25Retriever.search(query, { topK: this.config.bm25Retriever.topK }),
+      this.vectorRetriever.search(query, {
+        topK: effectiveOptions.topK,
+        filter
+      }).catch(e => {
+        console.error("[HybridRetriever] VectorRetriever error:", e);
+        return [];
+      }),
+      this.bm25Retriever.search(query, {
+        topK: effectiveOptions.topK,
+        filter
+      }).catch(e => {
+        console.error("[HybridRetriever] BM25Retriever error:", e);
+        return [];
+      }),
     ]);
 
-    // Step 2: RRF 融合
+    console.log("[HybridRetriever] VectorResults count:", vectorResults.length);
+    console.log("[HybridRetriever] BM25Results count:", bm25Results.length);
+
+    // Step 2: 检查是否有结果
+    if (vectorResults.length === 0 && bm25Results.length === 0) {
+      return {
+        tier: "fallback",
+        allResults: [],
+        message: "未找到相关知识",
+        promptForLLM: `用户问题：${query}\n本地知识库中没有找到相关知识。`,
+        retrievalSource: "fallback",
+      };
+    }
+
+    // Step 3: RRF 融合
     const fusedResults = this.rrfFusion(vectorResults, bm25Results);
 
-    // Step 3: BGE-M3 重排
-    const rerankedResults = await this.reranker.rerank(query, fusedResults);
+    // Step 4: BGE-M3 重排（可选）
+    const rerankedResults = effectiveOptions.skipRerank
+      ? fusedResults.slice(0, effectiveOptions.rerankTopK)
+      : await this.reranker.rerank(query, fusedResults, effectiveOptions.rerankTopK);
 
-    // Step 4: 三级策略分类
-    const tieredResponse = this.threeTierStrategy.classify(rerankedResults, query);
+    // Step 5: 应用最小分数过滤
+    const filteredResults = rerankedResults.filter(
+      r => r.score >= effectiveOptions.minScore
+    );
 
-    // Step 5: 生成 LLM prompt
+    // Step 6: 三级策略分类
+    const tieredResponse = this.threeTierStrategy.classify(filteredResults, query);
+
+    // Step 7: 生成 LLM prompt
     const promptForLLM = this.threeTierStrategy.buildPromptForLLM(tieredResponse, query);
+
+    // 确定检索来源
+    let retrievalSource: "hybrid" | "vector_only" | "bm25_only" = "hybrid";
+    if (vectorResults.length > 0 && bm25Results.length === 0) {
+      retrievalSource = "vector_only";
+    } else if (bm25Results.length > 0 && vectorResults.length === 0) {
+      retrievalSource = "bm25_only";
+    }
 
     return {
       tier: tieredResponse.tier,
       answer: tieredResponse.answer,
       candidates: tieredResponse.candidates,
-      allResults: rerankedResults,
+      allResults: filteredResults,
       message: tieredResponse.message,
       promptForLLM,
+      retrievalSource,
     };
   }
 

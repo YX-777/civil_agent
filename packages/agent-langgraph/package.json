@@ -28,6 +28,7 @@
     "@civil-agent/core": "workspace:*",
     "@civil-agent/mcp-bailian-rag": "workspace:*",
     "@civil-agent/mcp-xiaohongshu": "workspace:*",
+    "@civil-agent/rag-engine": "workspace:*",
     "@langchain/community": "^1.1.8",
     "@langchain/core": "^1.1.17",
     "@langchain/langgraph": "^0.0.28",

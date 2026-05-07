@@ -21,6 +21,11 @@ interface IndexedDocument {
   docLength: number;
 }
 
+export interface BM25SearchOptions {
+  topK?: number;
+  filter?: Record<string, any>;  // 元数据过滤（如 { category: "agent" }）
+}
+
 export class BM25Retriever {
   private config = getRAGConfig().bm25Retriever;
   private documents: IndexedDocument[] = [];
@@ -66,13 +71,19 @@ export class BM25Retriever {
     });
   }
 
-  async search(query: string, options?: { topK?: number }): Promise<BM25SearchResult[]> {
+  async search(query: string, options?: BM25SearchOptions): Promise<BM25SearchResult[]> {
     const topK = options?.topK || this.config.topK;
+    const filter = options?.filter;
     const queryTokens = this.tokenizeChinese(query);
 
     const scores: Array<{ doc: IndexedDocument; score: number }> = [];
 
     for (const doc of this.documents) {
+      // 如果有分类过滤，先检查元数据是否匹配
+      if (filter?.category && doc.metadata?.category !== filter.category) {
+        continue;
+      }
+
       let score = 0;
 
       for (const token of queryTokens) {

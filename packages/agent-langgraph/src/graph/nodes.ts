@@ -15,6 +15,7 @@ import { getEmotionDetector } from "../middleware/emotion-detector";
 import { getContextEnhancer } from "../middleware/context-enhancer";
 import { getAgentConfig } from "../config/agent.config";
 import type { GraphStateType } from "./state";
+import { retrieveWithFallback } from "../utils/rag-fallback";
 import {
   buildGeneralAnswerPrompt,
   resolveXiaohongshuKnowledge,
@@ -449,19 +450,45 @@ export async function generalQANode(
     const contextEnhancer = getContextEnhancer();
     const enhancedMessage = await contextEnhancer.enhanceUserMessage(state.userId, content);
     const config = getAgentConfig();
-    const mcpClient = getMCPToolClient();
 
-    // 命中技术经验类白名单时，优先查本地沉淀的技术经验，不触发实时搜索。
-    const ragResult =
-      config.features.ragEnabled && shouldRouteToXiaohongshuRag(content)
-        ? await mcpClient.searchKnowledge({
-            query: content,
-            category: "tech_experience",
-            topK: 3,
-          })
-        : { success: false };
-    const routedKnowledge = resolveXiaohongshuKnowledge(content, ragResult);
-    const userPrompt = buildGeneralAnswerPrompt(enhancedMessage, routedKnowledge);
+    // ========== RAG Engine 集成测试日志 ==========
+    console.log("\n");
+    console.log("=".repeat(60));
+    console.log("🔍 [RAG TEST] 用户问题:", content);
+    console.log("🔍 [RAG TEST] 白名单命中:", shouldRouteToXiaohongshuRag(content));
+    console.log("=".repeat(60));
+
+    // 使用 HybridRetriever + MCP 降级的 RAG 检索
+    let ragContext = "";
+    let ragResults: any[] = [];
+
+    if (config.features.ragEnabled && shouldRouteToXiaohongshuRag(content)) {
+      console.log("🔍 [RAG TEST] 正在调用 HybridRetriever...");
+
+      const ragFallbackResult = await retrieveWithFallback(content, { topK: 5 });
+      ragContext = ragFallbackResult.context;
+      ragResults = ragFallbackResult.results;
+
+      // ========== RAG 检索结果日志 ==========
+      console.log("=".repeat(60));
+      console.log("✅ [RAG TEST] 检索来源:", ragFallbackResult.source);
+      console.log("✅ [RAG TEST] 三级策略:", ragFallbackResult.tier);
+      console.log("✅ [RAG TEST] 检索到文档数:", ragResults.length);
+      if (ragResults.length > 0) {
+        console.log("✅ [RAG TEST] 第一条文档标题:", ragResults[0]?.metadata?.title || "无标题");
+        console.log("✅ [RAG TEST] 第一条文档分类:", ragResults[0]?.metadata?.category || "无分类");
+        console.log("✅ [RAG TEST] 第一条文档分数:", ragResults[0]?.score || "无分数");
+      }
+      console.log("=".repeat(60));
+      console.log("\n");
+    } else {
+      console.log("🔍 [RAG TEST] 白名单未命中，跳过 RAG 检索");
+      console.log("=".repeat(60));
+      console.log("\n");
+    }
+
+    // 构建 prompt：优先使用 RAG context，否则使用原始消息
+    const userPrompt = ragContext || enhancedMessage;
 
     const systemPrompt = SYSTEM_PROMPTS.DEFAULT;
     const response = await llm.invoke([
@@ -475,7 +502,7 @@ export async function generalQANode(
       messages: [...state.messages, new AIMessage(response.content as string)],
       quickReplyOptions: [],
       waitingForUserInput: false,
-      ragResults: routedKnowledge.ragResults,
+      ragResults,
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
@@ -551,19 +578,45 @@ export async function* generalQANodeStream(
     const contextEnhancer = getContextEnhancer();
     const enhancedMessage = await contextEnhancer.enhanceUserMessage(state.userId, content);
     const config = getAgentConfig();
-    const mcpClient = getMCPToolClient();
 
-    // 流式回答与非流式保持同一套检索路由，避免刷新后出现行为不一致。
-    const ragResult =
-      config.features.ragEnabled && shouldRouteToXiaohongshuRag(content)
-        ? await mcpClient.searchKnowledge({
-            query: content,
-            category: "exam_experience",
-            topK: 3,
-          })
-        : { success: false };
-    const routedKnowledge = resolveXiaohongshuKnowledge(content, ragResult);
-    const userPrompt = buildGeneralAnswerPrompt(enhancedMessage, routedKnowledge);
+    // ========== RAG Engine 集成测试日志 ==========
+    console.log("\n");
+    console.log("=".repeat(60));
+    console.log("🔍 [RAG TEST] 用户问题:", content);
+    console.log("🔍 [RAG TEST] 白名单命中:", shouldRouteToXiaohongshuRag(content));
+    console.log("=".repeat(60));
+
+    // 使用 HybridRetriever + MCP 降级的 RAG 检索
+    let ragContext = "";
+    let ragResults: any[] = [];
+
+    if (config.features.ragEnabled && shouldRouteToXiaohongshuRag(content)) {
+      console.log("🔍 [RAG TEST] 正在调用 HybridRetriever...");
+
+      const ragFallbackResult = await retrieveWithFallback(content, { topK: 5 });
+      ragContext = ragFallbackResult.context;
+      ragResults = ragFallbackResult.results;
+
+      // ========== RAG 检索结果日志 ==========
+      console.log("=".repeat(60));
+      console.log("✅ [RAG TEST] 检索来源:", ragFallbackResult.source);
+      console.log("✅ [RAG TEST] 三级策略:", ragFallbackResult.tier);
+      console.log("✅ [RAG TEST] 检索到文档数:", ragResults.length);
+      if (ragResults.length > 0) {
+        console.log("✅ [RAG TEST] 第一条文档标题:", ragResults[0]?.metadata?.title || "无标题");
+        console.log("✅ [RAG TEST] 第一条文档分类:", ragResults[0]?.metadata?.category || "无分类");
+        console.log("✅ [RAG TEST] 第一条文档分数:", ragResults[0]?.score || "无分数");
+      }
+      console.log("=".repeat(60));
+      console.log("\n");
+    } else {
+      console.log("🔍 [RAG TEST] 白名单未命中，跳过 RAG 检索");
+      console.log("=".repeat(60));
+      console.log("\n");
+    }
+
+    // 构建 prompt：优先使用 RAG context，否则使用原始消息
+    const userPrompt = ragContext || enhancedMessage;
 
     const systemPrompt = SYSTEM_PROMPTS.DEFAULT;
 
@@ -587,14 +640,14 @@ export async function* generalQANodeStream(
       messages: [...state.messages, new AIMessage(fullContent)],
       quickReplyOptions: [],
       waitingForUserInput: false,
-      ragResults: routedKnowledge.ragResults,
+      ragResults,
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error("General QA stream failed", err);
     const errorMessage = "抱歉，我无法理解你的问题。请换个方式问我。";
     yield errorMessage;
-    
+
     return {
       ...state,
       messages: [...state.messages, new AIMessage(errorMessage)],

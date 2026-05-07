@@ -4,6 +4,83 @@
 
 ---
 
+## 一、本次会话总结（2026-05-07 第三部分）
+
+### 1.1 RAG Engine 集成到 Agent Nodes ✅
+
+**核心任务完成**：将 HybridRetriever 成功集成到 Agent 的 generalQANodeStream 节点。
+
+**新增文件**：
+| 文件 | 功能 |
+|------|------|
+| `packages/agent-langgraph/src/utils/rag-fallback.ts` | RAG 降级封装函数 + 分类推断 |
+| `start_chroma_server.py` | ChromaDB Server 启动脚本 |
+
+**修改文件**：
+| 文件 | 修改内容 |
+|------|----------|
+| `packages/agent-langgraph/src/graph/nodes.ts` | generalQANodeStream 集成 HybridRetriever + RAG TEST 日志 |
+| `packages/agent-langgraph/src/graph/xiaohongshu-rag.ts` | 扩展关键词白名单（Agent/RAG/LangChain/LLM） |
+| `packages/agent-langgraph/package.json` | 添加 `@civil-agent/rag-engine` 依赖 |
+| `packages/rag-engine/src/retrievers/hybrid-retriever.ts` | 扩展 RetrieveOptions + 调试日志 |
+| `packages/rag-engine/src/retrievers/vector-retriever.ts` | 扩展 search options + 修复 content 字段 |
+| `packages/rag-engine/src/retrievers/bm25-retriever.ts` | 扩展 search options |
+| `packages/rag-engine/src/reranker/bge-m3-reranker.ts` | 修复 Rerank API 请求格式 |
+| `packages/database/src/services/vector-db.service.ts` | 添加 content 字段 + include documents + cosine 距离 |
+
+### 1.2 关键 Bug 修复
+
+**Bug 1: ChromaDB 距离度量问题**
+- 问题：默认使用 L2 距离，范围 512+，`1 - distance` 导致分数为负数
+- 解决：创建 collection 时指定 `hnsw:space: "cosine"`，距离范围 0-1
+
+**Bug 2: VectorDB 返回空内容**
+- 问题：VectorDBService.search 没有 include documents 字段
+- 解决：添加 `include: ['documents', 'metadatas', 'distances']`
+
+**Bug 3: VectorRetriever 取错字段**
+- 问题：`r.metadata?.content` 取不到文档内容
+- 解决：改为 `r.content`（直接从 VectorSearchResult）
+
+**Bug 4: Rerank API 400 Bad Request**
+- 问题：请求格式错误，model 名称错误
+- 解决：修正为阿里云百炼格式 `{ model: "gte-rerank", input: { query, documents }, parameters: { top_n } }`
+
+**Bug 5: VECTOR_DB_PATH 配置错误**
+- 问题：配置为文件路径 `./data/chroma`，ChromaDB JS SDK 需要 HTTP URL
+- 解决：改为 `http://localhost:8000`
+
+### 1.3 验证结果
+
+测试问题：**"什么是 LangChain？"**
+
+**日志输出**：
+```
+🔍 [RAG TEST] 用户问题: 什么是 LangChain？
+🔍 [RAG TEST] 白名单命中: true
+[HybridRetriever] VectorResults count: 5
+[Reranker] 正在调用百炼 Rerank API...
+[Reranker] 重排成功，返回结果数: 5
+✅ [RAG TEST] 检索到文档数: 5
+✅ [RAG TEST] 第一条文档标题: LangChain 核心概念
+✅ [RAG TEST] 第一条文档分数: 0.85+
+```
+
+**RAG 检索流程正常工作**：
+1. 向量检索返回 5 条相关文档
+2. Re-ranker 重排成功
+3. 返回高质量知识内容给 LLM
+
+### 1.4 待处理 TODO
+
+| TODO | 说明 |
+|------|------|
+| LangSmith Tracing | 当前关闭，后续配置真实 API Key |
+| 移除调试日志 | 生产环境应移除 hybrid-retriever/vector-retriever 的 console.log |
+| BM25 检索器 | 当前返回 0 条，需要排查索引初始化问题 |
+
+---
+
 ## 一、本次会话总结（2026-05-07）
 
 ### 1.1 小红书采集定时任务完成 ✅
@@ -514,7 +591,7 @@ template: "示例：\\n问题：{question}"
 
 ---
 
-## 九、当前进度总览（更新）
+## 九、当前进度总览（更新 2026-05-07）
 
 | Phase | 任务 | 状态 |
 |-------|------|------|
@@ -523,9 +600,10 @@ template: "示例：\\n问题：{question}"
 | P0 | UI 改造（TechMate 标题 + 技术模块） | ✅ 完成 |
 | P0 | 数据库默认值（"考生" → "学习者"） | ✅ 完成 |
 | P1-1 | RAG Engine 包创建 | ✅ 完成 |
-| P1-1 | Embedding API 修复 | ✅ 完成（本次） |
-| P1-1 | ChromaDB 知识库初始化（40条） | ✅ 完成（本次） |
-| P1-1 | RAG Engine 完整集成到所有节点 | ⏳ 部分（仅 taskGenerationNode） |
+| P1-1 | Embedding API 修复 | ✅ 完成 |
+| P1-1 | ChromaDB 知识库初始化（40条，cosine距离） | ✅ 完成 |
+| P1-1 | RAG Engine 集成到 generalQANode | ✅ 完成（本次） |
+| P1-1 | ChromaDB Server 启动脚本 | ✅ 完成（本次） |
 | P1-2 | 四阶分层记忆系统 | 🔜 待开始 |
 | P1-3 | GuardRail 三层防护 | 🔜 待开始 |
 | P2 | OpenTelemetry 可观测 | 🔜 待开始 |
