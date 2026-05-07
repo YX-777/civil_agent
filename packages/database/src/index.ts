@@ -9,6 +9,8 @@ import { ModuleProgressRepository } from './repositories/module-progress.reposit
 import { AgentStateRepository } from './repositories/agent-state.repository';
 import { XhsPostRepository } from './repositories/xhs-post.repository';
 import { XhsSyncRunRepository } from './repositories/xhs-sync-run.repository';
+import { ShortTermMemoryRepository } from './repositories/short-term-memory.repository';
+import { MetaMemoryRepository } from './repositories/meta-memory.repository';
 import { EmbeddingService } from './services/embedding.service';
 import { VectorDBService } from './services/vector-db.service';
 import { XhsSyncService } from './services/xhs-sync.service';
@@ -81,6 +83,14 @@ export function getXhsPostRepository(): XhsPostRepository {
 
 export function getXhsSyncRunRepository(): XhsSyncRunRepository {
   return new XhsSyncRunRepository(getPrismaClient());
+}
+
+export function getShortTermMemoryRepository(): ShortTermMemoryRepository {
+  return new ShortTermMemoryRepository(getPrismaClient());
+}
+
+export function getMetaMemoryRepository(): MetaMemoryRepository {
+  return new MetaMemoryRepository(getPrismaClient());
 }
 
 export function getXhsSyncService(): XhsSyncService {
@@ -156,6 +166,8 @@ export {
   AgentStateRepository,
   XhsPostRepository,
   XhsSyncRunRepository,
+  ShortTermMemoryRepository,
+  MetaMemoryRepository,
   EmbeddingService,
   VectorDBService,
   XhsSyncService,

@@ -3,9 +3,10 @@
  * 增强对话上下文信息
  */
 
-import { logger } from "@civil-agent/core";
+import { logger } from "@civil-Agent/core";
 import { getMCPToolClient } from "../tools/mcp-tools";
 import { TimeTools } from "../tools/local-tools";
+import { getInstantMemoryManager, type Message, type InstantMemorySlice } from "../memory/instant";
 
 export interface ContextEnhancement {
   timeContext: string;
@@ -172,6 +173,24 @@ export class ContextEnhancer {
 
     const topicChangeKeywords = ["另外", "还有", "换个话题", "不谈这个", "别的"];
     return topicChangeKeywords.some((keyword) => lastUserMessage.includes(keyword));
+  }
+
+  /**
+   * 应用瞬时记忆滑动窗口裁剪
+   *
+   * 大白话解释：
+   * 就像只保留你最近说的话，避免记忆太长导致处理变慢。
+   */
+  applyInstantMemory(messages: any[]): InstantMemorySlice {
+    // 转换消息格式
+    const formattedMessages: Message[] = messages.map((msg: any) => ({
+      role: msg.role || (msg._getType ? msg._getType() : "user"),
+      content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+    }));
+
+    // 使用瞬时记忆管理器裁剪
+    const manager = getInstantMemoryManager();
+    return manager.trimMessages(formattedMessages);
   }
 }
 

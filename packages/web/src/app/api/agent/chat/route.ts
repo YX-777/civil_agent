@@ -124,6 +124,46 @@ async function commitConversationTurn(params: {
       },
     });
 
+    // ========== 四阶分层记忆：自动存储短期记忆 ==========
+    // 用户消息自动创建短期记忆记录
+    const topicTags = extractTopicTags(userMessage.content);
+    // 清理内容中的特殊字符，避免 Prisma 解析错误
+    const cleanUserContent = sanitizeContent(userMessage.content);
+    const shortMemoryRecord = await tx.shortTermMemory.create({
+      data: {
+        userId,
+        conversationId,
+        content: cleanUserContent.slice(0, 200),
+        contentType: "user_message",
+        topicTags: JSON.stringify(topicTags),
+        freshnessScore: 1.0,
+        accessCount: 0,
+        lastAccessedAt: new Date(),
+        archived: false,
+      },
+    });
+    // 保存记录 ID 用于后续向量同步
+    params.persistedState._shortMemoryId = shortMemoryRecord.id;
+    console.log(`[Memory] 短期记忆已存储(SQLite): 话题=${topicTags.join(",")}`);
+
+    // 助手回复也存储（可选）
+    if (assistantMessage.content.length > 50) {
+      const cleanAssistantContent = sanitizeContent(assistantMessage.content);
+      await tx.shortTermMemory.create({
+        data: {
+          userId,
+          conversationId,
+          content: cleanAssistantContent.slice(0, 200),
+          contentType: "assistant_response",
+          topicTags: JSON.stringify(topicTags),
+          freshnessScore: 0.8,
+          accessCount: 0,
+          lastAccessedAt: new Date(),
+          archived: false,
+        },
+      });
+    }
+
     const currentConversation = await tx.conversation.findUnique({
       where: { id: conversationId },
       select: { title: true },
@@ -145,6 +185,102 @@ async function commitConversationTurn(params: {
       `[Agent API] conversation_updated id=${conversationId} title="${maybeTitle}" turn=${turnId}`
     );
   });
+}
+
+/**
+ * 从用户消息中提取话题标签（简化版）
+ * 后续可以用 LLM 提取更精确的话题
+ */
+function extractTopicTags(content: string): string[] {
+  const techKeywords = [
+    "React", "Vue", "Angular", "JavaScript", "TypeScript", "Node",
+    "Agent", "LangChain", "RAG", "LLM", "GPT", "大模型",
+    "前端", "后端", "面试", "学习", "计划", "任务",
+    "hooks", "组件", "状态", "性能", "优化",
+  ];
+
+  const found: string[] = [];
+  for (const keyword of techKeywords) {
+    if (content.toLowerCase().includes(keyword.toLowerCase())) {
+      found.push(keyword);
+    }
+  }
+
+  return found.slice(0, 3); // 最多3个话题标签
+}
+
+/**
+ * 清理内容中的特殊字符，避免 Prisma 解析错误
+ * 问题：消息中可能包含 \x 等十六进制转义字符
+ */
+function sanitizeContent(content: string): string {
+  // 移除或替换可能导致问题的特殊字符
+  let sanitized = content;
+
+  // 移除十六进制转义字符模式（如 \x1b, \x00 等）
+  sanitized = sanitized.replace(/\\x[0-9a-fA-F]{0,2}/g, "");
+
+  // 移除其他控制字符
+  sanitized = sanitized.replace(/[\x00-\x1F\x7F]/g, "");
+
+  // 替换可能的转义序列
+  sanitized = sanitized.replace(/\\[a-zA-Z]/g, (match) => {
+    // 只保留常见的合法转义
+    if (match === "\\n" || match === "\\t" || match === "\\r") {
+      return match;
+    }
+    return "";
+  });
+
+  return sanitized;
+}
+
+/**
+ * 异步同步短期记忆到 ChromaDB（向量检索）
+ * 使用 fire-and-forget 模式，不阻塞主流程
+ */
+async function syncShortMemoryToChroma(
+  memoryId: string,
+  userId: string,
+  content: string,
+  topicTags: string
+): Promise<void> {
+  try {
+    // 动态导入避免 Next.js 编译问题
+    const { getVectorDBService, getEmbeddingService } = await import("@civil-agent/database");
+
+    const vectorService = getVectorDBService();
+    const embeddingService = getEmbeddingService();
+
+    // 初始化向量服务
+    await vectorService.initialize();
+
+    // 生成 embedding
+    console.log(`[Memory] 正在生成向量: ${memoryId}`);
+    const vector = await embeddingService.generateEmbedding(content);
+
+    // 存入 ChromaDB
+    const vectorId = `sm_${memoryId}`;
+    await vectorService.addEmbedding(
+      "short_term_memory",
+      vectorId,
+      vector,
+      {
+        user_id: userId,
+        memory_id: memoryId,
+        content,
+        content_type: "user_message",
+        topics: JSON.parse(topicTags),
+        freshness: 1.0,
+        created_at: new Date().toISOString(),
+      }
+    );
+
+    console.log(`[Memory] 短期记忆已同步到ChromaDB: ${vectorId}`);
+  } catch (error) {
+    console.error(`[Memory] ChromaDB同步失败:`, error);
+    // 失败不影响主流程，SQLite 数据已存储
+  }
 }
 
 function createImmediateSSE(params: {
@@ -437,6 +573,18 @@ export async function POST(request: NextRequest) {
             console.log(
               `[Agent API] turn_commit_success user=${effectiveUserId} conversation=${effectiveConversationId} turn=${turnId}`
             );
+
+            // ========== 异步同步短期记忆到 ChromaDB（向量检索）==========
+            // 注意：这里使用 fire-and-forget 模式，不阻塞主流程
+            const shortMemoryId = persistedState._shortMemoryId;
+            if (shortMemoryId && process.env.VECTOR_DB_PATH) {
+              syncShortMemoryToChroma(
+                shortMemoryId,
+                effectiveUserId,
+                sanitizeContent(userMessage.content).slice(0, 200),
+                JSON.stringify(extractTopicTags(message))
+              ).catch(err => console.error("[Memory] ChromaDB同步失败:", err));
+            }
 
             const quickReplies = persistedState.quickReplyOptions || [];
 

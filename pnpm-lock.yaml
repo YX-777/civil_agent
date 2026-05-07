@@ -26,6 +26,9 @@ importers:
       '@civil-agent/core':
         specifier: workspace:*
         version: link:../core
+      '@civil-agent/database':
+        specifier: workspace:*
+        version: link:../database
       '@civil-agent/mcp-bailian-rag':
         specifier: workspace:*
         version: link:../mcp-bailian-rag

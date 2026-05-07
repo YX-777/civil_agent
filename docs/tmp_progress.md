@@ -591,7 +591,96 @@ template: "示例：\\n问题：{question}"
 
 ---
 
-## 九、当前进度总览（更新 2026-05-07）
+## 十、四阶分层记忆系统实现（2026-05-07）
+
+### 10.1 架构设计
+
+**大白话解释**：模拟人类大脑的记忆机制，分为四层：
+
+| 层级 | 大白话解释 | 技术实现 |
+|-----|-----------|---------|
+| **Instant（瞬时）** | 就像你正在说的话，立刻就能回忆起来 | 滑动窗口保留最近 10 条消息 |
+| **Short（短期）** | 就像昨天做的事，记得但不那么清晰 | 7 天内对话 + 新鲜度衰减 |
+| **Long（长期）** | 就像小时候学的知识，深深印在心里 | 向量永久存储 + 权重管理 |
+| **Meta（元）** | 就像你的性格、习惯、擅长什么 | 用户画像 + 技能图谱聚合 |
+
+### 10.2 衰减公式（面试可讲）
+
+```
+新鲜度 = 0.5^(天数/7) + 访问强化 + 最近访问奖励
+```
+
+- 半衰期 = 7 天（每 7 天记忆强度减半）
+- 访问强化 = min(访问次数 × 0.1, 0.5)
+- 低于 0.1 → 归档到长期记忆
+
+### 10.3 新增文件
+
+| 文件 | 功能 |
+|------|------|
+| `packages/database/prisma/schema.prisma` | 新增 ShortTermMemory、MetaMemory 表 |
+| `packages/database/src/repositories/short-term-memory.repository.ts` | 短期记忆 Repository |
+| `packages/database/src/repositories/meta-memory.repository.ts` | 元记忆 Repository |
+| `packages/agent-langgraph/src/memory/instant.ts` | 瞬时记忆管理（滑动窗口） |
+| `packages/agent-langgraph/src/memory/short.ts` | 短期记忆衰减计算 |
+| `packages/agent-langgraph/src/memory/reinforce.ts` | 短期记忆强化 |
+| `packages/agent-langgraph/src/memory/long.ts` | 长期记忆归档 + 权重管理 |
+| `packages/agent-langgraph/src/memory/meta.ts` | 元记忆聚合（用户画像） |
+| `packages/agent-langgraph/src/memory/fusion.ts` | 四层融合检索 |
+| `packages/agent-langgraph/src/memory/index.ts` | 统一导出 |
+
+### 10.4 日志输出示例
+
+```
+============================================================
+🧠 [Memory] 开始四层记忆融合检索
+============================================================
+[Memory] 瞬时记忆: 5 条消息
+[Memory] 短期记忆: 3 条相关记忆
+  - React: 新鲜度=0.85
+  - 面试: 新鲜度=0.72
+[Memory] 长期记忆: 2 条相关经验
+  - 权重=0.80, 分数=0.92
+[Memory] 元记忆: 强项=JS, 弱项=React
+[Memory] 元记忆: 学习风格=practice, 连续学习=15天
+============================================================
+```
+
+### 10.5 自动存储短期记忆（2026-05-08 补充）
+
+用户发送消息后自动创建短期记忆：
+- **SQLite 存储**：`short_term_memories` 表（结构化数据）
+- **ChromaDB 存储**：`short_term_memory` collection（向量检索）
+- **话题提取**：自动识别 React、TypeScript、面试等关键词
+
+**关键修改**：
+- `packages/web/src/app/api/agent/chat/route.ts` - commitConversationTurn 添加记忆存储 + ChromaDB 同步
+
+### 10.6 运维脚本
+
+| 脚本 | 用途 |
+|------|------|
+| `packages/database/archive-memory.ts` | 手动归档（测试用） |
+| `packages/database/memory-cron.ts` | 定时衰减任务（生产用） |
+
+**手动归档命令**：
+```bash
+cd packages/database
+npx tsx archive-memory.ts --user=USER_ID --days=25  # 模拟25天衰减归档
+```
+
+### 10.7 测试验证结果（2026-05-08）
+
+| 存储位置 | 数据量 |
+|---------|--------|
+| SQLite `short_term_memories` | 10 条（4 活跃 + 6 已归档） |
+| ChromaDB `short_term_memory` | ✅ 新消息自动同步 |
+| ChromaDB `long_term_memory` | 6 条（归档后） |
+| ChromaDB `tech_knowledge` | 40 条（RAG 知识） |
+
+---
+
+## 十一、当前进度总览（更新 2026-05-08）
 
 | Phase | 任务 | 状态 |
 |-------|------|------|
@@ -602,13 +691,21 @@ template: "示例：\\n问题：{question}"
 | P1-1 | RAG Engine 包创建 | ✅ 完成 |
 | P1-1 | Embedding API 修复 | ✅ 完成 |
 | P1-1 | ChromaDB 知识库初始化（40条，cosine距离） | ✅ 完成 |
-| P1-1 | RAG Engine 集成到 generalQANode | ✅ 完成（本次） |
-| P1-1 | ChromaDB Server 启动脚本 | ✅ 完成（本次） |
-| P1-2 | 四阶分层记忆系统 | 🔜 待开始 |
+| P1-1 | RAG Engine 集成到 generalQANode | ✅ 完成 |
+| P1-1 | ChromaDB Server 启动脚本 | ✅ 完成 |
+| P1-2 | 四阶分层记忆系统（完整实现 + 测试通过） | ✅ 完成 |
 | P1-3 | GuardRail 三层防护 | 🔜 待开始 |
 | P2 | OpenTelemetry 可观测 | 🔜 待开始 |
 
 ---
+
+## 十二、下一步计划
+
+| 优先级 | 任务 | 预估时间 |
+|--------|------|----------|
+| **高** | GuardRail 三层防护 | 2-3天 |
+| **中** | OpenTelemetry 可观测 | 2-3天 |
+| **低** | 移除调试日志（面试后） | 0.5天 |
 
 ## 十、下一步计划
 

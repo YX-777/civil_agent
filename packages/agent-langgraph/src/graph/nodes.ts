@@ -22,6 +22,7 @@ import {
   shouldRouteToXiaohongshuRag,
 } from "./xiaohongshu-rag";
 import { parseTaskPlanFromText } from "./task-plan";
+import { getMemoryFusionRetriever, type Message } from "../memory";
 
 /**
  * 直接调用百炼 API (绕过 LangChain 的兼容性问题)
@@ -451,6 +452,30 @@ export async function generalQANode(
     const enhancedMessage = await contextEnhancer.enhanceUserMessage(state.userId, content);
     const config = getAgentConfig();
 
+    // ========== 四层记忆融合检索（面试核心亮点）==========
+    console.log("\n");
+    console.log("=".repeat(60));
+    console.log("🧠 [Memory] 开始四层记忆融合检索");
+    console.log("=".repeat(60));
+
+    // 转换消息格式为 Memory Message
+    const memoryMessages: Message[] = state.messages.map((msg: any) => ({
+      role: msg.role || (msg._getType ? msg._getType() : "user"),
+      content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+    }));
+
+    // 执行四层记忆融合检索
+    const memoryRetriever = getMemoryFusionRetriever();
+    const fusedMemory = await memoryRetriever.retrieve(
+      state.userId,
+      content,
+      memoryMessages
+    );
+
+    // 将融合后的上下文添加到系统提示
+    const memoryContextPrompt = fusedMemory.fusedContext;
+    console.log(`🧠 [Memory] 融合上下文已生成，长度: ${memoryContextPrompt.length} 字符`);
+
     // ========== RAG Engine 集成测试日志 ==========
     console.log("\n");
     console.log("=".repeat(60));
@@ -579,8 +604,33 @@ export async function* generalQANodeStream(
     const enhancedMessage = await contextEnhancer.enhanceUserMessage(state.userId, content);
     const config = getAgentConfig();
 
-    // ========== RAG Engine 集成测试日志 ==========
+    // ========== 四层记忆融合检索（面试核心亮点）==========
     console.log("\n");
+    console.log("=".repeat(60));
+    console.log("🧠 [Memory] 开始四层记忆融合检索");
+    console.log("=".repeat(60));
+
+    // 转换消息格式为 Memory Message
+    const memoryMessages: Message[] = state.messages.map((msg: any) => ({
+      role: msg.role || (msg._getType ? msg._getType() : "user"),
+      content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+    }));
+
+    // 执行四层记忆融合检索
+    const memoryRetriever = getMemoryFusionRetriever();
+    const fusedMemory = await memoryRetriever.retrieve(
+      state.userId,
+      content,
+      memoryMessages
+    );
+
+    // 将融合后的上下文添加到系统提示
+    const memoryContextPrompt = fusedMemory.fusedContext;
+    console.log(`🧠 [Memory] 融合上下文已生成，长度: ${memoryContextPrompt.length} 字符`);
+    console.log("=".repeat(60));
+    console.log("\n");
+
+    // ========== RAG Engine 集成测试日志 ==========
     console.log("=".repeat(60));
     console.log("🔍 [RAG TEST] 用户问题:", content);
     console.log("🔍 [RAG TEST] 白名单命中:", shouldRouteToXiaohongshuRag(content));

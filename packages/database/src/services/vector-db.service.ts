@@ -70,7 +70,9 @@ export class VectorDBService {
       { name: 'user_preferences', metadata: { description: 'User preference embeddings' } },
       { name: 'user_knowledge_mastery', metadata: { description: 'User knowledge mastery embeddings' } },
       { name: 'task_vectors', metadata: { description: 'Task embeddings' } },
-      { name: 'tech_knowledge', metadata: { description: 'Tech knowledge base for RAG' } }
+      { name: 'tech_knowledge', metadata: { description: 'Tech knowledge base for RAG' } },
+      { name: 'long_term_memory', metadata: { description: 'Long term memory with weight system' } },
+      { name: 'short_term_memory', metadata: { description: 'Short term memory vectors' } }
     ];
 
     for (const config of collections) {

@@ -20,6 +20,8 @@ model User {
   moduleProgress    ModuleProgress[]
   agentStates       AgentState[]
   embeddings        Embedding[]
+  shortTermMemories ShortTermMemory[]
+  metaMemory        MetaMemory?
 
   @@map("users")
 }
@@ -256,4 +258,75 @@ model XhsSyncRun {
   @@index([jobName, createdAt(sort: Desc)])
   @@index([status])
   @@map("xhs_sync_runs")
+}
+
+// ==================== 四阶分层记忆系统 ====================
+
+/// 短期记忆：7天内对话，新鲜度衰减机制
+model ShortTermMemory {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  conversationId  String   @map("conversation_id")
+
+  // 记忆内容
+  content         String                        // 消息摘要或关键信息
+  contentType     String   @map("content_type") // "message", "topic", "emotion"
+
+  // 衰减相关
+  createdAt       DateTime @default(now()) @map("created_at")
+  lastAccessedAt  DateTime @default(now()) @map("last_accessed_at")
+  freshnessScore  Float    @default(1.0) @map("freshness_score") // 新鲜度 0-1
+  accessCount     Int      @default(0) @map("access_count")      // 访问次数
+
+  // 话题关联
+  topicTags       String?  @map("topic_tags")    // JSON 数组：["React", "面试"]
+  relatedTopics   String?  @map("related_topics") // 关联话题 ID
+
+  // 向量关联
+  vectorId        String?  @map("vector_id")
+
+  // 状态
+  archived        Boolean  @default(false) @map("archived") // 是否已归档到长期记忆
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, freshnessScore])
+  @@index([archived])
+  @@map("short_term_memories")
+}
+
+/// 元记忆：用户画像 + 技能图谱聚合
+model MetaMemory {
+  id              String   @id @default(uuid())
+  userId          String   @unique @map("user_id")
+
+  // 能力图谱
+  skillGraph      String   @map("skill_graph")    // JSON：技能树和熟练度
+  weakAreas       String   @map("weak_areas")     // JSON：薄弱项列表
+  strongAreas     String   @map("strong_areas")   // JSON：强项列表
+
+  // 学习偏好
+  learningStyle   String?  @map("learning_style") // "visual", "reading", "practice"
+  preferredTime   String?  @map("preferred_time") // "morning", "afternoon", "evening"
+  dailyGoal       Float?   @map("daily_goal")     // 每日目标小时数
+
+  // 学习统计
+  totalHours      Float    @default(0) @map("total_hours")
+  consecutiveDays Int      @default(0) @map("consecutive_days")
+  averageAccuracy Float    @default(0) @map("average_accuracy")
+
+  // 情绪模式
+  emotionalPattern String? @map("emotional_pattern") // JSON：常见情绪和应对策略
+
+  // 向量关联（用于相似用户匹配）
+  vectorId        String?  @map("vector_id")
+
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("meta_memories")
 }
