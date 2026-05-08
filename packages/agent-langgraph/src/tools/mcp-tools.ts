@@ -3,7 +3,7 @@
  * 封装 MCP 服务器提供的工具调用
  */
 
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 
 export interface MCPToolCallOptions {
   toolName: string;

@@ -3,7 +3,7 @@
  */
 
 import axios from "axios";
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 import { getSchedulerConfig } from "../config/scheduler.config";
 
 export interface PushNotificationData {

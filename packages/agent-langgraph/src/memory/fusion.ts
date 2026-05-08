@@ -13,7 +13,7 @@
 import {
   getShortTermMemoryRepository,
   getMetaMemoryRepository,
-} from "@civil-agent/database";
+} from "@tech-mate/database";
 import {
   getInstantMemoryManager,
   getLongMemoryArchiver,

@@ -1,6 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  output: 'standalone', // 生产环境 standalone 输出
   transpilePackages: ["@civil-agent/core", "@civil-agent/agent-langgraph", "@civil-agent/scheduler"],
   webpack: (config, { isServer }) => {
     // 排除chromadb相关的包

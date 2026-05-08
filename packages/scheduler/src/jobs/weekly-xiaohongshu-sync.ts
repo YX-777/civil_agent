@@ -3,9 +3,9 @@
  * 流程：检查登录 -> 关键词搜索 -> 拉取详情正文 -> 去重入库
  */
 
-import { logger } from "@civil-agent/core";
-import { getXiaohongshuMCPClient } from "@civil-agent/mcp-xiaohongshu";
-import { getPrismaClient, initializeDatabase, getXhsSyncService } from "@civil-agent/database";
+import { logger } from "@tech-mate/core";
+import { getXiaohongshuMCPClient } from "@tech-mate/mcp-xiaohongshu";
+import { getPrismaClient, initializeDatabase, getXhsSyncService } from "@tech-mate/database";
 import {
   buildDetailRefreshQueries,
   classifyDetailError,

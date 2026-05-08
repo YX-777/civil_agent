@@ -1,5 +1,5 @@
 {
-  "name": "@civil-agent/scheduler",
+  "name": "@tech-mate/scheduler",
   "version": "1.0.0",
   "private": true,
   "description": "Scheduled task manager triggering morning greetings, evening reviews, and anomaly detection",
@@ -26,10 +26,10 @@
   "author": "sxh",
   "license": "MIT",
   "dependencies": {
-    "@civil-agent/agent-langgraph": "workspace:*",
-    "@civil-agent/core": "workspace:*",
-    "@civil-agent/database": "workspace:*",
-    "@civil-agent/mcp-xiaohongshu": "workspace:*",
+    "@tech-mate/agent-langgraph": "workspace:*",
+    "@tech-mate/core": "workspace:*",
+    "@tech-mate/database": "workspace:*",
+    "@tech-mate/mcp-xiaohongshu": "workspace:*",
     "axios": "^1.6.5",
     "bull": "^4.12.2",
     "dotenv": "^17.2.3",

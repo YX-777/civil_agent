@@ -2,7 +2,7 @@
  * 完成任务工具
  */
 
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 import { TaskManager } from "../client/task-manager";
 
 export interface CompleteTaskArgs {

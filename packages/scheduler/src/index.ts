@@ -3,7 +3,7 @@
  */
 
 import * as cron from "node-cron";
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 import { getSchedulerConfig, validateSchedulerConfig } from "./config/scheduler.config";
 import { getAllCronJobs } from "./config/cron.config";
 import { setupProcessors } from "./queue/processors";

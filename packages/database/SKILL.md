@@ -13,7 +13,7 @@
 
 ## 包概述
 
-`@civil-agent/database` 是考公Agent项目的数据库核心包，实现了三层分离存储架构：
+`@tech-mate/database` 是考公Agent项目的数据库核心包，实现了三层分离存储架构：
 
 1. **第一层**：SQLite关系型数据库（用户数据、会话、任务、统计）
 2. **第二层**：Chroma向量数据库（消息向量、用户偏好、知识掌握）
@@ -37,7 +37,7 @@
 |------|------|------|
 | `@prisma/client` | ^5.7.0 | ORM客户端 |
 | `prisma` | ^5.7.0 | 数据库迁移和生成 |
-| `@civil-agent/core` | workspace:* | 共享类型和工具 |
+| `@tech-mate/core` | workspace:* | 共享类型和工具 |
 | `chromadb` | ^1.8.0 | 向量数据库客户端 |
 | `axios` | ^1.6.5 | HTTP客户端（调用百炼API） |
 
@@ -95,7 +95,7 @@ packages/database/
 ├── prisma/
 │   └── schema.prisma         # Prisma数据模型
 ├── data/                    # SQLite数据库文件
-│   └── civil-agent.db
+│   └── tech-mate.db
 └── package.json
 ```
 
@@ -316,7 +316,7 @@ node dist/init.js
 ### 使用Repository
 
 ```typescript
-import { UserRepository } from '@civil-agent/database/repositories/user.repository';
+import { UserRepository } from '@tech-mate/database/repositories/user.repository';
 import { PrismaClient } from '@prisma/client';
 
 const prisma = new PrismaClient();
@@ -338,8 +338,8 @@ await userRepo.updateUserProfile('user-123', {
 ### 使用向量数据库
 
 ```typescript
-import { VectorDBService } from '@civil-agent/database/services/vector-db.service';
-import { EmbeddingService } from '@civil-agent/database/services/embedding.service';
+import { VectorDBService } from '@tech-mate/database/services/vector-db.service';
+import { EmbeddingService } from '@tech-mate/database/services/embedding.service';
 
 const vectorService = new VectorDBService();
 const embeddingService = new EmbeddingService();
@@ -365,7 +365,7 @@ const results = await vectorService.search('user_messages', queryVector, 5, {
 ### 数据同步
 
 ```typescript
-import { SyncService } from '@civil-agent/database/services/sync.service';
+import { SyncService } from '@tech-mate/database/services/sync.service';
 
 const syncService = new SyncService(
   messageRepo,
@@ -540,7 +540,7 @@ pnpm lint
 
 ```bash
 # .env
-DATABASE_URL=file:./data/civil-agent.db
+DATABASE_URL=file:./data/tech-mate.db
 VECTOR_DB_PATH=./data/chroma
 EMBEDDING_API_KEY=your_dashscope_api_key
 EMBEDDING_API_URL=https://dashscope.aliyuncs.com/api/v1/services/embeddings/text-embedding/text-embedding-v2

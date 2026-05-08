@@ -1,5 +1,5 @@
 {
-  "name": "@civil-agent/agent-langgraph",
+  "name": "@tech-mate/agent-langgraph",
   "version": "1.0.0",
   "private": true,
   "description": "LangGraph-based multi-turn dialogue agent engine",
@@ -25,11 +25,11 @@
   "author": "sxh",
   "license": "MIT",
   "dependencies": {
-    "@civil-agent/core": "workspace:*",
-    "@civil-agent/database": "workspace:*",
-    "@civil-agent/mcp-bailian-rag": "workspace:*",
-    "@civil-agent/mcp-xiaohongshu": "workspace:*",
-    "@civil-agent/rag-engine": "workspace:*",
+    "@tech-mate/core": "workspace:*",
+    "@tech-mate/database": "workspace:*",
+    "@tech-mate/mcp-bailian-rag": "workspace:*",
+    "@tech-mate/mcp-xiaohongshu": "workspace:*",
+    "@tech-mate/rag-engine": "workspace:*",
     "@langchain/community": "^1.1.8",
     "@langchain/core": "^1.1.17",
     "@langchain/langgraph": "^0.0.28",

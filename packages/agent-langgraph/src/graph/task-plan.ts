@@ -1,4 +1,4 @@
-import { LEARNING_MODULES } from "@civil-agent/core";
+import { LEARNING_MODULES } from "@tech-mate/core";
 
 export interface ParsedTaskPlan {
   title: string;

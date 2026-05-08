@@ -12,7 +12,7 @@ import {
   getLearningRecordRepository,
   getMetaMemoryRepository,
   getStatsService,
-} from "@civil-agent/database";
+} from "@tech-mate/database";
 
 export interface SkillGraphNode {
   module: string;

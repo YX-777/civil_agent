@@ -57,3 +57,6 @@ init_knowledge_base.py
 
 # ChromaDB 数据存储
 data/
+
+# SQLite 数据库文件
+*.db

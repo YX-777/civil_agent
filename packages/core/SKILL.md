@@ -46,7 +46,7 @@ allowed-tools: Read Write Edit
 
 **使用示例**:
 ```typescript
-import type { GraphStateType, UserIntent } from "@civil-agent/core";
+import type { GraphStateType, UserIntent } from "@tech-mate/core";
 
 const state: GraphStateType = {
   userId: "user-123",
@@ -70,7 +70,7 @@ const intent: UserIntent = "create_task";
 
 **API 示例**:
 ```typescript
-import { logger, LogLevel } from "@civil-agent/core";
+import { logger, LogLevel } from "@tech-mate/core";
 
 // 设置日志级别
 logger.setLevel(LogLevel.DEBUG);
@@ -104,7 +104,7 @@ LOG_LEVEL=DEBUG  # 设置日志级别
 import {
   MCPToolError,
   handleErrors
-} from "@civil-agent/core";
+} from "@tech-mate/core";
 
 class MyService {
   @handleErrors(MCPToolError, "调用 MCP 工具")
@@ -128,7 +128,7 @@ class MyService {
 
 **使用示例**:
 ```typescript
-import { SYSTEM_PROMPTS } from "@civil-agent/core";
+import { SYSTEM_PROMPTS } from "@tech-mate/core";
 
 const systemPrompt = SYSTEM_PROMPTS.MORNING_GREETING;
 const response = await llm.invoke([
@@ -157,7 +157,7 @@ import {
   LEARNING_MODULES,
   DEFAULT_CONFIG,
   ENV_VAR_NAMES
-} from "@civil-agent/core";
+} from "@tech-mate/core";
 
 // 获取所有学习模块
 const modules = LEARNING_MODULES; // ["资料分析", "数量关系", ...]
@@ -228,11 +228,11 @@ src/
 
 ### 被依赖的模块
 
-- `@civil-agent/mcp-bailian-rag`: 使用类型定义
-- `@civil-agent/mcp-feishu-tasks`: 使用类型定义
-- `@civil-agent/agent-langgraph`: 使用类型、提示词、工具
-- `@civil-agent/scheduler`: 使用类型、配置
-- `@civil-agent/web`: 使用类型、常量
+- `@tech-mate/mcp-bailian-rag`: 使用类型定义
+- `@tech-mate/mcp-feishu-tasks`: 使用类型定义
+- `@tech-mate/agent-langgraph`: 使用类型、提示词、工具
+- `@tech-mate/scheduler`: 使用类型、配置
+- `@tech-mate/web`: 使用类型、常量
 
 ---
 
@@ -296,7 +296,7 @@ import {
   DEFAULT_CONFIG,
   type GraphStateType,
   type UserIntent
-} from "@civil-agent/core";
+} from "@tech-mate/core";
 
 class MyAgent {
   private state: GraphStateType;
@@ -335,7 +335,7 @@ class MyAgent {
 
 ## 🎓 最佳实践
 
-1. **类型优先**: 始终使用 `@civil-agent/core` 导出的类型，确保类型一致性
+1. **类型优先**: 始终使用 `@tech-mate/core` 导出的类型，确保类型一致性
 2. **日志规范**: 使用合适的日志级别，避免生产环境输出过多 DEBUG 日志
 3. **错误处理**: 使用 `@handleErrors` 装饰器统一处理错误
 4. **提示词管理**: 所有提示词应在 `prompts.ts` 中定义，便于维护

@@ -13,7 +13,7 @@ import {
 // 2. 本地知识上下文的组装方式
 // 3. 没命中或没结果时必须老实降级
 
-test("shouldRouteToXiaohongshuRag matches civil exam whitelist queries", () => {
+test("shouldRouteToXiaohongshuRag matches tech learning whitelist queries", () => {
   assert.equal(shouldRouteToXiaohongshuRag("想看杭州考公上岸经验"), true);
   assert.equal(shouldRouteToXiaohongshuRag("浙江省考面试经验怎么准备"), true);
   assert.equal(shouldRouteToXiaohongshuRag("今天帮我做一个学习计划"), false);

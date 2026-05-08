@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAgentGraph, createInitialState, startTrace, endTrace, TraceContext } from "@civil-agent/agent-langgraph";
+import { createAgentGraph, createInitialState, startTrace, endTrace, TraceContext } from "@tech-mate/agent-langgraph";
 import { getDatabase } from "@/lib/database";
-import { getAgentStateRepository, getPrismaClient, getTaskService } from "@civil-agent/database";
+import { getAgentStateRepository, getPrismaClient, getTaskService } from "@tech-mate/database";
 import {
   buildStateKey,
   generateConversationTitle,
@@ -250,7 +250,7 @@ async function syncShortMemoryToChroma(
 ): Promise<void> {
   try {
     // 动态导入避免 Next.js 编译问题
-    const { getVectorDBService, getEmbeddingService } = await import("@civil-agent/database");
+    const { getVectorDBService, getEmbeddingService } = await import("@tech-mate/database");
 
     const vectorService = getVectorDBService();
     const embeddingService = getEmbeddingService();

@@ -3,7 +3,7 @@
  */
 
 import Queue from "bull";
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 import { getSchedulerConfig } from "../config/scheduler.config";
 
 let taskQueue: Queue.Queue | null = null;
@@ -15,7 +15,7 @@ export function getTaskQueue(): Queue.Queue {
 
   const config = getSchedulerConfig();
 
-  taskQueue = new Queue("civil-service-tasks", {
+  taskQueue = new Queue("tech-mate-tasks", {
     redis: {
       host: config.queue.connection.host,
       port: config.queue.connection.port,

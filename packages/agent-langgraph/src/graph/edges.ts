@@ -3,7 +3,7 @@
  * LangGraph 状态机的边（转换条件）
  */
 
-import type { UserIntent } from "@civil-agent/core";
+import type { UserIntent } from "@tech-mate/core";
 import type { GraphStateType } from "./state";
 
 /**

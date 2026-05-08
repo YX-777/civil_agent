@@ -2,7 +2,7 @@
  * 晚间复盘任务
  */
 
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 import { PushNotificationService } from "../notification/push-notification";
 
 export interface EveningReviewData {

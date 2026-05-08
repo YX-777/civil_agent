@@ -1,5 +1,5 @@
 {
-  "name": "@civil-agent/rag-engine",
+  "name": "@tech-mate/rag-engine",
   "version": "1.0.0",
   "description": "TechMate RAG Engine - Hybrid retrieval with LlamaIndex + Chroma + BM25 + BGE-M3 reranking",
   "main": "dist/index.js",
@@ -10,8 +10,8 @@
     "test": "vitest"
   },
   "dependencies": {
-    "@civil-agent/core": "workspace:*",
-    "@civil-agent/database": "workspace:*",
+    "@tech-mate/core": "workspace:*",
+    "@tech-mate/database": "workspace:*",
     "axios": "^1.6.5",
     "natural": "^6.10.0"
   },

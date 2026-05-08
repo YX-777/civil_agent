@@ -3,7 +3,7 @@
  * 增强对话上下文信息
  */
 
-import { logger } from "@civil-Agent/core";
+import { logger } from "@tech-mate/core";
 import { getMCPToolClient } from "../tools/mcp-tools";
 import { TimeTools } from "../tools/local-tools";
 import { getInstantMemoryManager, type Message, type InstantMemorySlice } from "../memory/instant";

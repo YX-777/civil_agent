@@ -2,7 +2,7 @@
  * 任务处理器
  */
 
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 import { getTaskQueue } from "./bull-queue";
 import { morningGreetingJob, getAllActiveUsers } from "../jobs/morning-greeting";
 import { eveningReviewJob, getTodayStats } from "../jobs/evening-review";

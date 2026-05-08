@@ -190,7 +190,7 @@ data: {"type":"done","quickReplies":[],...}
 |------|----------|
 | `packages/agent-langgraph/src/graph/nodes.ts` | generalQANodeStream 集成 HybridRetriever + RAG TEST 日志 |
 | `packages/agent-langgraph/src/graph/xiaohongshu-rag.ts` | 扩展关键词白名单（Agent/RAG/LangChain/LLM） |
-| `packages/agent-langgraph/package.json` | 添加 `@civil-agent/rag-engine` 依赖 |
+| `packages/agent-langgraph/package.json` | 添加 `@tech-mate/rag-engine` 依赖 |
 | `packages/rag-engine/src/retrievers/hybrid-retriever.ts` | 扩展 RetrieveOptions + 调试日志 |
 | `packages/rag-engine/src/retrievers/vector-retriever.ts` | 扩展 search options + 修复 content 字段 |
 | `packages/rag-engine/src/retrievers/bm25-retriever.ts` | 扩展 search options |
@@ -467,7 +467,7 @@ const CHROMA_URL = '/api/chroma'  // 通过代理访问 ChromaDB
 
 **启动方式**：
 ```bash
-cd /Users/sxh/Code/project/civil_agent/chroma-web-ui
+cd /Users/sxh/Code/project/tech_mate/chroma-web-ui
 npm run dev
 # 访问 http://localhost:3001
 ```
@@ -654,7 +654,7 @@ LlamaIndex 是专门为 RAG 应用设计的数据框架，核心定位是"连接
 chroma run --host localhost --port 8000 --path ./data/chroma
 
 # 启动 ChromaDB Web UI
-cd /Users/sxh/Code/project/civil_agent/chroma-web-ui
+cd /Users/sxh/Code/project/tech_mate/chroma-web-ui
 npm run dev
 ```
 
@@ -681,10 +681,10 @@ curl -s "http://localhost:3000/api/tasks?userId=test-user"
 ### Python 脚本
 ```bash
 # 查看 ChromaDB 内容
-python3 /Users/sxh/Code/project/civil_agent/chroma_viewer.py
+python3 /Users/sxh/Code/project/tech_mate/chroma_viewer.py
 
 # 初始化 ChromaDB 数据（网络稳定后）
-python3 /Users/sxh/Code/project/civil_agent/init_chroma.py
+python3 /Users/sxh/Code/project/tech_mate/init_chroma.py
 ```
 
 ---

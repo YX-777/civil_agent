@@ -311,7 +311,7 @@ interface Message {
 - Ant Design X: AI 对话组件库
 - Framer Motion: 动画库
 - Recharts: 图表库
-- @civil-agent/core: 核心类型
+- @tech-mate/core: 核心类型
 
 ### 代码结构
 
@@ -1206,8 +1206,8 @@ FormData: {
 
 ### 依赖的模块
 
-- `@civil-agent/core`: 类型定义、常量
-- `@civil-agent/agent-langgraph`: Agent 调用
+- `@tech-mate/core`: 类型定义、常量
+- `@tech-mate/agent-langgraph`: Agent 调用
 
 ### 被依赖的模块
 

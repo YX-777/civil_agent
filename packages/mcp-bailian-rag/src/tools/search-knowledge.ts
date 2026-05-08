@@ -2,7 +2,7 @@
  * MCP 工具：搜索知识库
  */
 
-import type { MCPToolDefinition, MCPToolResponse } from "@civil-agent/core";
+import type { MCPToolDefinition, MCPToolResponse } from "@tech-mate/core";
 import { UserHistoryRetriever } from "../retrievers/user-history-retriever";
 import { ExamExperienceRetriever } from "../retrievers/exam-experience-retriever";
 

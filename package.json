@@ -4,7 +4,7 @@
   "private": true,
   "description": "TechMate - 技术学习陪伴Agent，帮助开发者提升前端技术能力",
   "scripts": {
-    "dev": "pnpm --filter @civil-agent/web dev",
+    "dev": "pnpm --filter @tech-mate/web dev",
     "build": "pnpm -r build",
     "test": "pnpm -r test",
     "lint": "pnpm -r lint",

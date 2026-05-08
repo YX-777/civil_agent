@@ -12,7 +12,7 @@
 import { Suspense } from "react";
 import { Spin } from "antd";
 import DashboardClient from "./DashboardClient";
-import { getStatsService, initializeDatabase } from "@civil-agent/database";
+import { getStatsService, initializeDatabase } from "@tech-mate/database";
 
 // ISR: 每小时重新生成
 export const revalidate = 3600;

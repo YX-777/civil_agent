@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getStatsService } from "@civil-agent/database";
+import { getStatsService } from "@tech-mate/database";
 import { getDatabase } from "@/lib/database";
 
 const DEFAULT_USER_ID = "default-user";

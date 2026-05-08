@@ -21,10 +21,10 @@
       "@/*": [
         "./src/*"
       ],
-      "@civil-agent/database": [
+      "@tech-mate/database": [
         "../database/src/index.ts"
       ],
-      "@civil-agent/scheduler": [
+      "@tech-mate/scheduler": [
         "../scheduler/src/index.ts"
       ]
     },

@@ -8,7 +8,7 @@ import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 import { CreateFeishuTaskTool } from "./tools/create-task";
 import { QueryFeishuTasksTool } from "./tools/query-tasks";
 import { UpdateFeishuTaskTool } from "./tools/update-task";
@@ -22,7 +22,7 @@ const completeTaskTool = new CompleteFeishuTaskTool();
 
 const server = new Server(
   {
-    name: "@civil-agent/mcp-feishu-tasks",
+    name: "@tech-mate/mcp-feishu-tasks",
     version: "1.0.0",
   },
   {

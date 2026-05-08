@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getPrismaClient } from "@civil-agent/database";
+import { getPrismaClient } from "@tech-mate/database";
 
 function parseKeyword(contentRaw: string): string | null {
   try {

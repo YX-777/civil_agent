@@ -2,7 +2,7 @@
  * 检索器基类
  */
 
-import type { RAGSearchParams, RetrievalResult } from "@civil-agent/core";
+import type { RAGSearchParams, RetrievalResult } from "@tech-mate/core";
 
 export abstract class BaseRetriever {
   /**

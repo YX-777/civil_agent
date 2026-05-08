@@ -129,8 +129,8 @@ allowed-tools: Read Write Edit Bash(pnpm:*:*) Bash(node:*:*)
 
 - node-cron: 定时任务调度
 - bull: 任务队列（Redis）
-- @civil-agent/core: 类型定义
-- @civil-agent/agent-langgraph: Agent 客户端
+- @tech-mate/core: 类型定义
+- @tech-mate/agent-langgraph: Agent 客户端
 
 ### 代码结构
 
@@ -190,8 +190,8 @@ interface QueueConfig {
 
 ### 依赖的模块
 
-- `@civil-agent/core`: 类型定义
-- `@civil-agent/agent-langgraph`: Agent 调用
+- `@tech-mate/core`: 类型定义
+- `@tech-mate/agent-langgraph`: Agent 调用
 
 ### 外部依赖
 
@@ -265,7 +265,7 @@ redis-server
 ### 启动调度器
 
 ```typescript
-import { Scheduler } from "@civil-agent/scheduler";
+import { Scheduler } from "@tech-mate/scheduler";
 
 const scheduler = new Scheduler();
 
@@ -281,7 +281,7 @@ console.log("- 异常检测: 每天 23:59");
 ### 手动触发任务（测试用）
 
 ```typescript
-import { morningGreetingJob } from "@civil-agent/scheduler";
+import { morningGreetingJob } from "@tech-mate/scheduler";
 
 // 手动触发早安问候
 await morningGreetingJob({

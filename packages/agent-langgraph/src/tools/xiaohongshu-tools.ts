@@ -3,8 +3,8 @@
  * 集成小红书 MCP 客户端
  */
 
-import { logger } from "@civil-agent/core";
-import { getXiaohongshuTools as getXiaohongshuMCPTools } from "@civil-agent/mcp-xiaohongshu";
+import { logger } from "@tech-mate/core";
+import { getXiaohongshuTools as getXiaohongshuMCPTools } from "@tech-mate/mcp-xiaohongshu";
 
 let xiaohongshuToolsCache: any[] | null = null;
 

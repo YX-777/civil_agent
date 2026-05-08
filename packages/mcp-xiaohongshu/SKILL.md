@@ -154,7 +154,7 @@ cd packages/mcp-xiaohongshu
 ### 基本使用
 
 ```typescript
-import { getXiaohongshuMCPClient } from '@civil-agent/mcp-xiaohongshu';
+import { getXiaohongshuMCPClient } from '@tech-mate/mcp-xiaohongshu';
 
 // 获取客户端实例
 const client = getXiaohongshuMCPClient();
@@ -184,7 +184,7 @@ const loginStatus = await client.checkLoginStatus();
 ### 与 LangChain 集成
 
 ```typescript
-import { getXiaohongshuTools } from '@civil-agent/mcp-xiaohongshu';
+import { getXiaohongshuTools } from '@tech-mate/mcp-xiaohongshu';
 import { ChatOpenAI } from '@langchain/openai';
 
 // 创建模型

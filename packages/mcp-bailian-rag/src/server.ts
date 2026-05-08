@@ -10,7 +10,7 @@ import {
 } from "@modelcontextprotocol/sdk/types.js";
 import { SearchKnowledgeTool } from "./tools/search-knowledge.js";
 import { UploadDocumentTool } from "./tools/upload-document.js";
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 import { validateBailianConfig } from "./config/bailian.config.js";
 
 /**
@@ -23,7 +23,7 @@ export function createMCPServer(): Server {
   // 创建服务器实例
   const server = new Server(
     {
-      name: "@civil-agent/mcp-bailian-rag",
+      name: "@tech-mate/mcp-bailian-rag",
       version: "1.0.0",
     },
     {

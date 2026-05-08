@@ -193,7 +193,7 @@ allowed-tools: Read Write Edit Bash(pnpm:*:)
 
 - @modelcontextprotocol/sdk: MCP SDK
 - axios: HTTP 客户端
-- @civil-agent/core: 核心类型和工具
+- @tech-mate/core: 核心类型和工具
 
 ### 代码结构
 
@@ -245,7 +245,7 @@ src/
 
 ```json
 {
-  "name": "@civil-agent/mcp-feishu-tasks",
+  "name": "@tech-mate/mcp-feishu-tasks",
   "version": "1.0.0",
   "description": "飞书任务 MCP 服务器 - 智能学习任务管理"
 }
@@ -257,11 +257,11 @@ src/
 
 ### 依赖的模块
 
-- `@civil-agent/core`: 类型定义、日志工具
+- `@tech-mate/core`: 类型定义、日志工具
 
 ### 被依赖的模块
 
-- `@civil-agent/agent-langgraph`: Agent 调用任务管理工具
+- `@tech-mate/agent-langgraph`: Agent 调用任务管理工具
 
 ---
 
@@ -332,7 +332,7 @@ FEISHU_DEFAULT_TASK_LIST_ID=your_task_list_id
 ### Agent 调用示例
 
 ```typescript
-import { CreateFeishuTaskTool } from "@civil-agent/mcp-feishu-tasks";
+import { CreateFeishuTaskTool } from "@tech-mate/mcp-feishu-tasks";
 
 const tool = new CreateFeishuTaskTool();
 

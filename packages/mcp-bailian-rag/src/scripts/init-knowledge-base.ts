@@ -4,7 +4,7 @@
 
 import axios from "axios";
 import { bailianConfig, validateBailianConfig } from "../config/bailian.config";
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 
 /**
  * 初始化知识库

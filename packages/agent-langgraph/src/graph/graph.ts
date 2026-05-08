@@ -8,7 +8,7 @@
  * - 面试讲法："就像地铁线路图，每个节点是站，边是线路"
  */
 
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 import { StateGraph, START, END, MemorySaver } from "@langchain/langgraph";
 import type { GraphStateType } from "./state";
 import { graphStateChannels, createInitialState } from "./state";

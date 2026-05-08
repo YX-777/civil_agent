@@ -2,7 +2,7 @@
  * 任务管理器
  */
 
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 import { FeishuClient, FeishuTask } from "./feishu-client";
 import { getFeishuConfig } from "../config/feishu.config";
 

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getDatabase } from '@/lib/database';
-import { getConversationRepository } from '@civil-agent/database';
+import { getConversationRepository } from '@tech-mate/database';
 
 export async function GET(request: NextRequest) {
   try {

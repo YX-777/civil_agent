@@ -3,7 +3,7 @@
  */
 
 import { startMCPServer } from "./server.js";
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 
 async function main() {
   try {

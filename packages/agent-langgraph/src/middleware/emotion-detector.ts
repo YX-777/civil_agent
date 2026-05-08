@@ -3,8 +3,8 @@
  * 检测用户消息中的情绪
  */
 
-import { EmotionKeyword } from "@civil-agent/core";
-import { logger } from "@civil-agent/core";
+import { EmotionKeyword } from "@tech-mate/core";
+import { logger } from "@tech-mate/core";
 
 export interface EmotionDetectionResult {
   emotion: string;

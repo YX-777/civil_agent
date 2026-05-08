@@ -113,7 +113,7 @@ allowed-tools: Read Write Edit Bash(pnpm:*:)
 
 - @modelcontextprotocol/sdk: MCP SDK
 - axios: HTTP 客户端
-- @civil-agent/core: 核心类型和工具
+- @tech-mate/core: 核心类型和工具
 
 ### 代码结构
 
@@ -162,7 +162,7 @@ src/
 
 ```json
 {
-  "name": "@civil-agent/mcp-bailian-rag",
+  "name": "@tech-mate/mcp-bailian-rag",
   "version": "1.0.0",
   "description": "阿里云百炼 RAG MCP 服务器"
 }
@@ -174,11 +174,11 @@ src/
 
 ### 依赖的模块
 
-- `@civil-agent/core`: 类型定义、日志工具
+- `@tech-mate/core`: 类型定义、日志工具
 
 ### 被依赖的模块
 
-- `@civil-agent/agent-langgraph`: Agent 调用搜索工具
+- `@tech-mate/agent-langgraph`: Agent 调用搜索工具
 
 ---
 
@@ -252,7 +252,7 @@ BAILIAN_MIN_SCORE=0.6
 ### Agent 调用示例
 
 ```typescript
-import { SearchKnowledgeTool } from "@civil-agent/mcp-bailian-rag";
+import { SearchKnowledgeTool } from "@tech-mate/mcp-bailian-rag";
 
 const tool = new SearchKnowledgeTool();
 

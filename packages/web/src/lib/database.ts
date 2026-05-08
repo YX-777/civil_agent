@@ -1,4 +1,4 @@
-import { getPrismaClient, initializeDatabase, disconnectDatabase } from '@civil-agent/database';
+import { getPrismaClient, initializeDatabase, disconnectDatabase } from '@tech-mate/database';
 
 let initialized = false;
 

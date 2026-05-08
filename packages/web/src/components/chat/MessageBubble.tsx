@@ -40,24 +40,24 @@ function ThinkingIndicator() {
   );
 }
 
-// AI头像图标 - 简洁的圆点
+// AI头像 - 和Logo一样的紫色渐变T字母
 function AIAvatar() {
   return (
     <div
       style={{
-        width: 24,
-        height: 24,
-        borderRadius: 6,
-        background: "#6366f1",
+        width: 28,
+        height: 28,
+        borderRadius: 8,
+        background: "linear-gradient(135deg, #a78bfa 0%, #8b5cf6 100%)",
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
         color: "#fff",
-        fontSize: 12,
-        fontWeight: 600,
+        fontSize: 14,
+        fontWeight: 700,
       }}
     >
-      AI
+      T
     </div>
   );
 }
@@ -162,20 +162,20 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
                 <button
                   onClick={handleCopy}
                   style={{
-                    padding: "2px 6px",
-                    borderRadius: 4,
-                    border: "1px solid #e5e7eb",
-                    background: "#fff",
+                    padding: "4px 10px",
+                    borderRadius: 10,
+                    border: "none",
+                    background: copied ? "#f0fdf4" : "#f5f3ff",
                     cursor: "pointer",
-                    color: copied ? "#10b981" : "#9ca3af",
-                    fontSize: 12,
+                    color: copied ? "#10b981" : "#8b5cf6",
+                    fontSize: 13,
                     display: "flex",
                     alignItems: "center",
                     gap: 4,
-                    transition: "color 0.2s",
+                    transition: "all 0.2s",
                   }}
                 >
-                  {copied ? <CheckOutlined style={{ fontSize: 12 }} /> : <CopyOutlined style={{ fontSize: 12 }} />}
+                  {copied ? <CheckOutlined style={{ fontSize: 13 }} /> : <CopyOutlined style={{ fontSize: 13 }} />}
                 </button>
               </Tooltip>
             </div>

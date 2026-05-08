@@ -1,5 +1,5 @@
 {
-  "name": "@civil-agent/mcp-xiaohongshu",
+  "name": "@tech-mate/mcp-xiaohongshu",
   "version": "1.0.0",
   "private": true,
   "description": "小红书内容抓取 MCP 客户端",

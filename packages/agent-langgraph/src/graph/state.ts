@@ -3,7 +3,7 @@
  * LangGraph 状态机使用的状态结构
  */
 
-import type { UserIntent, QuickReplyOption } from "@civil-agent/core";
+import type { UserIntent, QuickReplyOption } from "@tech-mate/core";
 import type { StateGraphArgs } from "@langchain/langgraph";
 
 export interface EmotionContext {

@@ -3,7 +3,7 @@
  */
 
 import axios, { AxiosInstance } from "axios";
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 import { getFeishuConfig } from "../config/feishu.config";
 
 export interface FeishuTask {

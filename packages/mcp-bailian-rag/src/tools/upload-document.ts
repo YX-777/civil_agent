@@ -2,7 +2,7 @@
  * MCP 工具：上传文档到知识库
  */
 
-import type { MCPToolDefinition, MCPToolResponse } from "@civil-agent/core";
+import type { MCPToolDefinition, MCPToolResponse } from "@tech-mate/core";
 import axios from "axios";
 import { bailianConfig } from "../config/bailian.config";
 

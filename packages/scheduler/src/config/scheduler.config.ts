@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 
 export interface RedisConfig {
   host: string;

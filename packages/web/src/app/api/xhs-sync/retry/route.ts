@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { promisify } from "node:util";
 import path from "node:path";
 import { execFile } from "node:child_process";
-import { initializeDatabase } from "@civil-agent/database";
-import { retrySingleXhsPost } from "@civil-agent/scheduler";
+import { initializeDatabase } from "@tech-mate/database";
+import { retrySingleXhsPost } from "@tech-mate/scheduler";
 
 const execFileAsync = promisify(execFile);
 

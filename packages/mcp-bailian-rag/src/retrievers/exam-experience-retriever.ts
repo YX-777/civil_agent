@@ -4,7 +4,7 @@
 
 import axios from "axios";
 import { BaseRetriever } from "./base-retriever";
-import type { RAGSearchParams, RetrievalResult } from "@civil-agent/core";
+import type { RAGSearchParams, RetrievalResult } from "@tech-mate/core";
 import { bailianConfig } from "../config/bailian.config";
 
 export class ExamExperienceRetriever extends BaseRetriever {

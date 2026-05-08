@@ -10,7 +10,7 @@ import {
   getShortTermMemoryRepository,
   getVectorDBService,
   getEmbeddingService,
-} from "@civil-agent/database";
+} from "@tech-mate/database";
 import type { ShortMemory } from "./short";
 
 export interface LongMemoryMetadata {

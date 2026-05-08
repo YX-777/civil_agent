@@ -1,5 +1,5 @@
 {
-  "name": "@civil-agent/core",
+  "name": "@tech-mate/core",
   "version": "1.0.0",
   "private": true,
   "description": "核心包 - 共享类型、工具函数、常量定义",

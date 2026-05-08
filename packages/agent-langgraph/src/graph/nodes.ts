@@ -5,8 +5,8 @@
 
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
 import { ChatOpenAI } from "@langchain/openai";
-import { logger, QuickReplyOption } from "@civil-agent/core";
-import type { UserIntent } from "@civil-agent/core";
+import { logger, QuickReplyOption } from "@tech-mate/core";
+import type { UserIntent } from "@tech-mate/core";
 import { SYSTEM_PROMPTS } from "../prompts/system-prompts";
 import { TASK_PROMPTS } from "../prompts/task-prompts";
 import { getMCPToolClient } from "../tools/mcp-tools";

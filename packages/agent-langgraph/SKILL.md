@@ -208,9 +208,9 @@ AI: 我理解你的感受，瓶颈期确实让人沮丧。😔
 - @langchain/langgraph: LangGraph 状态机
 - @langchain/core: LangChain 核心
 - @langchain/anthropic: Anthropic LLM
-- @civil-agent/core: 核心类型和工具
-- @civil-agent/mcp-bailian-rag: 百炼 RAG MCP
-- @civil-agent/mcp-feishu-tasks: 飞书任务 MCP
+- @tech-mate/core: 核心类型和工具
+- @tech-mate/mcp-bailian-rag: 百炼 RAG MCP
+- @tech-mate/mcp-feishu-tasks: 飞书任务 MCP
 
 ### 代码结构
 
@@ -264,14 +264,14 @@ interface AgentResponse {
 
 ### 依赖的模块
 
-- `@civil-agent/core`: 类型定义、提示词、工具
-- `@civil-agent/mcp-bailian-rag`: RAG 检索工具
-- `@civil-agent/mcp-feishu-tasks`: 任务管理工具
+- `@tech-mate/core`: 类型定义、提示词、工具
+- `@tech-mate/mcp-bailian-rag`: RAG 检索工具
+- `@tech-mate/mcp-feishu-tasks`: 任务管理工具
 
 ### 被依赖的模块
 
-- `@civil-agent/web`: 前端调用 Agent API
-- `@civil-agent/scheduler`: 定时任务调用 Agent
+- `@tech-mate/web`: 前端调用 Agent API
+- `@tech-mate/scheduler`: 定时任务调用 Agent
 
 ---
 
@@ -370,7 +370,7 @@ async function chatWithAgent(message: string) {
 
 ```typescript
 // 早安问候任务
-import { AgentClient } from "@civil-agent/agent-langgraph";
+import { AgentClient } from "@tech-mate/agent-langgraph";
 
 const agent = new AgentClient();
 

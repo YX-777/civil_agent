@@ -6,7 +6,7 @@
  * 当用户再次提起某个话题时，自动强化相关记忆。
  */
 
-import { getShortTermMemoryRepository } from "@civil-agent/database";
+import { getShortTermMemoryRepository } from "@tech-mate/database";
 import type { ShortMemory } from "./short";
 
 export type ReinforceTrigger = "topic_match" | "retrieval_hit" | "explicit";

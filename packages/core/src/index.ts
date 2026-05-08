@@ -59,7 +59,7 @@ export {
 } from './constants/config';
 
 export const CORE_VERSION = '1.0.0';
-export const CORE_DESCRIPTION = 'Core library providing TypeScript type definitions, logging utilities, error handling, prompt templates, and configuration constants for the civil service agent project.';
+export const CORE_DESCRIPTION = 'Core library providing TypeScript type definitions, logging utilities, error handling, prompt templates, and configuration constants for the tech learning assistant project.';
 
 export function initializeCore(): void {
   logger.info('Core library initialized', { version: CORE_VERSION });

@@ -7,7 +7,7 @@ import dotenv from "dotenv";
 import { createServer, IncomingMessage, ServerResponse } from "http";
 import { SearchKnowledgeTool } from "./tools/search-knowledge.js";
 import { UploadDocumentTool } from "./tools/upload-document.js";
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 import { bailianConfig, validateBailianConfig } from "./config/bailian.config.js";
 
 dotenv.config();

@@ -1,0 +1,29 @@
+version: '3.8'
+
+services:
+  techmate:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: techmate
+    ports:
+      - "80:80"       # Nginx 入口（面试官访问这个）
+      - "3000:3000"   # Web 服务（备用）
+      - "3001:3001"   # ChromaDB Web UI
+      - "8000:8000"   # ChromaDB API（备用）
+    volumes:
+      - ./data:/app/data  # 数据持久化
+    env_file:
+      - .env.production
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+# 使用说明：
+# 1. 编辑 .env.production 配置 API Key
+# 2. docker-compose build
+# 3. docker-compose up -d
+# 4. 访问 http://服务器IP

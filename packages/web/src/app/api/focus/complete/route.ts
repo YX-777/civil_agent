@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getFocusService } from "@civil-agent/database";
+import { getFocusService } from "@tech-mate/database";
 import { getDatabase } from "@/lib/database";
 
 const DEFAULT_USER_ID = "default-user";

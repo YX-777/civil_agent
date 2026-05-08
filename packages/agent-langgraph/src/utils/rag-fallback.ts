@@ -3,7 +3,7 @@
  * 优先使用 HybridRetriever，失败时降级到 MCP RAG
  */
 
-import { getHybridRetriever, RetrieveOptions, HybridSearchResult } from "@civil-agent/rag-engine";
+import { getHybridRetriever, RetrieveOptions, HybridSearchResult } from "@tech-mate/rag-engine";
 import { getMCPToolClient } from "../tools/mcp-tools";
 import { getAgentConfig } from "../config/agent.config";
 

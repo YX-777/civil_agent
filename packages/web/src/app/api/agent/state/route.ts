@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAgentStateRepository } from "@civil-agent/database";
+import { getAgentStateRepository } from "@tech-mate/database";
 import { getDatabase } from "@/lib/database";
 
 function jsonError(code: string, message: string, status: number) {

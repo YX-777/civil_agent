@@ -3,7 +3,7 @@
  * Agent 使用的本地工具函数
  */
 
-import { logger } from "@civil-agent/core";
+import { logger } from "@tech-mate/core";
 
 /**
  * 时间工具

@@ -1,5 +1,5 @@
 import { getDatabase } from './database';
-import { getUserRepository } from '@civil-agent/database';
+import { getUserRepository } from '@tech-mate/database';
 
 export async function getOrCreateUser(userId: string) {
   const prisma = await getDatabase();

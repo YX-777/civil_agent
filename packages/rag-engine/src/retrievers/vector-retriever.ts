@@ -2,7 +2,7 @@
  * Chroma 向量检索器
  */
 
-import { getVectorDBService, getEmbeddingService } from "@civil-agent/database";
+import { getVectorDBService, getEmbeddingService } from "@tech-mate/database";
 import { getRAGConfig } from "../config/rag.config";
 
 export interface VectorSearchResult {
