@@ -333,7 +333,7 @@ export async function POST(request: NextRequest) {
     // 1. 旧格式：{ message, userId, conversationId }
     // 2. AI SDK text 格式：{ text, userId, conversationId }
     // 3. AI SDK messages 格式：{ messages, userId, conversationId, trigger }
-    let message: string;
+    let message: string | undefined;
     const userId = body.userId;
     const conversationId = body.conversationId || body.id;
 

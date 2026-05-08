@@ -1,127 +1,187 @@
 "use client";
 
-import { Card, Avatar, Typography } from "antd";
-import { UserOutlined, RobotOutlined } from "@ant-design/icons";
+import { useState } from "react";
+import { Avatar, Tooltip, message as antdMessage } from "antd";
+import { CopyOutlined, CheckOutlined } from "@ant-design/icons";
 import { XMarkdown } from "@ant-design/x-markdown";
+import { motion } from "framer-motion";
 import { Message } from "@/types";
-
-const { Text } = Typography;
 
 interface MessageBubbleProps {
   message: Message;
   isStreaming?: boolean;
 }
 
-/**
- * 消息气泡组件
- *
- * 参考 ChatGPT 等主流 AI Chat 产品的设计：
- * - 助手消息使用 Markdown 渲染
- * - 流式输出时显示打字机光标效果
- * - 用户消息使用普通文本
- */
+// 时间戳格式化
+function formatTimestamp(date: Date): string {
+  const now = new Date();
+  const msgDate = new Date(date);
+  const isToday = now.toDateString() === msgDate.toDateString();
+  const yesterday = new Date(now);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const isYesterday = yesterday.toDateString() === msgDate.toDateString();
+  const time = msgDate.toLocaleTimeString("zh-CN", { hour: "2-digit", minute: "2-digit" });
+  if (isToday) return time;
+  if (isYesterday) return `昨天 ${time}`;
+  return msgDate.toLocaleDateString("zh-CN", { month: "short", day: "numeric" }) + " " + time;
+}
+
+// 思考动画
+function ThinkingIndicator() {
+  return (
+    <div style={{ padding: "4px 0" }}>
+      <span style={{ color: "#9ca3af", fontSize: 14 }}>正在思考</span>
+      <span className="thinking-dots" style={{ marginLeft: 4 }}>
+        <span style={{ animationDelay: "0s" }}>.</span>
+        <span style={{ animationDelay: "0.2s" }}>.</span>
+        <span style={{ animationDelay: "0.4s" }}>.</span>
+      </span>
+    </div>
+  );
+}
+
+// AI头像图标 - 简洁的圆点
+function AIAvatar() {
+  return (
+    <div
+      style={{
+        width: 24,
+        height: 24,
+        borderRadius: 6,
+        background: "#6366f1",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        color: "#fff",
+        fontSize: 12,
+        fontWeight: 600,
+      }}
+    >
+      AI
+    </div>
+  );
+}
+
 export default function MessageBubble({ message, isStreaming = false }: MessageBubbleProps) {
+  const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
 
-  return (
-    <div style={{
-      display: "flex",
-      justifyContent: isUser ? "flex-end" : "flex-start",
-      marginBottom: 16,
-    }}>
-      <div style={{
-        display: "flex",
-        flexDirection: isUser ? "row-reverse" : "row",
-        alignItems: "flex-start",
-        gap: 12,
-      }}>
-        <Avatar
-          icon={isUser ? <UserOutlined /> : <RobotOutlined />}
-          className="hover-lift"
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      setCopied(true);
+      antdMessage.success("已复制");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      antdMessage.error("复制失败");
+    }
+  };
+
+  // 用户消息：右侧，小气泡
+  if (isUser) {
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        style={{
+          display: "flex",
+          justifyContent: "flex-end",
+          marginBottom: 16,
+          paddingRight: 8,
+        }}
+      >
+        <div
           style={{
-            backgroundColor: isUser ? "#0D9488" : "#14B8A6",
-            boxShadow: isUser
-              ? "0 4px 12px rgba(13, 148, 136, 0.25)"
-              : "0 4px 12px rgba(20, 184, 166, 0.25)",
+            padding: "10px 14px",
+            borderRadius: 12,
+            background: "#f3f4f6",
+            maxWidth: "70%",
           }}
-        />
-        <Card
-          className={isUser ? "" : "glass-card hover-lift"}
-          style={{
-            maxWidth: "80%",
-            borderRadius: 16,
-            background: isUser
-              ? "linear-gradient(135deg, #0D9488 0%, #14B8A6 100%)"
-              : "rgba(255, 255, 255, 0.85)",
-            border: isUser ? "none" : "1px solid rgba(13, 148, 136, 0.1)",
-            boxShadow: isUser
-              ? "0 8px 24px rgba(13, 148, 136, 0.2)"
-              : "0 4px 16px rgba(13, 148, 136, 0.08)",
-          }}
-          bodyStyle={{ padding: "14px 18px" }}
         >
-          {isUser ? (
-            // 用户消息：普通文本
-            <Text
+          <div style={{ fontSize: 15, lineHeight: 1.6, color: "#374151" }}>
+            {message.content}
+          </div>
+          <div style={{ marginTop: 4, fontSize: 12, color: "#9ca3af" }}>
+            {formatTimestamp(message.timestamp)}
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // 助手消息：左侧，小头像，无背景框
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 8 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.2 }}
+      style={{
+        display: "flex",
+        alignItems: "flex-start",
+        gap: 16,
+        marginBottom: 24,
+        paddingLeft: 8,
+      }}
+    >
+      {/* 小头像 */}
+      <AIAvatar />
+
+      {/* 内容区域 - 无背景框 */}
+      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%" }}>
+        {isStreaming && !message.content ? (
+          <ThinkingIndicator />
+        ) : (
+          <>
+            <div
+              className="message-content-wrapper"
               style={{
-                color: "#fff",
-                fontSize: 14,
-                lineHeight: 1.6,
-                fontWeight: 500,
+                fontSize: 15,
+                lineHeight: 1.7,
+                color: "#374151",
+                maxWidth: "100%",
               }}
             >
-              {message.content}
-            </Text>
-          ) : (
-            // 助手消息：Markdown 渲染 + 打字机效果
-            <div style={{
-              color: "#134E4A",
-              fontSize: 14,
-              lineHeight: 1.6,
-            }}>
-              {/* 内容为空且正在流式输出时，显示思考动画 */}
-              {isStreaming && !message.content ? (
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span className="thinking-dot" style={{ animationDelay: "0s" }}>●</span>
-                  <span className="thinking-dot" style={{ animationDelay: "0.2s" }}>●</span>
-                  <span className="thinking-dot" style={{ animationDelay: "0.4s" }}>●</span>
-                  <span style={{ marginLeft: 4, color: "#5EEAD4" }}>思考中</span>
-                </div>
-              ) : (
-                <>
-                  <XMarkdown>{message.content}</XMarkdown>
-                  {/* 流式输出时显示打字机光标 */}
-                  {isStreaming && message.content && (
-                    <span
-                      className="cursor-blink"
-                      style={{
-                        marginLeft: 2,
-                        color: "#14B8A6",
-                        fontWeight: 300,
-                      }}
-                    >
-                      ▎
-                    </span>
-                  )}
-                </>
+              <XMarkdown>{message.content}</XMarkdown>
+              {isStreaming && (
+                <span className="streaming-cursor" style={{ marginLeft: 2, color: "#6366f1" }}>▎</span>
               )}
             </div>
-          )}
-          <div style={{ marginTop: 8 }}>
-            <Text
+
+            {/* 固定显示的操作栏 */}
+            <div
               style={{
-                fontSize: 12,
-                color: isUser ? "rgba(255, 255, 255, 0.8)" : "#0F766E",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                marginTop: 8,
+                height: 24, // 固定高度防止闪烁
               }}
             >
-              {new Date(message.timestamp).toLocaleTimeString("zh-CN", {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </Text>
-          </div>
-        </Card>
+              <Tooltip title={copied ? "已复制" : "复制"}>
+                <button
+                  onClick={handleCopy}
+                  style={{
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                    border: "1px solid #e5e7eb",
+                    background: "#fff",
+                    cursor: "pointer",
+                    color: copied ? "#10b981" : "#9ca3af",
+                    fontSize: 12,
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 4,
+                    transition: "color 0.2s",
+                  }}
+                >
+                  {copied ? <CheckOutlined style={{ fontSize: 12 }} /> : <CopyOutlined style={{ fontSize: 12 }} />}
+                </button>
+              </Tooltip>
+            </div>
+          </>
+        )}
       </div>
-    </div>
+    </motion.div>
   );
 }

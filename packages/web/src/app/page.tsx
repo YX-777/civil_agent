@@ -1,8 +1,9 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Layout, Empty, Spin, message, Alert } from "antd";
-import { MessageOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
+import { Layout, Empty, message, Alert, Tooltip } from "antd";
+import { MessageOutlined, DownOutlined } from "@ant-design/icons";
+import { AnimatePresence, motion } from "framer-motion";
 import { useAgent } from "@/hooks/use-agent";
 import { useConversations } from "@/hooks/use-conversations";
 import MessageBubble from "@/components/chat/MessageBubble";
@@ -18,8 +19,26 @@ export default function ChatPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const userId = "default-user";
 
-  // ========== 自动滚动到最新消息 ==========
+  // ========== 智能滚动逻辑 ==========
+  const [userScrolledUp, setUserScrolledUp] = useState(false);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  const handleScroll = useCallback(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const { scrollTop, scrollHeight, clientHeight } = container;
+    setUserScrolledUp(scrollHeight - scrollTop - clientHeight > 100);
+  }, []);
+
+  const scrollToBottomImmediate = useCallback(() => {
+    scrollContainerRef.current?.scrollTo({ top: scrollContainerRef.current.scrollHeight, behavior: "instant" });
+    setUserScrolledUp(false);
+  }, []);
+
+  const scrollToBottomSmooth = useCallback(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, []);
 
   const {
     conversations,
@@ -34,11 +53,7 @@ export default function ChatPage() {
   } = useConversations(userId);
 
   const handleAgentTurnDone = useCallback(async (conversationId: string) => {
-    try {
-      await loadConversations(conversationId);
-    } catch (error) {
-      console.error("Failed to refresh conversations after turn done:", error);
-    }
+    try { await loadConversations(conversationId); } catch (e) { console.error(e); }
   }, [loadConversations]);
 
   const {
@@ -56,253 +71,154 @@ export default function ChatPage() {
   const hasInitializedConversationRef = useRef(false);
 
   useEffect(() => {
-    const initializeConversation = async () => {
-      try {
-        if (!hasBootstrapped || isLoadingConversations) {
-          console.log("Waiting for conversations to load...");
-          return;
-        }
-
-        if (hasInitializedConversationRef.current) {
-          return;
-        }
-        hasInitializedConversationRef.current = true;
-
-        if (currentConversationId) {
-          console.log(`Already has current conversation: ${currentConversationId}`);
-          return;
-        }
-
-        if (conversations.length > 0) {
-          await switchConversation(conversations[0].id);
-          console.log(`Auto-selected most recent conversation: ${conversations[0].title}`);
-        } else {
-          const created = await createConversation("新对话");
-          console.log(`No existing conversations, auto-created conversation: ${created.id}`);
-        }
-      } catch (error) {
-        console.error("Failed to initialize conversation:", error);
-      }
+    const init = async () => {
+      if (!hasBootstrapped || isLoadingConversations || hasInitializedConversationRef.current) return;
+      hasInitializedConversationRef.current = true;
+      if (currentConversationId) return;
+      if (conversations.length > 0) await switchConversation(conversations[0].id);
+      else await createConversation("新对话");
     };
-
-    initializeConversation();
+    init();
   }, [hasBootstrapped, isLoadingConversations, currentConversationId, conversations, switchConversation, createConversation]);
 
   useEffect(() => {
-    const loadConversationMessages = async () => {
-      if (currentConversationId) {
-        try {
-          const response = await fetch(`/api/conversations/${currentConversationId}?userId=${userId}`);
-          if (response.ok) {
-            const data = await response.json();
-            if (data.messages && data.messages.length > 0) {
-              const formattedMessages = data.messages.map((msg: any) => ({
-                id: msg.id,
-                role: msg.role,
-                content: msg.content,
-                timestamp: new Date(msg.timestamp),
-              }));
-              setAgentMessages(formattedMessages);
-              console.log(`Loaded ${formattedMessages.length} messages for conversation ${currentConversationId}`);
-            } else {
-              setAgentMessages([]);
-              console.log(`No messages found for conversation ${currentConversationId}, clearing messages`);
-            }
-          } else {
-            console.error(`Failed to load conversation: ${response.status}`);
-            message.error("加载会话消息失败");
-          }
-        } catch (error) {
-          console.error("Failed to load conversation messages:", error);
-          message.error("加载会话消息时出错");
-        }
-      }
-    };
-
-    loadConversationMessages();
-  // 只在 conversationId 变化时加载，避免循环依赖
+    if (!currentConversationId) return;
+    fetch(`/api/conversations/${currentConversationId}?userId=${userId}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.messages?.length) {
+          setAgentMessages(data.messages.map((m: any) => ({ id: m.id, role: m.role, content: m.content, timestamp: new Date(m.timestamp) })));
+        } else setAgentMessages([]);
+      })
+      .catch(() => message.error("加载会话失败"));
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentConversationId]);
 
-  // 移除：不再在每次 messages 变化时更新会话（会导致无限循环）
-
-  // ========== 自动滚动到最新消息 ==========
   useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  // 只在消息数量变化时滚动
+    if (isLoading && !userScrolledUp) scrollToBottomSmooth();
+  }, [isLoading, messages, userScrolledUp, scrollToBottomSmooth]);
+
+  useEffect(() => {
+    if (!userScrolledUp) scrollToBottomSmooth();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages.length]);
 
+  const handleSendMessage = useCallback(async (text: string) => {
+    scrollToBottomImmediate();
+    await sendMessage(text);
+  }, [sendMessage, scrollToBottomImmediate]);
+
   const handleCreateConversation = async () => {
-    try {
-      setAgentMessages([]);
-      const newConv = await createConversation("新对话");
-      console.log(`Created new conversation: ${newConv.id}`);
-    } catch (error) {
-      console.error("Failed to create conversation:", error);
-      message.error("创建会话失败");
-    }
+    try { setAgentMessages([]); await createConversation("新对话"); }
+    catch { message.error("创建失败"); }
   };
 
-  const handleSelectConversation = async (conversationId: string) => {
-    try {
-      await switchConversation(conversationId);
-    } catch (error) {
-      console.error("Failed to switch conversation:", error);
-    }
+  const handleSelectConversation = async (id: string) => {
+    try { await switchConversation(id); } catch { message.error("切换失败"); }
   };
 
-  const handleDeleteConversation = async (conversationId: string) => {
+  const handleDeleteConversation = async (id: string) => {
     try {
-      await deleteConversation(conversationId);
-      if (currentConversationId === conversationId) {
-        setAgentMessages([]);
-      }
-    } catch (error) {
-      console.error("Failed to delete conversation:", error);
-    }
+      await deleteConversation(id);
+      if (currentConversationId === id) setAgentMessages([]);
+    } catch { message.error("删除失败"); }
   };
 
-  const handleUpdateConversationTitle = async (conversationId: string, newTitle: string) => {
+  const handleUpdateTitle = async (id: string, title: string) => {
     try {
-      const response = await fetch(`/api/conversations/${conversationId}`, {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userId,
-          title: newTitle,
-        }),
-      });
-
-      if (!response.ok) {
-        throw new Error("Failed to update conversation title");
-      }
-
-      const data = await response.json();
-      console.log(`Updated conversation title: ${conversationId} -> ${newTitle}`);
-
-      updateConversation(conversationId, { title: newTitle });
-
-      message.success("标题更新成功");
-    } catch (error) {
-      console.error("Failed to update conversation title:", error);
-      message.error("更新标题失败");
-    }
+      await fetch(`/api/conversations/${id}`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ userId, title }) });
+      updateConversation(id, { title });
+      message.success("更新成功");
+    } catch { message.error("更新失败"); }
   };
 
   return (
-    <Layout className="gradient-bg" style={{ minHeight: "100vh" }}>
+    <Layout style={{ minHeight: "100vh", background: "#fff" }}>
       <ChatSidebar
         conversations={conversations}
         currentConversationId={currentConversationId}
         onCreateConversation={handleCreateConversation}
         onSelectConversation={handleSelectConversation}
         onDeleteConversation={handleDeleteConversation}
-        onUpdateConversationTitle={handleUpdateConversationTitle}
+        onUpdateConversationTitle={handleUpdateTitle}
         collapsed={sidebarCollapsed}
         onCollapse={setSidebarCollapsed}
       />
 
-      <Layout
-        style={{
-          marginLeft: sidebarCollapsed ? 80 : 280,
-          transition: "margin-left 0.2s",
-          background: "transparent",
-        }}
-      >
-        <Navbar
-          extra={
-            <button
-              onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-              className="hover-lift"
-              style={{
-                border: "none",
-                background: "rgba(13, 148, 136, 0.1)",
-                cursor: "pointer",
-                fontSize: 18,
-                padding: 8,
-                borderRadius: 10,
-                color: "#0D9488",
-                transition: "all 0.2s ease",
-              }}
-            >
-              {sidebarCollapsed ? <MenuUnfoldOutlined /> : <MenuFoldOutlined />}
-            </button>
-          }
-        />
-        <Content style={{ padding: "24px", paddingBottom: 100 }}>
-          <div 
-            className="glass-card"
-            style={{ 
-              maxWidth: 800, 
-              margin: "0 auto", 
-              padding: "24px",
-              minHeight: "calc(100vh - 200px)",
+      <Layout style={{ marginLeft: sidebarCollapsed ? 0 : 260, transition: "margin-left 0.2s", background: "#fff" }}>
+        {/* 恢复 Navbar */}
+        <Navbar />
+
+        {/* 对话区域 - 纯白背景 */}
+        <Content style={{ background: "#fff" }}>
+          <div
+            ref={scrollContainerRef}
+            onScroll={handleScroll}
+            className="chat-container"
+            style={{
+              maxWidth: 800,
+              margin: "0 auto",
+              padding: "24px 24px 120px",
+              minHeight: "calc(100vh - 64px)",
+              overflowY: "auto",
             }}
           >
             {messages.length === 0 ? (
               <Empty
-                image={<MessageOutlined style={{ fontSize: 64, color: "#0D9488" }} />}
-                description={
-                  <span style={{ fontSize: 16, color: "#134E4A", fontWeight: 500 }}>
-                    开始与 AI 助手对话吧
-                  </span>
-                }
-                style={{ marginTop: "20vh" }}
+                image={<MessageOutlined style={{ fontSize: 48, color: "#d1d5db" }} />}
+                description={<span style={{ fontSize: 16, color: "#9ca3af" }}>开始对话</span>}
+                style={{ marginTop: "30vh" }}
               />
             ) : (
-              <div className="markdown-content">
-                {messages.map((message, index) => (
-                  <MessageBubble
-                    key={message.id}
-                    message={message}
-                    isStreaming={isLoading &&
-                      message.role === "assistant" &&
-                      index === messages.length - 1 &&
-                      !message.content}
-                  />
+              <div>
+                {messages.map((m, i) => (
+                  <MessageBubble key={m.id} message={m} isStreaming={isLoading && m.role === "assistant" && i === messages.length - 1 && !m.content} />
                 ))}
-                {/* 自动滚动锚点 */}
                 <div ref={messagesEndRef} />
               </div>
             )}
 
-            {/* 错误提示 */}
-            {error && (
-              <Alert
-                message="发送失败"
-                description={error}
-                type="error"
-                closable
-                onClose={clearError}
-                style={{ marginTop: 16, marginBottom: 16 }}
-              />
-            )}
-
-            {/* 隐藏独立的 loading，因为 MessageBubble 已经处理了 streaming 状态 */}
-
-            {quickReplies && quickReplies.length > 0 && (
-              <QuickReplies options={quickReplies} onSelect={handleQuickReply} />
-            )}
+            {error && <Alert message="发送失败" description={error} type="error" closable onClose={clearError} style={{ marginTop: 16 }} />}
+            {quickReplies?.length > 0 && <QuickReplies options={quickReplies} onSelect={handleQuickReply} />}
           </div>
         </Content>
-        <div 
-          className="glass-card"
-          style={{ 
-            position: "fixed", 
-            bottom: 16, 
-            left: sidebarCollapsed ? 96 : 296,
-            right: 16,
+
+        {/* 发送框 - 底部全宽 */}
+        <div
+          style={{
+            position: "fixed",
+            bottom: 0,
+            left: sidebarCollapsed ? 0 : 260,
+            right: 0,
             zIndex: 100,
-            borderRadius: 16,
-            padding: "12px 16px",
-            boxShadow: "0 8px 32px rgba(13, 148, 136, 0.15)",
+            background: "#fff",
+            borderTop: "1px solid #f0f0f0",
           }}
         >
-          <ChatInput onSend={sendMessage} disabled={isLoading} />
+          <div style={{ maxWidth: 800, margin: "0 auto", padding: "16px 24px" }}>
+            <ChatInput onSend={handleSendMessage} onStop={stop} disabled={isLoading} isStreaming={isLoading} />
+          </div>
         </div>
+
+        {/* 滚动到底部按钮 */}
+        <AnimatePresence>
+          {userScrolledUp && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 20 }}
+              onClick={scrollToBottomImmediate}
+              style={{ position: "fixed", bottom: 100, right: 40, zIndex: 50, cursor: "pointer" }}
+            >
+              <Tooltip title="回到底部">
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: "#f5f5f5", display: "flex", alignItems: "center", justifyContent: "center", color: "#666" }}>
+                  <DownOutlined />
+                </div>
+              </Tooltip>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
         <BottomNav />
       </Layout>
     </Layout>

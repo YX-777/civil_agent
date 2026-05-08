@@ -1,43 +1,19 @@
 "use client";
 
-import { Layout, Menu } from "antd";
+import { Layout } from "antd";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { MessageOutlined, ClockCircleOutlined, DashboardOutlined, CheckSquareOutlined, CalendarOutlined, UserOutlined } from "@ant-design/icons";
 
 const { Header } = Layout;
 
-const menuItems = [
-  {
-    key: "/",
-    icon: <MessageOutlined />,
-    label: <Link href="/">对话</Link>,
-  },
-  {
-    key: "/focus",
-    icon: <ClockCircleOutlined />,
-    label: <Link href="/focus">专注模式</Link>,
-  },
-  {
-    key: "/dashboard",
-    icon: <DashboardOutlined />,
-    label: <Link href="/dashboard">数据看板</Link>,
-  },
-  {
-    key: "/tasks",
-    icon: <CheckSquareOutlined />,
-    label: <Link href="/tasks">任务管理</Link>,
-  },
-  {
-    key: "/calendar",
-    icon: <CalendarOutlined />,
-    label: <Link href="/calendar">学习日历</Link>,
-  },
-  {
-    key: "/profile",
-    icon: <UserOutlined />,
-    label: <Link href="/profile">个人中心</Link>,
-  },
+const navItems = [
+  { key: "/", icon: <MessageOutlined />, label: "对话", href: "/" },
+  { key: "/focus", icon: <ClockCircleOutlined />, label: "专注", href: "/focus" },
+  { key: "/dashboard", icon: <DashboardOutlined />, label: "看板", href: "/dashboard" },
+  { key: "/tasks", icon: <CheckSquareOutlined />, label: "任务", href: "/tasks" },
+  { key: "/calendar", icon: <CalendarOutlined />, label: "日历", href: "/calendar" },
+  { key: "/profile", icon: <UserOutlined />, label: "个人", href: "/profile" },
 ];
 
 interface NavbarProps {
@@ -48,55 +24,46 @@ export default function Navbar({ extra }: NavbarProps) {
   const pathname = usePathname();
 
   return (
-    <Header 
-      className="glass-nav"
-      style={{ 
-        display: "flex", 
-        alignItems: "center", 
+    <Header
+      style={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "flex-end",
         padding: "0 24px",
         position: "sticky",
         top: 0,
         zIndex: 100,
-        boxShadow: "0 4px 20px rgba(13, 148, 136, 0.08)",
+        background: "#fff",
+        borderBottom: "1px solid #f0f0f0",
+        height: 56,
+        gap: 24,
       }}
     >
-      <div style={{ 
-        display: "flex", 
-        alignItems: "center", 
-        flex: 1,
-        marginRight: 24,
-      }}>
-        <Link 
-          href="/" 
-          className="hover-lift"
-          style={{ 
-            fontSize: "22px", 
-            fontWeight: 700, 
-            color: "#0D9488",
-            textDecoration: "none",
-            letterSpacing: "-0.5px",
-            transition: "color 0.2s ease",
-          }}
-        >
-          TechMate
-        </Link>
-      </div>
-      <Menu
-        mode="horizontal"
-        selectedKeys={[pathname]}
-        items={menuItems}
-        style={{ 
-          flex: 1, 
-          minWidth: 0, 
-          border: "none",
-          background: "transparent",
-        }}
-      />
-      {extra && (
-        <div style={{ marginLeft: 16 }}>
-          {extra}
-        </div>
-      )}
+      {/* extra 区域 */}
+      {extra}
+
+      {/* 导航链接 - 平铺 */}
+      <nav style={{ display: "flex", alignItems: "center", gap: 32 }}>
+        {navItems.map((item) => (
+          <Link
+            key={item.key}
+            href={item.href}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: 6,
+              color: pathname === item.key ? "#374151" : "#9ca3af",
+              fontSize: 14,
+              fontWeight: pathname === item.key ? 500 : 400,
+              textDecoration: "none",
+              transition: "color 0.2s",
+            }}
+          >
+            <span style={{ color: pathname === item.key ? "#a78bfa" : "#9ca3af" }}>{item.icon}</span>
+            {item.label}
+          </Link>
+        ))}
+      </nav>
     </Header>
   );
 }
