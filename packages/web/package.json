@@ -12,6 +12,8 @@
     "test:unit": "tsx --test src/**/*.test.ts"
   },
   "dependencies": {
+    "@ai-sdk/langchain": "^2.0.182",
+    "@ai-sdk/react": "^3.0.178",
     "@ant-design/icons": "^6.1.0",
     "@ant-design/x": "^2.1.3",
     "@ant-design/x-markdown": "^2.1.3",
@@ -20,6 +22,7 @@
     "@civil-agent/database": "workspace:*",
     "@civil-agent/scheduler": "workspace:*",
     "@langchain/core": "^1.1.17",
+    "ai": "^6.0.176",
     "antd": "^6.2.1",
     "axios": "^1.6.5",
     "dayjs": "^1.11.19",

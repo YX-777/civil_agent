@@ -1,6 +1,88 @@
 # TechMate 改造进度记录
 
-> 最后更新：2026-05-07
+> 最后更新：2026-05-08
+
+---
+
+## 一、本次会话总结（2026-05-08 第二部分）
+
+### 1.1 AGUI 协议改造 ✅
+
+**目标**：优化 Chat 交互体验，解决以下问题：
+1. Markdown 没有解析渲染（纯文本显示）
+2. Loading 效果简陋（简单 Spin）
+3. 会话消息没有自动滚动定位
+4. 用户消息发送后不立即显示
+
+**技术方案**：改回手动 SSE 解析（放弃 AI SDK 的复杂机制）
+
+**核心改动**：
+
+| 文件 | 改动内容 |
+|------|----------|
+| `packages/agent-langgraph/src/graph/graph.ts` | `processStateStream` 直接调用 `generalQANodeStream`，实现逐字符流式输出 |
+| `packages/agent-langgraph/src/graph/nodes.ts` | 修复 chunk 内容提取逻辑 |
+| `packages/web/src/hooks/use-agent.ts` | 手动 SSE 解析 + 立即添加用户消息到 state |
+| `packages/web/src/components/chat/MessageBubble.tsx` | Markdown 渲染 + "思考中"三点动画 + 打字机光标 ▎ |
+| `packages/web/src/app/page.tsx` | 自动滚动 + 错误提示 Alert |
+| `packages/web/src/styles/globals.css` | 打字机光标动画 + 思考动画 CSS |
+
+### 1.2 关键修复
+
+**问题 1：AI SDK DefaultChatTransport 导致无限循环**
+- 原因：每次渲染创建新的 transport 对象
+- 解决：放弃 AI SDK，改回手动 SSE 解析，更可控
+
+**问题 2：后端一次性返回完整内容，无打字机效果**
+- 原因：LangGraph `app.stream()` 返回节点执行后的完整输出
+- 解决：`processStateStream` 直接调用 `generalQANodeStream`，绕过节点聚合
+
+**问题 3：用户消息不立即显示**
+- 原因：AI SDK 的 `sendMessage` 内部管理消息状态
+- 解决：手动在 `sendMessage` 开始时立即添加用户消息到 state
+
+**问题 4：请求格式兼容**
+- 原因：AI SDK 发送 `messages` 数组格式，后端期望 `message` 字段
+- 解决：后端兼容多种格式：`message` / `text` / `messages[].parts[].text`
+
+### 1.3 Loading 效果优化（参考 ChatGPT）
+
+**实现方案**：
+- 助手消息内容为空 + 正在流式输出时：显示"思考中"三点跳动动画
+- 有内容 + 正在流式输出时：显示打字机光标 ▎（CSS 闪烁动画）
+- 移除独立的 `<Spin />` loading 组件，由 MessageBubble 组件统一处理
+
+### 1.4 验证结果
+
+**API 测试**：
+```bash
+curl -X POST 'http://localhost:3000/api/agent/chat' \
+  -d '{"message":"你好","userId":"...","conversationId":"..."}'
+
+# 流式返回：
+data: {"type":"chunk","content":"你好！"}
+data: {"type":"chunk","content":"👋 看起来像"}
+data: {"type":"chunk","content":"是一条测试消息～"}
+...
+data: {"type":"done","quickReplies":[],...}
+```
+
+**前端效果**：
+- 用户消息立即显示
+- 助手消息逐字流式输出（真正的打字机效果）
+- Markdown 正确渲染（代码块、列表、链接）
+- "思考中"三点动画
+- 自动滚动到最新消息
+
+### 1.5 依赖变更
+
+**新增依赖**：
+- `ai@6.0.176` - 已安装但未使用（保留备用）
+- `@ai-sdk/langchain@2.0.182` - 已安装但未使用
+- `@ai-sdk/react@3.0.178` - 已安装但未使用
+
+**已使用依赖**：
+- `@ant-design/x-markdown@2.1.3` - Markdown 渲染（XMarkdown 组件）
 
 ---
 

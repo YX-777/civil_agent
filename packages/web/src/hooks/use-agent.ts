@@ -1,6 +1,16 @@
+"use client";
+
 import { useState, useCallback, useRef, useEffect } from "react";
 import { Message, QuickReply } from "@/types";
 
+/**
+ * Agent Hook - 手动实现 SSE 流式处理
+ *
+ * 改回手动实现以避免 AI SDK 的复杂性问题：
+ * - 手动管理消息状态
+ * - 手动解析 SSE 流
+ * - 更可控的错误处理
+ */
 export function useAgent(
   conversationId?: string,
   userId: string = "default-user",
@@ -8,27 +18,30 @@ export function useAgent(
 ) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [quickReplies, setQuickReplies] = useState<QuickReply[]>([]);
+
   const abortControllerRef = useRef<AbortController | null>(null);
-  const currentContentRef = useRef<string>("");
-  const isInitializedRef = useRef(false);
-  // 用 ref 保存当前 conversationId，避免流式回调里拿到旧闭包值。
   const currentConversationIdRef = useRef<string | undefined>(conversationId);
+  const isInitializedRef = useRef(false);
   const prevConversationIdRef = useRef<string | undefined>(conversationId);
 
+  // 监听 conversationId 变化
   useEffect(() => {
-    // 当会话ID改变时，重置初始化状态
     if (conversationId !== prevConversationIdRef.current) {
       isInitializedRef.current = false;
       prevConversationIdRef.current = conversationId;
+      currentConversationIdRef.current = conversationId;
+      setMessages([]);
+      setQuickReplies([]);
+      setError(null);
     }
-    currentConversationIdRef.current = conversationId;
   }, [conversationId]);
 
+  // 初始化欢迎消息（仅在没有会话ID时）
   useEffect(() => {
-    // 只有在没有会话ID且没有消息时才显示欢迎消息
-    // 一旦已经绑定具体会话，就不再插入欢迎消息，避免污染真实历史消息。
-    if (!conversationId && !isInitializedRef.current && messages.length === 0) {
+    if (!conversationId && !isInitializedRef.current) {
+      isInitializedRef.current = true;
       const welcomeMessage: Message = {
         id: "welcome",
         role: "assistant",
@@ -36,46 +49,45 @@ export function useAgent(
         timestamp: new Date(),
       };
       setMessages([welcomeMessage]);
-      isInitializedRef.current = true;
     }
-  }, [conversationId, messages.length]);
+  }, [conversationId]);
 
+  // 发送消息
   const sendMessage = useCallback(async (text: string) => {
-    // Phase A 约束：发送消息前必须绑定明确的会话 ID。
     if (!currentConversationIdRef.current) {
       console.warn("Cannot send message without conversationId");
       return;
     }
 
+    // 清除状态
+    setError(null);
+    setQuickReplies([]);
+
+    // 立即添加用户消息
     const userMessage: Message = {
-      id: Date.now().toString(),
+      id: `user-${Date.now()}`,
       role: "user",
       content: text,
       timestamp: new Date(),
     };
+    setMessages(prev => [...prev, userMessage]);
 
-    setMessages((prev) => [...prev, userMessage]);
-    setIsLoading(true);
-    setQuickReplies([]);
-
-    const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(),
+    // 创建助手消息占位符
+    const assistantId = `assistant-${Date.now()}`;
+    setMessages(prev => [...prev, {
+      id: assistantId,
       role: "assistant",
       content: "",
       timestamp: new Date(),
-    };
+    }]);
 
-    setMessages((prev) => [...prev, assistantMessage]);
-    currentContentRef.current = "";
-
+    setIsLoading(true);
     abortControllerRef.current = new AbortController();
 
     try {
       const response = await fetch("/api/agent/chat", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           message: text,
           userId,
@@ -85,137 +97,124 @@ export function useAgent(
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorData = await response.json().catch(() => ({ error: "请求失败" }));
+        throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
       const reader = response.body?.getReader();
-      const decoder = new TextDecoder("utf-8");
-
       if (!reader) {
-        throw new Error("Response body is not readable");
+        throw new Error("无法读取响应");
       }
 
+      const decoder = new TextDecoder();
+      let fullContent = "";
       let buffer = "";
-      let newConversationId: string | undefined;
-      let doneHandled = false;
 
+      // 解析传统 SSE 格式
       while (true) {
         const { done, value } = await reader.read();
-
         if (done) break;
 
         const chunk = decoder.decode(value, { stream: true });
         buffer += chunk;
 
+        // 按 \n\n 分割 SSE 事件
         const lines = buffer.split("\n\n");
         buffer = lines.pop() || "";
 
         for (const line of lines) {
-          if (line.trim() && line.startsWith("data: ")) {
-            try {
-              const data = JSON.parse(line.slice(6));
+          if (!line.trim() || !line.startsWith("data: ")) continue;
 
-              if (data.type === "chunk") {
-                // chunk 阶段只负责把 assistant 当前输出流式拼起来，
-                // 真正的数据库提交由服务端在 done 前统一处理。
-                currentContentRef.current += data.content;
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id
-                      ? { ...msg, content: currentContentRef.current }
-                      : msg
-                  )
-                );
-              } else if (data.type === "done") {
-                if (!doneHandled) {
-                  doneHandled = true;
-                  if (data.quickReplies && data.quickReplies.length > 0) {
-                    setQuickReplies(data.quickReplies);
-                  }
-                  if (data.conversationId) {
-                    newConversationId = data.conversationId;
-                    currentConversationIdRef.current = data.conversationId;
-                    // 服务端提交事务成功后，立即刷新会话列表和标题，避免用户手动刷新页面。
-                    void onTurnDone?.(data.conversationId);
-                  }
-                }
-              } else if (data.type === "error") {
-                console.error("Stream error:", data.error);
-                // 服务端 error 事件说明这一轮没正常完成，这里只在前端补一个可见错误提示，
-                // 不试图伪造成功提交状态。
-                const errorMessage = currentContentRef.current + "\n\n抱歉，处理您的消息时出现了错误。";
-                setMessages((prev) =>
-                  prev.map((msg) =>
-                    msg.id === assistantMessage.id
-                      ? { ...msg, content: errorMessage }
-                      : msg
-                  )
-                );
-              }
-            } catch (e) {
-              console.error("Failed to parse SSE data:", e, "Line:", line);
-            }
-          }
-        }
-
-        if (buffer.trim() && buffer.startsWith("data: ")) {
           try {
-            const data = JSON.parse(buffer.slice(6));
-            // 这里处理最后一个 data 包仍留在 buffer 中的情况，
-            // 避免 done 恰好卡在分片边界时被漏掉。
-            if (data.type === "done" && !doneHandled) {
-              doneHandled = true;
-              if (data.quickReplies && data.quickReplies.length > 0) {
+            const data = JSON.parse(line.slice(6));
+
+            if (data.type === "chunk") {
+              fullContent += data.content;
+
+              // 更新助手消息
+              setMessages(prev => prev.map(msg =>
+                msg.id === assistantId
+                  ? { ...msg, content: fullContent }
+                  : msg
+              ));
+            } else if (data.type === "done") {
+              if (data.quickReplies) {
                 setQuickReplies(data.quickReplies);
               }
               if (data.conversationId) {
-                newConversationId = data.conversationId;
-                currentConversationIdRef.current = data.conversationId;
                 void onTurnDone?.(data.conversationId);
               }
+            } else if (data.type === "error") {
+              throw new Error(data.message || "处理失败");
             }
           } catch (e) {
-            console.error("Failed to parse final SSE data:", e);
+            console.error("Failed to parse SSE data:", e);
           }
         }
       }
-    } catch (error) {
-      console.error("Failed to send message:", error);
-      
-      if ((error as any).name !== "AbortError") {
-        // 网络失败时保留已经收到的 partial content，避免用户完全看不到模型刚才输出到哪一步。
-        const errorMessage = currentContentRef.current + "\n\n抱歉，服务暂时不可用。请稍后再试。";
-        setMessages((prev) =>
-          prev.map((msg) =>
-            msg.id === assistantMessage.id
-              ? { ...msg, content: errorMessage }
-              : msg
-          )
-        );
+
+      // 处理 buffer 中剩余的数据
+      if (buffer.trim() && buffer.startsWith("data: ")) {
+        try {
+          const data = JSON.parse(buffer.slice(6));
+          if (data.type === "done" && data.quickReplies) {
+            setQuickReplies(data.quickReplies);
+          }
+        } catch (e) {
+          // 忽略解析错误
+        }
       }
+
+      // 流结束，确保最终内容更新
+      setMessages(prev => prev.map(msg =>
+        msg.id === assistantId && msg.content !== fullContent
+          ? { ...msg, content: fullContent }
+          : msg
+      ));
+
+    } catch (err: any) {
+      if (err.name === "AbortError") {
+        // 用户取消，不做处理
+        return;
+      }
+
+      console.error("Send message error:", err);
+      setError(err.message || "发送失败，请重试");
+
+      // 移除空的助手消息
+      setMessages(prev => prev.filter(msg => msg.id !== assistantId));
     } finally {
       setIsLoading(false);
       abortControllerRef.current = null;
     }
   }, [userId, onTurnDone]);
 
+  // 处理快捷回复
   const handleQuickReply = useCallback((reply: QuickReply) => {
     sendMessage(reply.text);
   }, [sendMessage]);
 
+  // 外部设置消息（会话切换）
   const setMessagesExternal = useCallback((newMessages: Message[]) => {
     setMessages(newMessages);
-    // 外部显式写入消息（如切换会话回填历史）后，标记为已初始化，
-    // 避免欢迎消息逻辑再次插入。
     isInitializedRef.current = true;
+  }, []);
+
+  // 停止请求
+  const stop = useCallback(() => {
+    abortControllerRef.current?.abort();
+    setIsLoading(false);
   }, []);
 
   return {
     messages,
     isLoading,
+    error,
     quickReplies,
     sendMessage,
     handleQuickReply,
     setMessages: setMessagesExternal,
+    stop,
+    clearError: () => setError(null),
   };
 }

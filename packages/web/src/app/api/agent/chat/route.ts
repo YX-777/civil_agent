@@ -8,6 +8,9 @@ import {
   parseStateData,
   validateChatPayload,
 } from "@/lib/agent-state.contract";
+import { pipeUIMessageStreamToResponse } from "ai";
+import { toUIMessageStream } from "@ai-sdk/langchain";
+import { AIMessageChunk } from "@langchain/core/messages";
 
 // 仅做进程内缓存使用，真实状态以数据库 agent_states 为准。
 const userStates = new Map<string, any>();
@@ -283,6 +286,9 @@ async function syncShortMemoryToChroma(
   }
 }
 
+/**
+ * 创建立即响应的 SSE stream（用于任务确认等非流式场景）
+ */
 function createImmediateSSE(params: {
   content: string;
   quickReplies: any[];
@@ -290,22 +296,19 @@ function createImmediateSSE(params: {
   turnId: string;
 }) {
   const encoder = new TextEncoder();
+
   return new Response(
     new ReadableStream({
       start(controller) {
-        controller.enqueue(
-          encoder.encode(`data: ${JSON.stringify({ type: "chunk", content: params.content })}\n\n`)
-        );
-        controller.enqueue(
-          encoder.encode(
-            `data: ${JSON.stringify({
-              type: "done",
-              quickReplies: params.quickReplies,
-              conversationId: params.conversationId,
-              turnId: params.turnId,
-            })}\n\n`
-          )
-        );
+        // 发送文本内容
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "chunk", content: params.content })}\n\n`));
+        // 发送完成事件
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+          type: "done",
+          quickReplies: params.quickReplies,
+          conversationId: params.conversationId,
+          turnId: params.turnId,
+        })}\n\n`));
         controller.close();
       },
     }),
@@ -313,7 +316,7 @@ function createImmediateSSE(params: {
       headers: {
         "Content-Type": "text/event-stream",
         "Cache-Control": "no-cache",
-        Connection: "keep-alive",
+        "Connection": "keep-alive",
       },
     }
   );
@@ -324,7 +327,32 @@ export async function POST(request: NextRequest) {
   const trace: TraceContext = startTrace();
 
   try {
-    const { message, userId, conversationId } = await request.json();
+    const body = await request.json();
+
+    // 兼容多种请求格式：
+    // 1. 旧格式：{ message, userId, conversationId }
+    // 2. AI SDK text 格式：{ text, userId, conversationId }
+    // 3. AI SDK messages 格式：{ messages, userId, conversationId, trigger }
+    let message: string;
+    const userId = body.userId;
+    const conversationId = body.conversationId || body.id;
+
+    // 从 messages 数组提取最新用户消息
+    if (body.messages && Array.isArray(body.messages)) {
+      const lastMessage = body.messages[body.messages.length - 1];
+      if (lastMessage?.role === "user") {
+        // 处理两种格式：{ content: "..." } 或 { parts: [{ type: "text", text: "..." }] }
+        message = lastMessage.content ||
+          (lastMessage.parts?.find((p: any) => p.type === "text")?.text);
+      }
+    } else {
+      // 兼容旧格式
+      message = body.message || body.text;
+    }
+
+    if (!message) {
+      return jsonError("INVALID_ARGUMENT", "Invalid message format", 400);
+    }
 
     // 更新 Trace 用户信息
     trace.userId = userId?.trim();
@@ -534,30 +562,28 @@ export async function POST(request: NextRequest) {
     // ========== Span: Agent 处理 ==========
     const agentSpan = trace.startSpan("agent_process");
 
+    // ========== 使用传统 SSE 格式 ==========
+    // 格式: data: {"type":"chunk","content":"..."}\n\n
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          // 这里直接消费 LangGraph 的流式输出；在拿到完整 assistant 文本前，
-          // 不急着落库，避免把半截回复写进 messages。
           const streamGenerator = agentGraph.processStateStream(updatedState);
-          let finalState: any = null;
-          let iterator = streamGenerator[Symbol.asyncIterator]();
           let fullAssistantContent = "";
+          let finalState: any = updatedState;
 
+          // 流式发送文本内容
           while (true) {
-            const { value, done } = await iterator.next();
-
-            if (done) {
-              finalState = value;
+            const result = await streamGenerator.next();
+            if (result.done) {
+              finalState = result.value;
               break;
             }
-
-            fullAssistantContent += value;
-            controller.enqueue(
-              encoder.encode(`data: ${JSON.stringify({ type: "chunk", content: value })}\n\n`)
-            );
+            const chunk = result.value;
+            fullAssistantContent += chunk;
+            // 传统 SSE 格式
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "chunk", content: chunk })}\n\n`));
           }
 
           // 结束 Agent Span
@@ -573,7 +599,6 @@ export async function POST(request: NextRequest) {
             };
             const persistedState = {
               ...finalState,
-              // 只有拿到完整 finalState 并准备提交事务时，才把版本号推进到下一版。
               stateVersion: Number(finalState?.stateVersion ?? updatedState.stateVersion ?? 0) + 1,
               schemaVersion: Number(finalState?.schemaVersion ?? 1),
             };
@@ -582,7 +607,6 @@ export async function POST(request: NextRequest) {
             // ========== Span: 消息存储 ==========
             const storageSpan = trace.startSpan("message_storage");
 
-            // 同一事务里写入消息和状态，避免出现"消息写成功但状态未更新"的分裂数据。
             await commitConversationTurn({
               prisma,
               userId: effectiveUserId,
@@ -600,8 +624,7 @@ export async function POST(request: NextRequest) {
               `[Agent API] turn_commit_success user=${effectiveUserId} conversation=${effectiveConversationId} turn=${turnId}`
             );
 
-            // ========== 异步同步短期记忆到 ChromaDB（向量检索）==========
-            // 注意：这里使用 fire-and-forget 模式，不阻塞主流程
+            // ========== 异步同步短期记忆到 ChromaDB ==========
             const shortMemoryId = persistedState._shortMemoryId;
             if (shortMemoryId && process.env.VECTOR_DB_PATH) {
               syncShortMemoryToChroma(
@@ -612,52 +635,40 @@ export async function POST(request: NextRequest) {
               ).catch(err => console.error("[Memory] ChromaDB同步失败:", err));
             }
 
+            // 发送完成事件
             const quickReplies = persistedState.quickReplyOptions || [];
-
-            controller.enqueue(
-              encoder.encode(
-                `data: ${JSON.stringify({
-                  type: "done",
-                  quickReplies,
-                  conversationId: effectiveConversationId,
-                  turnId,
-                })}\n\n`
-              )
-            );
+            controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+              type: "done",
+              quickReplies,
+              conversationId: effectiveConversationId,
+              turnId,
+            })}\n\n`));
           }
 
           controller.close();
-          // ========== 结束 Trace 并输出汇总日志 ==========
+
+          // ========== 结束 Trace ==========
           trace.endTrace();
           endTrace(trace);
         } catch (error) {
           console.error("[Agent API] Stream error:", error);
           trace.endSpan(agentSpan, "error", String(error));
-          // ========== Trace 错误结束 ==========
           trace.endTrace();
           endTrace(trace);
           console.error(
             `[Agent API] turn_commit_fail user=${effectiveUserId} conversation=${effectiveConversationId} turn=${turnId}`
           );
-          // 发生流式异常时不做消息落库，避免数据库里出现"只有半截 assistant 回复"的脏数据。
-          controller.enqueue(
-            encoder.encode(
-              `data: ${JSON.stringify({
-                type: "error",
-                code: "INTERNAL_ERROR",
-                message: "Failed to process message",
-                conversationId: effectiveConversationId,
-                turnId,
-              })}\n\n`
-            )
-          );
+
+          controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+            type: "error",
+            code: "INTERNAL_ERROR",
+            message: "Failed to process message",
+          })}\n\n`));
           controller.close();
         }
       },
     });
 
-    // 注意：Trace 汇总日志会在 stream 内部输出（controller.close 后）
-    // 这里只返回 Response
     return new Response(stream, {
       headers: {
         "Content-Type": "text/event-stream",

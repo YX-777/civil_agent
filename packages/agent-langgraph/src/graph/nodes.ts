@@ -678,9 +678,21 @@ export async function* generalQANodeStream(
 
     let fullContent = "";
     for await (const chunk of stream) {
-      const chunkContent = chunk.content as string;
-      fullContent += chunkContent;
-      yield chunkContent;
+      // 处理多种 chunk 格式
+      // LangChain ChatOpenAI stream 可能返回 AIMessageChunk
+      let chunkContent = "";
+      if (typeof chunk.content === "string") {
+        chunkContent = chunk.content;
+      } else if (chunk?.content) {
+        // AIMessageChunk 格式
+        chunkContent = String(chunk.content);
+      }
+
+      // 只 yield 有内容的 chunk
+      if (chunkContent) {
+        fullContent += chunkContent;
+        yield chunkContent;
+      }
     }
 
     LogTools.logAgentDecision(state.userId, state.userIntent, "General QA Stream");

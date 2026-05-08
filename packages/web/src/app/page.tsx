@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { Layout, Empty, Spin, message } from "antd";
+import { Layout, Empty, Spin, message, Alert } from "antd";
 import { MessageOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import { useAgent } from "@/hooks/use-agent";
 import { useConversations } from "@/hooks/use-conversations";
@@ -17,6 +17,9 @@ const { Content } = Layout;
 export default function ChatPage() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const userId = "default-user";
+
+  // ========== 自动滚动到最新消息 ==========
+  const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const {
     conversations,
@@ -41,10 +44,13 @@ export default function ChatPage() {
   const {
     messages,
     isLoading,
+    error,
     quickReplies,
     sendMessage,
     handleQuickReply,
     setMessages: setAgentMessages,
+    stop,
+    clearError,
   } = useAgent(currentConversationId || undefined, userId, handleAgentTurnDone);
 
   const hasInitializedConversationRef = useRef(false);
@@ -114,13 +120,18 @@ export default function ChatPage() {
     };
 
     loadConversationMessages();
-  }, [currentConversationId, userId, setAgentMessages]);
+  // 只在 conversationId 变化时加载，避免循环依赖
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentConversationId]);
 
+  // 移除：不再在每次 messages 变化时更新会话（会导致无限循环）
+
+  // ========== 自动滚动到最新消息 ==========
   useEffect(() => {
-    if (currentConversationId && messages.length > 0) {
-      updateConversation(currentConversationId, { messages });
-    }
-  }, [messages, currentConversationId, updateConversation]);
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  // 只在消息数量变化时滚动
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages.length]);
 
   const handleCreateConversation = async () => {
     try {
@@ -242,26 +253,35 @@ export default function ChatPage() {
                 style={{ marginTop: "20vh" }}
               />
             ) : (
-              <div>
-                {messages.map((message) => (
-                  <MessageBubble key={message.id} message={message} />
+              <div className="markdown-content">
+                {messages.map((message, index) => (
+                  <MessageBubble
+                    key={message.id}
+                    message={message}
+                    isStreaming={isLoading &&
+                      message.role === "assistant" &&
+                      index === messages.length - 1 &&
+                      !message.content}
+                  />
                 ))}
+                {/* 自动滚动锚点 */}
+                <div ref={messagesEndRef} />
               </div>
             )}
 
-            {isLoading && (
-              <div style={{ display: "flex", justifyContent: "flex-start", marginBottom: 16 }}>
-                <div 
-                  className="glass-card"
-                  style={{ 
-                    padding: "12px 16px",
-                    borderBottomLeftRadius: 4,
-                  }}
-                >
-                  <Spin size="small" />
-                </div>
-              </div>
+            {/* 错误提示 */}
+            {error && (
+              <Alert
+                message="发送失败"
+                description={error}
+                type="error"
+                closable
+                onClose={clearError}
+                style={{ marginTop: 16, marginBottom: 16 }}
+              />
             )}
+
+            {/* 隐藏独立的 loading，因为 MessageBubble 已经处理了 streaming 状态 */}
 
             {quickReplies && quickReplies.length > 0 && (
               <QuickReplies options={quickReplies} onSelect={handleQuickReply} />

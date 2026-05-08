@@ -93,8 +93,81 @@ body {
   .hover-lift {
     transition: none;
   }
-  
+
   .hover-lift:hover {
     transform: none;
   }
+}
+
+/* ========== 打字机光标动画 ========== */
+.cursor-blink {
+  animation: cursor-blink 0.8s infinite;
+  font-weight: 300;
+}
+
+@keyframes cursor-blink {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* ========== 思考动画（三点跳动） ========== */
+.thinking-dot {
+  animation: thinking-pulse 1.4s infinite ease-in-out;
+  color: #14B8A6;
+}
+
+@keyframes thinking-pulse {
+  0%, 80%, 100% {
+    opacity: 0.3;
+    transform: scale(0.8);
+  }
+  40% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ========== Markdown 渲染样式 ========== */
+.markdown-content pre {
+  background: rgba(13, 148, 136, 0.05);
+  border-radius: 8px;
+  padding: 12px;
+  overflow-x: auto;
+}
+
+.markdown-content code {
+  background: rgba(13, 148, 136, 0.1);
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.markdown-content pre code {
+  background: transparent;
+  padding: 0;
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 20px;
+}
+
+.markdown-content li {
+  margin-bottom: 4px;
+}
+
+.markdown-content a {
+  color: #0D9488;
+  text-decoration: underline;
+}
+
+.markdown-content blockquote {
+  border-left: 3px solid #14B8A6;
+  padding-left: 12px;
+  color: #5EEAD4;
+  margin: 8px 0;
 }

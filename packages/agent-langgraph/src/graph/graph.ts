@@ -19,6 +19,7 @@ import {
   emotionSupportNode,
   generalQANode,
   generateResponseNode,
+  generalQANodeStream,
 } from "./nodes";
 import { routeByIntent } from "./edges";
 import { getAgentConfig, validateAgentConfig } from "../config/agent.config";
@@ -87,44 +88,84 @@ export function createAgentGraph() {
     },
 
     /**
-     * 流式执行（兼容现有接口）
-     * 遍历 StateGraph 的 stream() 输出，提取消息内容
+     * 流式执行（支持真正的逐字符流式输出）
+     *
+     * 实现原理：
+     * 1. 先执行意图识别（非流式）
+     * 2. 根据意图选择对应的流式节点
+     * 3. 直接调用流式节点，逐字符 yield
      */
     processStateStream: async function* (
       state: GraphStateType
     ): AsyncGenerator<string, GraphStateType, unknown> {
-      const stream = await app.stream(state, {
-        configurable: { thread_id: `session-${state.userId}-${Date.now()}` },
-      });
+      // Step 1: 执行意图识别（非流式，快速）
+      const intentResult = await intentRecognitionNode(state);
+      const currentState: GraphStateType = {
+        ...state,
+        ...intentResult,
+        userId: state.userId,
+        messages: intentResult.messages
+          ? [...state.messages, ...intentResult.messages]
+          : state.messages,
+        userIntent: intentResult.userIntent || state.userIntent,
+        waitingForUserInput: intentResult.waitingForUserInput ?? state.waitingForUserInput,
+        quickReplyOptions: intentResult.quickReplyOptions || state.quickReplyOptions,
+        ragResults: intentResult.ragResults || state.ragResults,
+        feishuTaskIds: intentResult.feishuTaskIds || state.feishuTaskIds,
+      };
 
-      let finalState = state;
+      const intent = currentState.userIntent;
+      logger.info(`Stream routing by intent: ${intent}`);
 
-      for await (const event of stream) {
-        // event 格式: { node_name: { messages: [...], ... } }
-        const nodeName = Object.keys(event)[0];
-        const nodeOutput = event[nodeName] as Partial<GraphStateType>;
-
-        // 更新 finalState（累加状态）
-        if (nodeOutput) {
-          finalState = {
-            ...finalState,
-            ...nodeOutput,
-            messages: nodeOutput.messages
-              ? [...finalState.messages, ...nodeOutput.messages]
-              : finalState.messages,
-          };
-        }
-
-        // 如果有新消息，yield 内容（非 intent_recognition 节点）
-        if (nodeName !== "intent_recognition" && nodeOutput?.messages?.length) {
-          const lastMessage = nodeOutput.messages[nodeOutput.messages.length - 1];
-          if (lastMessage?.content && typeof lastMessage.content === "string") {
-            yield lastMessage.content;
+      // Step 2: 根据意图选择流式节点
+      try {
+        if (intent === "create_task") {
+          // 任务生成节点（非流式，整块返回）
+          const result = await taskGenerationNode(currentState);
+          if (result.messages?.length) {
+            const lastMessage = result.messages[result.messages.length - 1];
+            if (lastMessage?.content) {
+              yield lastMessage.content as string;
+            }
           }
-        }
-      }
+          return { ...currentState, ...result } as GraphStateType;
+        } else if (intent === "progress_tracking") {
+          const result = await progressQueryNode(currentState);
+          if (result.messages?.length) {
+            const lastMessage = result.messages[result.messages.length - 1];
+            if (lastMessage?.content) {
+              yield lastMessage.content as string;
+            }
+          }
+          return { ...currentState, ...result } as GraphStateType;
+        } else if (intent === "emotional_support") {
+          const result = await emotionSupportNode(currentState);
+          if (result.messages?.length) {
+            const lastMessage = result.messages[result.messages.length - 1];
+            if (lastMessage?.content) {
+              yield lastMessage.content as string;
+            }
+          }
+          return { ...currentState, ...result } as GraphStateType;
+        } else {
+          // 默认（包括 general_inquiry）使用通用问答流式
+          const streamGenerator = generalQANodeStream(currentState);
 
-      return finalState as GraphStateType;
+          // 逐字符 yield
+          for await (const chunk of streamGenerator) {
+            yield chunk;
+          }
+
+          // 获取返回值（async generator 自然结束）
+          return currentState;
+
+        }
+      } catch (error) {
+        const err = error instanceof Error ? error : new Error(String(error));
+        logger.error("Stream processing error:", err);
+        yield "抱歉，处理您的消息时出现了错误。请稍后再试。";
+        return currentState;
+      }
     },
 
     /**
