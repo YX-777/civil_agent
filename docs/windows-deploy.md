@@ -65,38 +65,33 @@ EMBEDDING_API_KEY=sk-你的真实API_Key
 
 ---
 
-## 四、安装依赖并构建
+## 四、首次运行初始化（重要！）
+
+首次部署**必须**执行完整初始化，否则会报错：
 
 ```bash
-# Git Bash 中执行
-pnpm install
-pnpm -r build
+# Git Bash 中执行完整初始化脚本
+bash init-first-run.sh
 ```
+
+这个脚本会：
+1. ✅ 清理旧依赖（解决改名后工作区链接问题）
+2. ✅ 安装依赖 `pnpm install`
+3. ✅ 生成 Prisma Client（必须！否则报 `PrismaClient` 不存在）
+4. ✅ 构建项目 `pnpm -r build`
+5. ✅ 初始化数据库 + 创建默认用户
+
+### 常见报错及解决方案
+
+| 报错信息 | 原因 | 解决方案 |
+|----------|------|----------|
+| `Module not found: @tech-mate/agent-langgraph` | 改名后工作区链接失效 | 执行 `bash init-first-run.sh` |
+| `PrismaClient is not defined` | Prisma Client 未生成 | 执行 `npx prisma generate` |
+| `/api/conversations 500` | 数据库未初始化 | 执行 `bash init-db.sh` |
 
 ---
 
-## 五、初始化数据库（重要！）
-
-首次部署必须执行此步骤：
-
-```bash
-# 执行数据库初始化脚本
-bash init-db.sh
-```
-
-或手动执行：
-```bash
-cd packages/database
-npx prisma db push
-cp prisma/data/tech-mate.db ../web/data/
-cd ..
-```
-
-> 注意：如果报错 `/api/conversations 500`，说明数据库未初始化
-
----
-
-## 六、开放端口（腾讯云）
+## 五、开放端口（腾讯云）
 
 登录腾讯云控制台：
 1. 进入 **云服务器 CVM** → 找到你的服务器
@@ -111,7 +106,7 @@ cd ..
 
 ---
 
-## 七、启动服务
+## 六、启动服务
 
 双击运行 `start-windows.bat`
 
@@ -131,7 +126,7 @@ pnpm dev
 
 ---
 
-## 八、验证部署
+## 七、验证部署
 
 在服务器上浏览器访问：
 - `http://localhost:3000`
@@ -141,7 +136,7 @@ pnpm dev
 
 ---
 
-## 九、常见问题
+## 八、常见问题
 
 ### Q: `/api/conversations 500` 报错？
 数据库未初始化。执行 `bash init-db.sh` 初始化数据库
@@ -160,7 +155,7 @@ taskkill /PID 进程ID /F
 
 ---
 
-## 十、停止服务
+## 九、停止服务
 
 双击运行 `stop-windows.bat`
 
@@ -172,7 +167,7 @@ taskkill /F /IM python.exe
 
 ---
 
-## 十一、开机自启动（可选）
+## 十、开机自启动（可选）
 
 1. 打开 **任务计划程序**
 2. 创建基本任务

@@ -87,7 +87,20 @@ chroma-web-ui/           # ChromaDB 可视化界面
 | Phase 2-2: ISR 静态增量渲染 | ✅ 完成 |
 | Phase 2-3: LangGraph StateGraph | ✅ 完成 |
 | Phase 3: Chat UI 交互体验升级 | ✅ 完成 |
+| **Phase 4: 项目改名 + 部署脚本** | ✅ 完成 |
 | Phase 1-3: GuardRail 三层防护 | 🔜 待开始（用户暂缓） |
+
+---
+
+## 首次运行初始化
+
+```bash
+# 首次运行（解决改名后工作区链接问题）
+bash init-first-run.sh
+
+# 仅初始化数据库
+bash init-db.sh
+```
 
 ---
 

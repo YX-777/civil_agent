@@ -91,6 +91,61 @@
 
 ---
 
+## 一、本次会话总结（2026-05-08 第四部分）
+
+### 1.1 项目改名：civil-agent → tech-mate ✅
+
+**目标**：将项目从"考公Agent"改为"TechMate技术学习助手"
+
+**改动范围**：
+| 类别 | 原名称 | 新名称 |
+|------|--------|--------|
+| npm 包名 | `@civil-agent/*` | `@tech-mate/*` |
+| GitHub 仓库 | `civil_agent` | `tech_mate` |
+| 数据库名 | `civil-agent.db` | `tech-mate.db` |
+| LangChain 项目 | `civil-service-agent` | `tech-mate-agent` |
+| 队列名称 | `civil-service-tasks` | `tech-mate-tasks` |
+
+**修改文件数量**：87 个文件
+
+**关键问题及解决**：
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| `Module not found: @tech-mate/agent-langgraph` | 改名后 pnpm 工作区链接失效 | 删除 node_modules + 重新 `pnpm install` |
+| `PrismaClient is not defined` | Prisma Client 未重新生成 | 执行 `npx prisma generate` |
+| `/api/conversations 500` | 数据库文件路径不匹配 | 复制 `.db` 文件到 `packages/web/data/` |
+
+### 1.2 部署脚本更新 ✅
+
+**新增文件**：
+| 文件 | 功能 |
+|------|------|
+| `init-first-run.sh` | 首次运行完整初始化（清理依赖 + 安装 + 构建 + 数据库） |
+| `init-db.sh` | 数据库初始化（Prisma generate + db push + 创建用户） |
+| `init-db.bat` | Windows 数据库初始化 |
+| `docs/windows-deploy.md` | Windows Server 部署指南 |
+| `docker/deploy.sh` | 阿里云一键部署脚本 |
+| `docker/DEPLOY.md` | 阿里云部署详细指南 |
+
+**关键初始化流程**：
+```bash
+# 首次运行（解决所有问题）
+bash init-first-run.sh
+
+# 仅初始化数据库
+bash init-db.sh
+```
+
+### 1.3 UI 细节优化 ✅
+
+| 改动 | 原样式 | 新样式 |
+|------|--------|--------|
+| AI 头像 | 紫色方块显示 "AI" | 紫色渐变方块显示 "T"（和 Logo 一致） |
+| 复制按钮 | 灰色边框，小尺寸 | 无边框，浅紫背景，圆润（borderRadius: 10px） |
+
+---
+
 ## 一、本次会话总结（2026-05-08 第二部分）
 
 ### 1.1 AGUI 协议改造 ✅
@@ -1045,13 +1100,15 @@ INFO : Agent graph created successfully with StateGraph
 | P1-1 | RAG Engine 包创建 | ✅ 完成 |
 | P1-1 | Embedding API 修复 | ✅ 完成 |
 | P1-1 | ChromaDB 知识库初始化（40条，cosine距离） | ✅ 完成 |
-| P1-1 | RAG Engine 集成到 generalQANode | ✅ 完成 |
+| P1-1 | RAG Engine 成到 generalQANode | ✅ 完成 |
 | P1-1 | ChromaDB Server 启动脚本 | ✅ 完成 |
 | P1-2 | 四阶分层记忆系统（完整实现 + 测试通过） | ✅ 完成 |
 | P2 | OpenTelemetry 可观测（Console 输出 + Trace/Span） | ✅ 完成 |
 | P2-2 | ISR 静态增量渲染（Dashboard页面） | ✅ 完成 |
 | P2-3 | LangGraph StateGraph 改造 | ✅ 完成 |
 | P3 | Chat UI 交互体验升级（DeepSeek风格） | ✅ 完成 |
+| **P4** | **项目改名（civil-agent → tech-mate）** | ✅ 完成 |
+| **P4-2** | **部署脚本完善（init-first-run + Windows指南）** | ✅ 完成 |
 | P1-3 | GuardRail 三层防护 | 🔜 待开始（用户暂缓） |
 
 ---
@@ -1060,6 +1117,7 @@ INFO : Agent graph created successfully with StateGraph
 
 | 优先级 | 任务 | 预估时间 |
 |--------|------|----------|
+| **高** | 腾讯云 Windows Server 部署 | 1天 |
 | **中** | GuardRail 三层防护（用户暂缓） | 2-3天 |
 | **低** | 移除调试日志（面试后） | 0.5天 |
 | **低** | 面试准备（技术亮点讲解） | 1天 |
