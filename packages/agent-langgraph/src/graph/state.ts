@@ -4,6 +4,7 @@
  */
 
 import type { UserIntent, QuickReplyOption } from "@civil-agent/core";
+import type { StateGraphArgs } from "@langchain/langgraph";
 
 export interface EmotionContext {
   emotion: string;
@@ -36,6 +37,54 @@ export interface GraphStateType {
   emotionContext?: EmotionContext;
   pendingTaskPlan?: PendingTaskPlan;
 }
+
+/**
+ * StateGraph Channels 定义
+ * 定义状态合并规则（reducer）
+ *
+ * 面试讲法：
+ * "messages 用 concat 累加（对话历史越来越长），
+ *  userIntent 用覆盖（新意图替换旧意图），
+ *  这样每个节点只需要关心自己修改的部分，状态管理自动化了"
+ */
+export const graphStateChannels: StateGraphArgs<GraphStateType>["channels"] = {
+  userId: {
+    value: (x: string, y: string) => y ?? x,
+    default: () => "",
+  },
+  messages: {
+    value: (x: any[], y: any[]) => y ? x.concat(y) : x,  // 数组累加
+    default: () => [],
+  },
+  userIntent: {
+    value: (x: UserIntent, y: UserIntent) => y ?? x ?? "general_inquiry",
+    default: () => "general_inquiry" as UserIntent,
+  },
+  waitingForUserInput: {
+    value: (x: boolean, y: boolean) => y ?? x ?? false,
+    default: () => false,
+  },
+  quickReplyOptions: {
+    value: (x: QuickReplyOption[], y: QuickReplyOption[]) => y ?? x ?? [],
+    default: () => [],
+  },
+  ragResults: {
+    value: (x: any[], y: any[]) => y ?? x ?? [],
+    default: () => [],
+  },
+  feishuTaskIds: {
+    value: (x: string[], y: string[]) => y ? x.concat(y) : x,
+    default: () => [],
+  },
+  emotionContext: {
+    value: (x: EmotionContext | undefined, y: EmotionContext | undefined) => y ?? x,
+    default: () => undefined,
+  },
+  pendingTaskPlan: {
+    value: (x: PendingTaskPlan | undefined, y: PendingTaskPlan | undefined) => y ?? x,
+    default: () => undefined,
+  },
+};
 
 export const createInitialState = (userId: string): GraphStateType => ({
   userId,

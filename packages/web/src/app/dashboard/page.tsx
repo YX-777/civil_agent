@@ -1,178 +1,102 @@
-"use client";
+/**
+ * 数据看板页面 - ISR 实现
+ *
+ * 渲染策略：
+ * - Server Component: 服务端获取初始数据，ISR 缓存
+ * - Client Component: 时间范围切换等交互逻辑
+ *
+ * revalidate: 3600 (1小时)
+ * 原因：学习数据汇总统计不需要实时更新，每小时刷新一次足够
+ */
 
-import { useState } from "react";
-import { Layout, Card, Button, Progress, Row, Col, Alert, Radio, Spin, Result } from "antd";
-import { ClockCircleOutlined, LineChartOutlined, FireOutlined, BulbOutlined } from "@ant-design/icons";
-import Link from "next/link";
-import { useStats } from "@/hooks/use-stats";
-import Navbar from "@/components/shared/Navbar";
-import BottomNav from "@/components/shared/BottomNav";
-import StatCard from "@/components/dashboard/StatCard";
-import AccuracyChart from "@/components/dashboard/AccuracyChart";
-import ModuleBar from "@/components/dashboard/ModuleBar";
+import { Suspense } from "react";
+import { Spin } from "antd";
+import DashboardClient from "./DashboardClient";
+import { getStatsService, initializeDatabase } from "@civil-agent/database";
 
-const { Content } = Layout;
+// ISR: 每小时重新生成
+export const revalidate = 3600;
 
-const MODULE_COLORS = ["#3b82f6", "#8b5cf6", "#10b981", "#f59e0b", "#ef4444", "#14b8a6"];
+const DEFAULT_USER_ID = "default-user";
 
-export default function DashboardPage() {
-  const [timeRange, setTimeRange] = useState<"week" | "month" | "all">("month");
-  const { stats, isLoading, error } = useStats(timeRange);
-  const suggestionType = stats?.suggestion?.level === "success"
-    ? "success"
-    : stats?.suggestion?.level === "info"
-      ? "info"
-      : "warning";
+interface DashboardStats {
+  totalHours: number;
+  avgAccuracy: number;
+  consecutiveDays: number;
+  progressPercentage: number;
+  studyDays: number;
+  remainingDays: number | null;
+  accuracyTrend: { date: string; accuracy: number }[];
+  modules: { name: string; accuracy: number }[];
+  suggestion: {
+    level: "success" | "info" | "warning";
+    title: string;
+    description: string;
+  };
+}
 
-  if (isLoading) {
-    return (
-      <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
-        <Navbar />
-        <Content style={{ padding: "16px", paddingBottom: 80 }}>
-          <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-            <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: 400 }}>
-              <Spin size="large" />
-            </div>
-          </div>
-        </Content>
-        <BottomNav />
-      </Layout>
-    );
+/**
+ * 服务端获取数据 - 直接调用数据库服务
+ * 避免 build 时 fetch API route 失败
+ */
+async function getDashboardData(range: "week" | "month" | "all"): Promise<DashboardStats> {
+  try {
+    // 初始化数据库连接
+    await initializeDatabase({ skipVectorDB: true });
+
+    const statsService = getStatsService();
+
+    // 并行获取所有数据
+    const [stats, accuracyTrend, modules, suggestion] = await Promise.all([
+      statsService.getStatsSummary(DEFAULT_USER_ID, range),
+      statsService.getAccuracyTrend(DEFAULT_USER_ID, range),
+      statsService.getModuleAccuracy(DEFAULT_USER_ID),
+      statsService.getDashboardSuggestion(DEFAULT_USER_ID, range),
+    ]);
+
+    return {
+      ...stats,
+      accuracyTrend,
+      modules,
+      suggestion,
+    };
+  } catch (error) {
+    console.error("Failed to fetch dashboard data:", error);
+    // 返回默认数据，避免页面崩溃
+    return {
+      totalHours: 0,
+      avgAccuracy: 0,
+      consecutiveDays: 0,
+      progressPercentage: 0,
+      studyDays: 0,
+      remainingDays: null,
+      accuracyTrend: [],
+      modules: [],
+      suggestion: {
+        level: "info",
+        title: "暂无数据",
+        description: "开始学习后即可查看数据看板",
+      },
+    };
   }
+}
 
-  if (error) {
-    return (
-      <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
-        <Navbar />
-        <Content style={{ padding: "16px", paddingBottom: 80 }}>
-          <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-            <Result
-              status="error"
-              title="加载失败"
-              subTitle={error}
-            />
-          </div>
-        </Content>
-        <BottomNav />
-      </Layout>
-    );
-  }
+/**
+ * Dashboard 页面 - Server Component
+ */
+export default async function DashboardPage() {
+  // 服务端获取初始数据（ISR 缓存）
+  const initialData = await getDashboardData("month");
 
   return (
-    <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
-      <Navbar />
-      <Content style={{ padding: "16px", paddingBottom: 80 }}>
-        <div style={{ maxWidth: 1200, margin: "0 auto" }}>
-          <div style={{ marginBottom: 24 }}>
-            <h1 style={{ fontSize: 28, fontWeight: "bold", marginBottom: 16 }}>数据看板</h1>
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
-              <Radio.Group
-                value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
-                buttonStyle="solid"
-              >
-                <Radio.Button value="week">最近一周</Radio.Button>
-                <Radio.Button value="month">最近一月</Radio.Button>
-                <Radio.Button value="all">全部</Radio.Button>
-              </Radio.Group>
-              <Link href="/dashboard/xiaohongshu">
-                <Button type="primary">查看小红书同步看板</Button>
-              </Link>
-            </div>
-          </div>
-
-          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            <Col xs={24} sm={12} lg={8}>
-              <StatCard
-                title="学习时长"
-                value={`${stats?.totalHours || 0}小时`}
-                subtitle={timeRange === "week" ? "本周累计" : timeRange === "month" ? "本月累计" : "全部累计"}
-                icon={<ClockCircleOutlined style={{ fontSize: 24 }} />}
-              />
-            </Col>
-            <Col xs={24} sm={12} lg={8}>
-              <StatCard
-                title="平均正确率"
-                value={`${((stats?.avgAccuracy || 0) * 100).toFixed(1)}%`}
-                subtitle="所有题目"
-                icon={<LineChartOutlined style={{ fontSize: 24 }} />}
-              />
-            </Col>
-            <Col xs={24} sm={12} lg={8}>
-              <StatCard
-                title="连续天数"
-                value={`${stats?.consecutiveDays || 0}天`}
-                subtitle="保持学习节奏"
-                icon={<FireOutlined style={{ fontSize: 24 }} />}
-              />
-            </Col>
-          </Row>
-
-          <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            <Col xs={24} lg={12}>
-              <AccuracyChart data={stats?.accuracyTrend || []} />
-            </Col>
-            <Col xs={24} lg={12}>
-              <Card style={{ borderRadius: 12 }}>
-                <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>模块分析</h3>
-                {(stats?.modules || []).length === 0 ? (
-                  <div style={{ color: "#666", fontSize: 14 }}>暂无模块练习数据</div>
-                ) : (stats?.modules || []).map((module, index) => (
-                  <ModuleBar
-                    key={module.name}
-                    name={module.name}
-                    accuracy={module.accuracy}
-                    color={MODULE_COLORS[index % MODULE_COLORS.length]}
-                  />
-                ))}
-              </Card>
-            </Col>
-          </Row>
-
-          <Card style={{ borderRadius: 12, marginBottom: 24 }}>
-            <h3 style={{ fontSize: 18, fontWeight: 600, marginBottom: 16 }}>备考进度</h3>
-            <div style={{ marginBottom: 16 }}>
-              <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                <span style={{ fontSize: 14, fontWeight: 500 }}>总体进度</span>
-                <span style={{ fontSize: 14, fontWeight: 600 }}>{stats?.progressPercentage || 0}%</span>
-              </div>
-              <Progress
-                percent={stats?.progressPercentage || 0}
-                strokeColor="#3b82f6"
-                strokeWidth={16}
-              />
-            </div>
-            <Row gutter={16} style={{ marginTop: 24 }}>
-              <Col span={12}>
-                <Card size="small" style={{ background: "#f5f5f5", border: "none", textAlign: "center" }}>
-                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#3b82f6", marginBottom: 4 }}>
-                    {stats?.studyDays || 0}
-                  </div>
-                  <div style={{ fontSize: 14, color: "#666" }}>已学习天数</div>
-                </Card>
-              </Col>
-              <Col span={12}>
-                <Card size="small" style={{ background: "#f5f5f5", border: "none", textAlign: "center" }}>
-                  <div style={{ fontSize: 24, fontWeight: "bold", color: "#6366f1", marginBottom: 4 }}>
-                    {stats?.remainingDays ?? "-"}
-                  </div>
-                  <div style={{ fontSize: 14, color: "#666" }}>剩余天数</div>
-                </Card>
-              </Col>
-            </Row>
-          </Card>
-
-          <Alert
-            message={stats?.suggestion?.title || "学习建议"}
-            description={stats?.suggestion?.description || "当前还没有足够的数据生成个性化建议，先继续完成任务和专注学习。"}
-            type={suggestionType}
-            showIcon
-            icon={<BulbOutlined />}
-            style={{ borderRadius: 8 }}
-          />
+    <Suspense
+      fallback={
+        <div style={{ display: "flex", justifyContent: "center", alignItems: "center", height: "100vh" }}>
+          <Spin size="large" />
         </div>
-      </Content>
-      <BottomNav />
-    </Layout>
+      }
+    >
+      <DashboardClient initialData={initialData} initialRange="month" />
+    </Suspense>
   );
 }

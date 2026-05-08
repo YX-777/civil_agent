@@ -731,6 +731,140 @@ npx tsx archive-memory.ts --user=USER_ID --days=25  # 模拟25天衰减归档
 
 ---
 
+## 十四、ISR 静态增量渲染实现（2026-05-08）
+
+### 14.1 架构设计
+
+**大白话解释**：就像电梯显示屏更新：
+- **预渲染**：电梯显示屏出厂时就有楼层信息 → 页面构建时就生成HTML
+- **revalidate**：每隔10秒更新一次楼层 → 设置缓存过期时间（如3600秒）
+- **stale-while-revalidate**：显示旧楼层，后台悄悄更新 → 先返回旧页面，后台重新生成
+
+### 14.2 新增/修改文件
+
+| 文件 | 修改内容 |
+|------|----------|
+| `packages/web/src/app/dashboard/page.tsx` | 去掉"use client"，添加ISR（revalidate=3600），Server Component |
+| `packages/web/src/app/dashboard/DashboardClient.tsx` | 新建，抽离客户端交互逻辑 |
+
+### 14.3 核心实现
+
+```tsx
+// page.tsx - Server Component + ISR
+export const revalidate = 3600; // 每小时重新生成
+
+async function getDashboardData(range) {
+  // 直接调用数据库服务，避免fetch API route的动态渲染问题
+  await initializeDatabase({ skipVectorDB: true });
+  const statsService = getStatsService();
+  return await statsService.getStatsSummary(DEFAULT_USER_ID, range);
+}
+
+export default async function DashboardPage() {
+  const initialData = await getDashboardData("month");
+  return <DashboardClient initialData={initialData} />;
+}
+```
+
+### 14.4 验证结果
+
+构建输出：
+```
+Route (app)
+├ ○ /dashboard   132 kB   (Static) ← ISR预渲染成功
+```
+
+### 14.5 面试讲解要点
+
+1. **什么是ISR？** → 增量静态再生，预渲染+定时更新
+2. **revalidate原理？** → stale-while-revalidate，过期返回旧数据，后台渲染
+3. **为什么选ISR？** → 数据看板数据每小时更新即可，高频访问缓存收益大
+4. **ISR vs SSR区别？** → ISR缓存性能好，SSR实时但压力大
+
+### 14.6 简历描述建议
+
+改成：
+> "基于Next.js实现ISR静态增量渲染（revalidate=3600），配套学习数据看板、进度追踪"
+
+---
+
+## 十五、LangGraph StateGraph 改造（2026-05-08）
+
+### 15.1 架构设计
+
+**大白话解释**：就像地铁线路图：
+
+| 概念 | 地铁类比 | 技术实现 |
+|-----|---------|---------|
+| **StateGraph** | 地铁线路图 | 定义站点（节点）和线路（边） |
+| **Node（节点）** | 地铁站 | 每个处理步骤（意图识别、任务生成） |
+| **Edge（边）** | 地铁线路 | 从一个站到另一个站的路径 |
+| **ConditionalEdge** | 根据目的地换乘 | 根据意图选择不同线路 |
+| **START/END** | 起点/终点站 | 流程入口和出口 |
+| **Channel** | 乘客信息传递 | 状态在各站点间传递和合并 |
+
+### 15.2 改造前 vs 改造后
+
+**改造前**：手动 switch-case 编排
+```typescript
+switch (currentState.userIntent) {
+  case "create_task": currentState = await taskGenerationNode(currentState);
+  case "general_inquiry": currentState = await generalQANode(currentState);
+}
+```
+
+**改造后**：标准 StateGraph
+```typescript
+const workflow = new StateGraph({ channels: graphStateChannels })
+  .addNode("intent_recognition", intentRecognitionNode)
+  .addNode("task_generation", taskGenerationNode)
+  .addEdge(START, "intent_recognition")
+  .addConditionalEdges("intent_recognition", routeByIntent)
+  .addEdge("task_generation", "generate_response")
+  .addEdge("generate_response", END);
+```
+
+### 15.3 新增/修改文件
+
+| 文件 | 修改内容 |
+|------|----------|
+| `packages/agent-langgraph/src/graph/state.ts` | 添加 `graphStateChannels` 定义（状态合并规则） |
+| `packages/agent-langgraph/src/graph/graph.ts` | 重写为 StateGraph（addNode + addEdge + addConditionalEdges） |
+| `packages/agent-langgraph/src/graph/edges.ts` | `routeByIntent` 被真正使用 |
+
+### 15.4 状态合并规则（Channels）
+
+```typescript
+export const graphStateChannels = {
+  messages: { value: (x, y) => x.concat(y) },  // 数组累加（对话历史）
+  userIntent: { value: (x, y) => y ?? x },     // 覆盖（新意图替换旧）
+  quickReplyOptions: { value: (x, y) => y ?? x }, // 覆盖
+};
+```
+
+### 15.5 验证结果
+
+构建日志：
+```
+INFO : Creating agent graph with StateGraph
+INFO : Agent graph created successfully with StateGraph
+```
+
+测试结果：
+| 流程 | 测试命令 | 结果 |
+|------|---------|------|
+| General QA | "什么是React？" | ✅ SSE流式输出正确回答 |
+| Task Generation | "帮我制定学习计划" | ✅ 返回JSON计划 + 快捷回复 |
+
+### 15.6 面试讲解要点
+
+1. **什么是 StateGraph？** → 就像地铁线路图，每个节点是站，边是线路
+2. **ConditionalEdge 怎么工作？** → 路由函数返回节点名称，StateGraph 自动传递状态
+3. **状态怎么合并？** → Channels 定义规则：messages 用 concat，userIntent 用覆盖
+4. **为什么用 StateGraph？** → 声明式配置、自动状态管理、原生流式支持、可扩展
+
+---
+
 ## 十一、当前进度总览（更新 2026-05-08）
 
 | Phase | 任务 | 状态 |
@@ -746,7 +880,9 @@ npx tsx archive-memory.ts --user=USER_ID --days=25  # 模拟25天衰减归档
 | P1-1 | ChromaDB Server 启动脚本 | ✅ 完成 |
 | P1-2 | 四阶分层记忆系统（完整实现 + 测试通过） | ✅ 完成 |
 | P2 | OpenTelemetry 可观测（Console 输出 + Trace/Span） | ✅ 完成 |
-| P1-3 | GuardRail 三层防护 | 🔜 待开始 |
+| P2-2 | ISR 静态增量渲染（Dashboard页面） | ✅ 完成 |
+| P2-3 | LangGraph StateGraph 改造 | ✅ 完成 |
+| P1-3 | GuardRail 三层防护 | 🔜 待开始（用户暂缓） |
 
 ---
 
