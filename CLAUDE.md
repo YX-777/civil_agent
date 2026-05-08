@@ -82,8 +82,9 @@ chroma-web-ui/           # ChromaDB 可视化界面
 |------|------|
 | Phase 0: 文案改造 | ✅ 完成 |
 | Phase 1-1: RAG Engine 集成 | ✅ 完成 |
-| Phase 1-2: 四阶分层记忆系统 | ✅ 完成（测试通过） |
-| Phase 1-3: GuardRail 三层防护 | 🔜 待开始 |
+| Phase 1-2: 四阶分层记忆系统 | ✅ 完成 |
+| Phase 2: OpenTelemetry 可观测 | ✅ 完成 |
+| Phase 1-3: GuardRail 三层防护 | 🔜 待开始（用户暂缓） |
 
 ---
 

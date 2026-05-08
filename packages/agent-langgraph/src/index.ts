@@ -10,6 +10,16 @@ export { getEmotionDetector } from "./middleware/emotion-detector";
 export { getContextEnhancer } from "./middleware/context-enhancer";
 export { retrieveWithFallback, inferCategoryFromQuery } from "./utils/rag-fallback";
 
+// OpenTelemetry 可观测模块
+export {
+  TraceContext,
+  Span,
+  startTrace,
+  endTrace,
+  createTraceContext,
+  getLogger,
+} from "./otel";
+
 export type { GraphStateType, EmotionContext, PendingTaskPlan } from "./graph/state";
 export type { AgentConfig } from "./config/agent.config";
 export type { RAGFallbackResult } from "./utils/rag-fallback";

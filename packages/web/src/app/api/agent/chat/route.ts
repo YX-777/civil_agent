@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAgentGraph, createInitialState } from "@civil-agent/agent-langgraph";
+import { createAgentGraph, createInitialState, startTrace, endTrace, TraceContext } from "@civil-agent/agent-langgraph";
 import { getDatabase } from "@/lib/database";
 import { getAgentStateRepository, getPrismaClient, getTaskService } from "@civil-agent/database";
 import {
@@ -320,8 +320,16 @@ function createImmediateSSE(params: {
 }
 
 export async function POST(request: NextRequest) {
+  // ========== OpenTelemetry Trace 创建 ==========
+  const trace: TraceContext = startTrace();
+
   try {
     const { message, userId, conversationId } = await request.json();
+
+    // 更新 Trace 用户信息
+    trace.userId = userId?.trim();
+    trace.conversationId = conversationId?.trim();
+
     const payloadCheck = validateChatPayload(message, userId, conversationId);
     if (!payloadCheck.ok) {
       return jsonError(payloadCheck.code!, payloadCheck.error!, 400);
@@ -338,14 +346,20 @@ export async function POST(request: NextRequest) {
     const effectiveConversationId = conversationId.trim();
     const turnId = generateTurnId();
 
+    // ========== Span: 数据库初始化 ==========
+    const dbSpan = trace.startSpan("db_init");
     await getDatabase();
     const prisma = getPrismaClient();
     const agentStateRepo = getAgentStateRepository();
+    trace.endSpan(dbSpan, "success");
 
+    // ========== Span: 会话查询 ==========
+    const convSpan = trace.startSpan("conversation_query");
     const conversation = await prisma.conversation.findUnique({
       where: { id: effectiveConversationId },
       select: { id: true, userId: true },
     });
+    trace.endSpan(convSpan, "success");
 
     if (!conversation) {
       return jsonError("CONVERSATION_NOT_FOUND", "Conversation not found", 404);
@@ -375,7 +389,7 @@ export async function POST(request: NextRequest) {
 
     const normalizedMessage = message.trim();
 
-    // 任务确认属于“执行动作”而不是“再次让模型生成文案”。
+    // 任务确认属于"执行动作"而不是"再次让模型生成文案"。
     // 这里直接读取上一轮 state 中沉淀好的 pendingTaskPlan，创建真实任务，
     // 避免前端把结构化计划再传回来，也避免模型二次解释造成计划漂移。
     if (normalizedMessage === "确认计划" && userState.pendingTaskPlan) {
@@ -508,7 +522,7 @@ export async function POST(request: NextRequest) {
       ...userState,
       messages: updatedMessages,
       schemaVersion: userState?.schemaVersion ?? 1,
-      // stateVersion 在 turn 提交成功后才递增，这样能更清楚地区分“准备态”和“已提交态”。
+      // stateVersion 在 turn 提交成功后才递增，这样能更清楚地区分"准备态"和"已提交态"。
       stateVersion: Number(userState?.stateVersion ?? 0),
     };
 
@@ -516,6 +530,9 @@ export async function POST(request: NextRequest) {
       `[Agent API] Processing message for user ${effectiveUserId}, conversation ${effectiveConversationId}, source=${stateLoadSource}:`,
       message
     );
+
+    // ========== Span: Agent 处理 ==========
+    const agentSpan = trace.startSpan("agent_process");
 
     const encoder = new TextEncoder();
 
@@ -543,6 +560,10 @@ export async function POST(request: NextRequest) {
             );
           }
 
+          // 结束 Agent Span
+          trace.endSpan(agentSpan, "success");
+          agentSpan.setAttributes({ responseLength: fullAssistantContent.length });
+
           if (finalState) {
             const assistantMessage = {
               id: generateId(),
@@ -558,7 +579,10 @@ export async function POST(request: NextRequest) {
             };
             setCachedState(effectiveUserId, effectiveConversationId, persistedState);
 
-            // 同一事务里写入消息和状态，避免出现“消息写成功但状态未更新”的分裂数据。
+            // ========== Span: 消息存储 ==========
+            const storageSpan = trace.startSpan("message_storage");
+
+            // 同一事务里写入消息和状态，避免出现"消息写成功但状态未更新"的分裂数据。
             await commitConversationTurn({
               prisma,
               userId: effectiveUserId,
@@ -569,6 +593,8 @@ export async function POST(request: NextRequest) {
               persistedState,
               fallbackTitleSource: message,
             });
+
+            trace.endSpan(storageSpan, "success");
 
             console.log(
               `[Agent API] turn_commit_success user=${effectiveUserId} conversation=${effectiveConversationId} turn=${turnId}`
@@ -601,12 +627,19 @@ export async function POST(request: NextRequest) {
           }
 
           controller.close();
+          // ========== 结束 Trace 并输出汇总日志 ==========
+          trace.endTrace();
+          endTrace(trace);
         } catch (error) {
           console.error("[Agent API] Stream error:", error);
+          trace.endSpan(agentSpan, "error", String(error));
+          // ========== Trace 错误结束 ==========
+          trace.endTrace();
+          endTrace(trace);
           console.error(
             `[Agent API] turn_commit_fail user=${effectiveUserId} conversation=${effectiveConversationId} turn=${turnId}`
           );
-          // 发生流式异常时不做消息落库，避免数据库里出现“只有半截 assistant 回复”的脏数据。
+          // 发生流式异常时不做消息落库，避免数据库里出现"只有半截 assistant 回复"的脏数据。
           controller.enqueue(
             encoder.encode(
               `data: ${JSON.stringify({
@@ -623,6 +656,8 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    // 注意：Trace 汇总日志会在 stream 内部输出（controller.close 后）
+    // 这里只返回 Response
     return new Response(stream, {
       headers: {
         "Content-Type": "text/event-stream",
@@ -631,6 +666,10 @@ export async function POST(request: NextRequest) {
       },
     });
   } catch (error) {
+    // ========== Trace 错误结束 ==========
+    trace.endTrace();
+    endTrace(trace);
+
     console.error("[Agent API] Error in POST handler:", error);
 
     return NextResponse.json(

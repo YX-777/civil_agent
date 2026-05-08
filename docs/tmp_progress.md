@@ -680,6 +680,57 @@ npx tsx archive-memory.ts --user=USER_ID --days=25  # 模拟25天衰减归档
 
 ---
 
+## 十三、OpenTelemetry 可观测实现（2026-05-08）
+
+### 13.1 架构设计
+
+**大白话解释**：就像快递追踪系统：
+
+| 概念 | 大白话解释 | 技术实现 |
+|-----|-----------|---------|
+| **Trace（追踪）** | 像快递单号，追踪一个包裹从下单到送达的全过程 | 一个用户请求的完整路径，分配唯一 Trace ID |
+| **Span（跨度）** | 像每个物流节点（揽收、运输、派送），记录时间和状态 | 每个操作步骤（意图识别、RAG检索、LLM调用），记录耗时 |
+| **Logs（日志）** | 像物流详情记录 | 结构化日志，包含 Trace ID、Span ID、时间戳 |
+
+### 13.2 新增文件
+
+| 文件 | 功能 |
+|------|------|
+| `packages/agent-langgraph/src/otel/context.ts` | Trace Context（Trace ID 生成 + Span 管理） |
+| `packages/agent-langgraph/src/otel/span.ts` | Span Recorder（耗时计算 + 状态记录） |
+| `packages/agent-langgraph/src/otel/logger.ts` | Structured Logger（结构化日志输出） |
+| `packages/agent-langgraph/src/otel/formatter.ts` | Trace Formatter（格式化输出） |
+| `packages/agent-langgraph/src/otel/index.ts` | 统一导出 |
+
+### 13.3 集成点
+
+- `packages/web/src/app/api/agent/chat/route.ts` - 创建 Trace，记录 API 入口 Span
+- `packages/agent-langgraph/src/index.ts` - 导出 otel 模块
+
+### 13.4 日志输出示例
+
+```
+============================================================
+📊 [Trace] trace_1778173556458_4h4kmqe 开始
+============================================================
+[Span] db_init              | 0ms | ✅ success
+[Span] conversation_query   | 4ms | ✅ success
+[Span] agent_process        | 1200ms | ✅ success
+[Span] message_storage      | 5ms | ✅ success
+============================================================
+📊 [Trace] trace_1778173556458_4h4kmqe 完成 | 总耗时 1209ms
+============================================================
+```
+
+### 13.5 面试讲解要点
+
+1. **什么是 Trace？** → 像快递单号，追踪请求全路径
+2. **什么是 Span？** → 像物流节点，记录每个操作耗时
+3. **为什么需要可观测？** → 审计、回溯、性能优化
+4. **如何实现？** → Trace ID + Span 链路 + 结构化日志
+
+---
+
 ## 十一、当前进度总览（更新 2026-05-08）
 
 | Phase | 任务 | 状态 |
@@ -694,8 +745,8 @@ npx tsx archive-memory.ts --user=USER_ID --days=25  # 模拟25天衰减归档
 | P1-1 | RAG Engine 集成到 generalQANode | ✅ 完成 |
 | P1-1 | ChromaDB Server 启动脚本 | ✅ 完成 |
 | P1-2 | 四阶分层记忆系统（完整实现 + 测试通过） | ✅ 完成 |
+| P2 | OpenTelemetry 可观测（Console 输出 + Trace/Span） | ✅ 完成 |
 | P1-3 | GuardRail 三层防护 | 🔜 待开始 |
-| P2 | OpenTelemetry 可观测 | 🔜 待开始 |
 
 ---
 
@@ -703,9 +754,9 @@ npx tsx archive-memory.ts --user=USER_ID --days=25  # 模拟25天衰减归档
 
 | 优先级 | 任务 | 预估时间 |
 |--------|------|----------|
-| **高** | GuardRail 三层防护 | 2-3天 |
-| **中** | OpenTelemetry 可观测 | 2-3天 |
+| **中** | GuardRail 三层防护（用户暂缓） | 2-3天 |
 | **低** | 移除调试日志（面试后） | 0.5天 |
+| **低** | 面试准备（技术亮点讲解） | 1天 |
 
 ## 十、下一步计划
 
