@@ -38,7 +38,7 @@ async function callDashscopeAPI(systemPrompt: string, userPrompt: string): Promi
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "qwen3.6-plus",
+      model: "qwen3.6-plus",  // 前端编程能力增强的模型（思考过程为英文）
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -53,9 +53,20 @@ async function callDashscopeAPI(systemPrompt: string, userPrompt: string): Promi
 }
 
 /**
- * 流式调用百炼 API
+ * 流式调用百炼 API（带思考过程）
+ * 开启 enable_thinking 后，返回 reasoning_content（思考）和 content（回答）
  */
-async function* streamDashscopeAPI(systemPrompt: string, userPrompt: string): AsyncGenerator<string> {
+export type StreamChunkType = "thought" | "content";
+
+export interface StreamChunk {
+  type: StreamChunkType;
+  text: string;
+}
+
+export async function* streamDashscopeAPIWithThinking(
+  systemPrompt: string,
+  userPrompt: string
+): AsyncGenerator<StreamChunk> {
   const config = getAgentConfig();
   const apiKey = config.llm.apiKey;
 
@@ -66,7 +77,7 @@ async function* streamDashscopeAPI(systemPrompt: string, userPrompt: string): As
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "qwen3.6-plus",
+      model: "qwen3.6-plus",  // 前端编程能力增强的模型（思考过程为英文）
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
@@ -74,6 +85,7 @@ async function* streamDashscopeAPI(systemPrompt: string, userPrompt: string): As
       temperature: 0.2,
       max_tokens: config.llm.maxTokens,
       stream: true,
+      enable_thinking: true,  // 开启思考模式
     }),
   });
 
@@ -97,10 +109,29 @@ async function* streamDashscopeAPI(systemPrompt: string, userPrompt: string): As
         if (dataStr === "[DONE]") continue;
         try {
           const parsed = JSON.parse(dataStr) as any;
-          const content = parsed.choices?.[0]?.delta?.content || "";
-          if (content) yield content;
+          const delta = parsed.choices?.[0]?.delta;
+
+          // 分离思考过程和正式回答
+          if (delta?.reasoning_content) {
+            yield { type: "thought", text: delta.reasoning_content };
+          }
+          if (delta?.content) {
+            yield { type: "content", text: delta.content };
+          }
         } catch {}
       }
+    }
+  }
+}
+
+/**
+ * 流式调用百炼 API（无思考过程，兼容旧版本）
+ */
+async function* streamDashscopeAPI(systemPrompt: string, userPrompt: string): AsyncGenerator<string> {
+  for await (const chunk of streamDashscopeAPIWithThinking(systemPrompt, userPrompt)) {
+    // 只返回 content，过滤掉 thought
+    if (chunk.type === "content") {
+      yield chunk.text;
     }
   }
 }
@@ -419,7 +450,7 @@ export async function progressQueryNode(
 
     return {
       messages: [...state.messages, new AIMessage(response.content as string)],
-      quickReplyOptions: [],
+      quickReplyOptions: createQuickReplies(["继续提问", "查看详细进度", "返回首页"]),
       waitingForUserInput: false,
       ragResults: ragResult.success ? ragResult.data?.results : [],
     };
@@ -429,7 +460,7 @@ export async function progressQueryNode(
     const errorMessage = "抱歉，查询学习进度时出错了。请稍后再试。";
     return {
       messages: [...state.messages, new AIMessage(errorMessage)],
-      quickReplyOptions: [],
+      quickReplyOptions: createQuickReplies(["重试", "返回首页"]),
       waitingForUserInput: false,
     };
   }
@@ -525,7 +556,7 @@ export async function generalQANode(
 
     return {
       messages: [...state.messages, new AIMessage(response.content as string)],
-      quickReplyOptions: [],
+      quickReplyOptions: createQuickReplies(["继续提问", "深入这个话题", "换个话题"]),
       waitingForUserInput: false,
       ragResults,
     };
@@ -535,7 +566,7 @@ export async function generalQANode(
     const errorMessage = "抱歉，我无法理解你的问题。请换个方式问我。";
     return {
       messages: [...state.messages, new AIMessage(errorMessage)],
-      quickReplyOptions: [],
+      quickReplyOptions: createQuickReplies(["重试", "换个话题"]),
       waitingForUserInput: false,
     };
   }
@@ -592,11 +623,10 @@ function buildLLMMessages(messages: any[]): any[] {
 
 export async function* generalQANodeStream(
   state: GraphStateType
-): AsyncGenerator<string, GraphStateType, unknown> {
-  logger.info("General QA stream node executing");
+): AsyncGenerator<StreamChunk, GraphStateType, unknown> {
+  logger.info("General QA stream node executing (with thinking mode)");
 
   try {
-    const llm = createLLM();
     const lastMessage = state.messages[state.messages.length - 1];
     const content = lastMessage.content as string;
 
@@ -668,52 +698,42 @@ export async function* generalQANodeStream(
     // 构建 prompt：优先使用 RAG context，否则使用原始消息
     const userPrompt = ragContext || enhancedMessage;
 
+    // 使用默认 system prompt，不强制思考格式（让模型自然思考）
     const systemPrompt = SYSTEM_PROMPTS.DEFAULT;
 
-    const stream = await llm.stream([
-      new SystemMessage(systemPrompt),
-      ...buildLLMMessages(state.messages.slice(0, -1)),
-      new HumanMessage(userPrompt),
-    ]);
-
+    // 使用带思考模式的 DashScope API（替代 LangChain llm.stream）
     let fullContent = "";
-    for await (const chunk of stream) {
-      // 处理多种 chunk 格式
-      // LangChain ChatOpenAI stream 可能返回 AIMessageChunk
-      let chunkContent = "";
-      if (typeof chunk.content === "string") {
-        chunkContent = chunk.content;
-      } else if (chunk?.content) {
-        // AIMessageChunk 格式
-        chunkContent = String(chunk.content);
-      }
+    let fullThought = "";
 
-      // 只 yield 有内容的 chunk
-      if (chunkContent) {
-        fullContent += chunkContent;
-        yield chunkContent;
+    for await (const chunk of streamDashscopeAPIWithThinking(systemPrompt, userPrompt)) {
+      if (chunk.type === "thought") {
+        fullThought += chunk.text;
+      } else {
+        fullContent += chunk.text;
       }
+      yield chunk;  // 直接 yield StreamChunk
     }
 
     LogTools.logAgentDecision(state.userId, state.userIntent, "General QA Stream");
 
+    console.log(`🧠 [Thinking] 思考过程长度: ${fullThought.length} 字符`);
+
     return {
       ...state,
       messages: [...state.messages, new AIMessage(fullContent)],
-      quickReplyOptions: [],
+      quickReplyOptions: createQuickReplies(["继续提问", "深入这个话题", "换个话题"]),
       waitingForUserInput: false,
       ragResults,
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error("General QA stream failed", err);
-    const errorMessage = "抱歉，我无法理解你的问题。请换个方式问我。";
-    yield errorMessage;
+    yield { type: "content", text: "抱歉，我无法理解你的问题。请换个方式问我。" };
 
     return {
       ...state,
-      messages: [...state.messages, new AIMessage(errorMessage)],
-      quickReplyOptions: [],
+      messages: [...state.messages, new AIMessage("抱歉，我无法理解你的问题。请换个方式问我。")],
+      quickReplyOptions: createQuickReplies(["重试", "换个话题"]),
       waitingForUserInput: false,
     };
   }
@@ -899,7 +919,7 @@ export async function* progressQueryNodeStream(
     return {
       ...state,
       messages: [...state.messages, new AIMessage(fullContent)],
-      quickReplyOptions: [],
+      quickReplyOptions: createQuickReplies(["继续提问", "查看详细进度", "返回首页"]),
       waitingForUserInput: false,
     };
   } catch (error) {
@@ -907,11 +927,11 @@ export async function* progressQueryNodeStream(
     logger.error("Progress query stream failed", err);
     const errorMessage = "抱歉，查询进度时出错了。请稍后再试。";
     yield errorMessage;
-    
+
     return {
       ...state,
       messages: [...state.messages, new AIMessage(errorMessage)],
-      quickReplyOptions: [],
+      quickReplyOptions: createQuickReplies(["重试", "返回首页"]),
       waitingForUserInput: false,
     };
   }
@@ -951,7 +971,7 @@ export async function* emotionSupportNodeStream(
     return {
       ...state,
       messages: [...state.messages, new AIMessage(fullContent)],
-      quickReplyOptions: [],
+      quickReplyOptions: createQuickReplies(["继续倾诉", "换个话题", "结束对话"]),
       waitingForUserInput: false,
     };
   } catch (error) {
@@ -959,11 +979,11 @@ export async function* emotionSupportNodeStream(
     logger.error("Emotion support stream failed", err);
     const errorMessage = "抱歉，情感支持时出错了。请稍后再试。";
     yield errorMessage;
-    
+
     return {
       ...state,
       messages: [...state.messages, new AIMessage(errorMessage)],
-      quickReplyOptions: [],
+      quickReplyOptions: createQuickReplies(["重试", "结束对话"]),
       waitingForUserInput: false,
     };
   }

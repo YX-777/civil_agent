@@ -3,6 +3,7 @@ export interface Message {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  thoughts?: string;  // 新增：AI 思考过程
 }
 
 export interface Conversation {

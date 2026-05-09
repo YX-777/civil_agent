@@ -52,8 +52,8 @@ export function useAgent(
     }
   }, [conversationId]);
 
-  // 发送消息
-  const sendMessage = useCallback(async (text: string) => {
+  // 发送消息（支持快捷回复的上下文处理）
+  const sendMessage = useCallback(async (text: string, displayText?: string) => {
     if (!currentConversationIdRef.current) {
       console.warn("Cannot send message without conversationId");
       return;
@@ -63,11 +63,11 @@ export function useAgent(
     setError(null);
     setQuickReplies([]);
 
-    // 立即添加用户消息
+    // 用户消息显示 displayText（快捷回复场景），否则显示 text
     const userMessage: Message = {
       id: `user-${Date.now()}`,
       role: "user",
-      content: text,
+      content: displayText || text,  // 显示内容优先使用 displayText
       timestamp: new Date(),
     };
     setMessages(prev => [...prev, userMessage]);
@@ -89,7 +89,7 @@ export function useAgent(
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          message: text,
+          message: text,  // 发送给后端的是完整上下文
           userId,
           conversationId: currentConversationIdRef.current,
         }),
@@ -108,9 +108,10 @@ export function useAgent(
 
       const decoder = new TextDecoder();
       let fullContent = "";
+      let fullThought = "";  // 新增：思考过程
       let buffer = "";
 
-      // 解析传统 SSE 格式
+      // 解析传统 SSE 格式（支持 thought 和 chunk 分离）
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
@@ -128,7 +129,16 @@ export function useAgent(
           try {
             const data = JSON.parse(line.slice(6));
 
-            if (data.type === "chunk") {
+            if (data.type === "thought") {
+              // 思考过程
+              fullThought += data.content;
+              setMessages(prev => prev.map(msg =>
+                msg.id === assistantId
+                  ? { ...msg, thoughts: fullThought }
+                  : msg
+              ));
+            } else if (data.type === "chunk") {
+              // 正式回答
               fullContent += data.content;
 
               // 更新助手消息
@@ -143,6 +153,14 @@ export function useAgent(
               }
               if (data.conversationId) {
                 void onTurnDone?.(data.conversationId);
+              }
+              // 更新 thoughts（如果服务端返回了）
+              if (data.thoughts) {
+                setMessages(prev => prev.map(msg =>
+                  msg.id === assistantId
+                    ? { ...msg, thoughts: data.thoughts }
+                    : msg
+                ));
               }
             } else if (data.type === "error") {
               throw new Error(data.message || "处理失败");
@@ -189,9 +207,15 @@ export function useAgent(
     }
   }, [userId, onTurnDone]);
 
-  // 处理快捷回复
+  // 处理快捷回复（添加上下文提示）
   const handleQuickReply = useCallback((reply: QuickReply) => {
-    sendMessage(reply.text);
+    // 用户消息显示原始内容（简洁）
+    const displayText = reply.text;
+
+    // 发送给后端的消息附加上下文（让模型理解意图）
+    const contextualMessage = `用户选择了快捷回复选项：${reply.text}`;
+
+    sendMessage(contextualMessage, displayText);  // 第一个参数是发送内容，第二个是显示内容
   }, [sendMessage]);
 
   // 外部设置消息（会话切换）

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Layout, Menu, Button, Modal, Input, Empty, Typography, Dropdown, Space } from "antd";
+import { Layout, Menu, Button, Modal, Input, Typography, Dropdown, Space } from "antd";
 import { PlusOutlined, MessageOutlined, DeleteOutlined, MoreOutlined, ExclamationCircleOutlined, EditOutlined, MenuFoldOutlined, MenuUnfoldOutlined } from "@ant-design/icons";
 import { Conversation } from "@/types";
 
@@ -15,7 +15,8 @@ interface ChatSidebarProps {
   onSelectConversation: (id: string) => void;
   onDeleteConversation: (id: string) => void;
   onUpdateConversationTitle?: (id: string, newTitle: string) => void;
-  isLoading?: boolean;
+  isLoading?: boolean;  // 会话列表加载状态
+  isAgentLoading?: boolean;  // 聊天流式输出状态
   collapsed?: boolean;
   onCollapse?: (collapsed: boolean) => void;
 }
@@ -28,6 +29,7 @@ export default function ChatSidebar({
   onDeleteConversation,
   onUpdateConversationTitle,
   isLoading = false,
+  isAgentLoading = false,
   collapsed = false,
   onCollapse,
 }: ChatSidebarProps) {
@@ -125,8 +127,50 @@ export default function ChatSidebar({
   if (grouped.earlier.length > 0)
     menuItems.push({ key: "earlier-header", type: "group", label: <span style={{ color: "#9ca3af", fontSize: 12 }}>更早</span>, children: getConversationItems(grouped.earlier) });
 
-  if (conversations.length === 0 && !isLoading)
-    menuItems.push({ key: "empty", label: <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description={<Text style={{ color: "#9ca3af" }}>暂无会话</Text>} />, disabled: true });
+  // 会话列表区域
+  const renderConversationList = () => {
+    // loading 时显示空状态图标（不显示骨架屏）
+    if (isLoading) {
+      return (
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px 16px",
+          color: "#9ca3af",
+        }}>
+          <MessageOutlined style={{ fontSize: 32, marginBottom: 12 }} />
+          <Text style={{ color: "#9ca3af", fontSize: 14 }}>加载中...</Text>
+        </div>
+      );
+    }
+
+    if (conversations.length === 0) {
+      return (
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          padding: "40px 16px",
+          color: "#9ca3af",
+        }}>
+          <MessageOutlined style={{ fontSize: 32, marginBottom: 12 }} />
+          <Text style={{ color: "#9ca3af", fontSize: 14 }}>暂无会话</Text>
+        </div>
+      );
+    }
+
+    return (
+      <Menu
+        mode="inline"
+        selectedKeys={currentConversationId ? [currentConversationId] : []}
+        items={menuItems}
+        style={{ border: "none", background: "transparent" }}
+      />
+    );
+  };
 
   return (
     <>
@@ -245,28 +289,30 @@ export default function ChatSidebar({
           />
         </div>
 
-        {/* 新建对话按钮 */}
-        <div style={{ padding: "12px 16px" }}>
-          <Button
-            icon={<PlusOutlined />}
-            onClick={onCreateConversation}
-            block
-            style={{
-              borderRadius: 10,
-              background: "#fff",
-              border: "1px solid #e5e7eb",
-              color: "#6b7280",
-              height: 40,
-              fontSize: 14,
-            }}
-          >
-            开启新对话
-          </Button>
-        </div>
+        {/* 新建对话按钮 - Loading 或 Agent Loading 时隐藏 */}
+        {!isLoading && !isAgentLoading && (
+          <div style={{ padding: "12px 16px" }}>
+            <Button
+              icon={<PlusOutlined />}
+              onClick={onCreateConversation}
+              block
+              style={{
+                borderRadius: 10,
+                background: "#fff",
+                border: "1px solid #e5e7eb",
+                color: "#6b7280",
+                height: 40,
+                fontSize: 14,
+              }}
+            >
+              开启新对话
+            </Button>
+          </div>
+        )}
 
         {/* 会话列表 */}
         <div style={{ padding: "8px", flex: 1, overflowY: "auto" }}>
-          <Menu mode="inline" selectedKeys={currentConversationId ? [currentConversationId] : []} items={menuItems} style={{ border: "none", background: "transparent" }} />
+          {renderConversationList()}
         </div>
       </Sider>
 

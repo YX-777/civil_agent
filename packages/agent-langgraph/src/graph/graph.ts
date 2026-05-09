@@ -20,6 +20,8 @@ import {
   generalQANode,
   generateResponseNode,
   generalQANodeStream,
+  StreamChunk,
+  streamDashscopeAPIWithThinking,
 } from "./nodes";
 import { routeByIntent } from "./edges";
 import { getAgentConfig, validateAgentConfig } from "../config/agent.config";
@@ -88,16 +90,20 @@ export function createAgentGraph() {
     },
 
     /**
-     * 流式执行（支持真正的逐字符流式输出）
+     * 流式执行（支持真正的逐字符流式输出 + 思考过程）
      *
      * 实现原理：
      * 1. 先执行意图识别（非流式）
      * 2. 根据意图选择对应的流式节点
      * 3. 直接调用流式节点，逐字符 yield
+     *
+     * 返回类型：StreamChunk = { type: "thought" | "content"; text: string }
+     * - thought: 思考过程（灰色背景区域）
+     * - content: 正式回答
      */
     processStateStream: async function* (
       state: GraphStateType
-    ): AsyncGenerator<string, GraphStateType, unknown> {
+    ): AsyncGenerator<StreamChunk, GraphStateType, unknown> {
       // Step 1: 执行意图识别（非流式，快速）
       const intentResult = await intentRecognitionNode(state);
       const currentState: GraphStateType = {
@@ -120,21 +126,40 @@ export function createAgentGraph() {
       // Step 2: 根据意图选择流式节点
       try {
         if (intent === "create_task") {
-          // 任务生成节点（非流式，整块返回）
-          const result = await taskGenerationNode(currentState);
-          if (result.messages?.length) {
-            const lastMessage = result.messages[result.messages.length - 1];
-            if (lastMessage?.content) {
-              yield lastMessage.content as string;
+          // 任务生成节点（使用带思考的流式）
+          const lastUserMessage = currentState.messages.filter(m => m.role === "user").pop();
+          const userRequest = typeof lastUserMessage?.content === "string"
+            ? lastUserMessage.content
+            : "用户想学习技术";
+
+          const planSystemPrompt = `你是 TechMate 任务规划引擎。请先分析用户需求，再生成学习计划。
+
+分析步骤：
+1. 用户的技术背景是什么？
+2. 用户想要学习什么？
+3. 合适的学习路径是什么？
+
+然后输出 JSON 格式的学习计划。`;
+
+          const planUserPrompt = `用户需求：${userRequest}\n请生成技术学习计划。`;
+
+          let planJson = "";
+          for await (const chunk of streamDashscopeAPIWithThinking(planSystemPrompt, planUserPrompt)) {
+            yield chunk;
+            if (chunk.type === "content") {
+              planJson += chunk.text;
             }
           }
+
+          // 解析 JSON...
+          const result = await taskGenerationNode(currentState);
           return { ...currentState, ...result } as GraphStateType;
         } else if (intent === "progress_tracking") {
           const result = await progressQueryNode(currentState);
           if (result.messages?.length) {
             const lastMessage = result.messages[result.messages.length - 1];
             if (lastMessage?.content) {
-              yield lastMessage.content as string;
+              yield { type: "content", text: lastMessage.content as string };
             }
           }
           return { ...currentState, ...result } as GraphStateType;
@@ -143,7 +168,7 @@ export function createAgentGraph() {
           if (result.messages?.length) {
             const lastMessage = result.messages[result.messages.length - 1];
             if (lastMessage?.content) {
-              yield lastMessage.content as string;
+              yield { type: "content", text: lastMessage.content as string };
             }
           }
           return { ...currentState, ...result } as GraphStateType;
@@ -151,19 +176,17 @@ export function createAgentGraph() {
           // 默认（包括 general_inquiry）使用通用问答流式
           const streamGenerator = generalQANodeStream(currentState);
 
-          // 逐字符 yield
+          // generalQANodeStream 现在直接返回 StreamChunk
           for await (const chunk of streamGenerator) {
             yield chunk;
           }
 
-          // 获取返回值（async generator 自然结束）
           return currentState;
-
         }
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));
         logger.error("Stream processing error:", err);
-        yield "抱歉，处理您的消息时出现了错误。请稍后再试。";
+        yield { type: "content", text: "抱歉，处理您的消息时出现了错误。请稍后再试。" };
         return currentState;
       }
     },

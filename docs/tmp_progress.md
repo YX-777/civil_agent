@@ -1,6 +1,84 @@
 # TechMate 改造进度记录
 
-> 最后更新：2026-05-08
+> 最后更新：2026-05-09
+
+---
+
+## 一、本次会话总结（2026-05-09）
+
+### 1.1 腾讯云 Windows Server 部署 ✅
+
+**目标**：将 TechMate 部署到腾讯云 Windows Server，供面试官在线体验
+
+**服务器配置**：
+- 腾讯云 Windows Server L8zt
+- 内存：2GB（限制了构建和 ChromaDB 运行）
+- Node.js：v18.20.0
+- Python：3.9
+
+**关键问题及解决**：
+
+| 问题 | 原因 | 解决方案 |
+|------|------|----------|
+| `JavaScript heap out of memory` | 服务器 2GB 内存不足 | 增加 Windows 虚拟内存（8-12GB），`NODE_OPTIONS="--max-old-space-size=6144"` |
+| `pnpm symlink` 失效 | Windows symlink 兼容性问题 | 配置 `.npmrc` 添加 `shamefully-hoist=true` |
+| `Cannot find module 'next'` | pnpm 工作区链接在 Windows 下断裂 | 用 `node node_modules/next/dist/bin/next build` 直接调用 |
+| `PrismaClient not found` | Prisma Client 未生成 | `node node_modules/prisma/build/index.js generate --schema=...` |
+| `users 表不存在` | 数据库未初始化 | 执行 `prisma db push` + Python 插入默认用户 |
+| `Foreign key constraint` | 用户未插入到数据库 | Python 脚本插入 `default-user` |
+| `ChromaDB Segmentation fault` | 服务器内存不足，向量计算崩溃 | 暂时接受，向量存储失败不影响基本对话 |
+| `ECONNREFUSED ::1:8000` | IPv6/IPv4 地址问题 | `.env` 改为 `CHROMADB_URL=http://127.0.0.1:8000` |
+
+**新增文件**：
+
+| 文件 | 功能 |
+|------|------|
+| `update-server.sh` | 服务器一键更新脚本（git pull + 清理 + 安装 + 构建） |
+
+**部署成功状态**：
+- ✅ Web 服务运行在 `http://公网IP:3000`
+- ✅ 基本对话功能可用
+- ⚠️ ChromaDB 向量存储因内存不足间歇崩溃（不影响对话）
+
+### 1.2 Windows Server 部署步骤总结
+
+```bash
+# 1. 虚拟内存配置（控制面板 → 系统 → 高级 → 性能 → 虚拟内存）
+初始大小: 4096 MB, 最大大小: 8192 MB
+
+# 2. 初始化项目
+cd C:/Users/Administrator/Desktop/code/tech_mate
+bash init-first-run.sh  # 或手动执行各步骤
+
+# 3. 初始化数据库
+export DATABASE_URL="file:./packages/database/prisma/data/tech-mate.db"
+node node_modules/prisma/build/index.js db push --schema=packages/database/prisma/schema.prisma
+cp packages/database/prisma/data/tech-mate.db packages/web/data/tech-mate.db
+# Python 插入默认用户...
+
+# 4. 启动服务
+# 窗口1: ChromaDB
+chroma run --host 127.0.0.1 --port 8000 --path ./data/chroma
+
+# 窗口2: Web
+cd packages/web
+export DATABASE_URL="file:./data/tech-mate.db"
+node ../../node_modules/next/dist/bin/next start -H 0.0.0.0
+
+# 5. 外部访问
+http://公网IP:3000
+```
+
+### 1.3 服务器更新流程
+
+```bash
+# 每次代码更新后执行
+cd C:/Users/Administrator/Desktop/code/tech_mate
+git pull
+bash update-server.sh
+
+# 然后重启服务
+```
 
 ---
 
@@ -1089,7 +1167,7 @@ INFO : Agent graph created successfully with StateGraph
 
 ---
 
-## 十一、当前进度总览（更新 2026-05-08）
+## 十一、当前进度总览（更新 2026-05-09）
 
 | Phase | 任务 | 状态 |
 |-------|------|------|
@@ -1107,8 +1185,9 @@ INFO : Agent graph created successfully with StateGraph
 | P2-2 | ISR 静态增量渲染（Dashboard页面） | ✅ 完成 |
 | P2-3 | LangGraph StateGraph 改造 | ✅ 完成 |
 | P3 | Chat UI 交互体验升级（DeepSeek风格） | ✅ 完成 |
-| **P4** | **项目改名（civil-agent → tech-mate）** | ✅ 完成 |
-| **P4-2** | **部署脚本完善（init-first-run + Windows指南）** | ✅ 完成 |
+| P4 | 项目改名（civil-agent → tech-mate） | ✅ 完成 |
+| P4-2 | 部署脚本完善（init-first-run + Windows指南） | ✅ 完成 |
+| **P5** | **腾讯云 Windows Server 部署** | ✅ 完成 |
 | P1-3 | GuardRail 三层防护 | 🔜 待开始（用户暂缓） |
 
 ---

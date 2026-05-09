@@ -60,3 +60,6 @@ data/
 
 # SQLite 数据库文件
 *.db
+
+# Interview docs (private)
+/interview/

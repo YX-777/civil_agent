@@ -40,6 +40,73 @@ function ThinkingIndicator() {
   );
 }
 
+// 思考过程展示组件（实时流式 + 可折叠）
+function ThoughtSection({
+  thoughts,
+  isStreamingThought
+}: {
+  thoughts: string;
+  isStreamingThought?: boolean;
+}) {
+  const [expanded, setExpanded] = useState(true);  // 默认展开
+
+  if (!thoughts) return null;
+
+  return (
+    <div
+      style={{
+        marginBottom: 12,
+        padding: "8px 12px",
+        background: "#f8f9fa",
+        borderRadius: 8,
+        border: "1px solid #e9ecef",
+      }}
+    >
+      {/* 流式思考时显示实时内容，思考完成后显示折叠按钮 */}
+      {isStreamingThought ? (
+        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
+          <span style={{ fontSize: 12, color: "#8b5cf6", fontWeight: 500 }}>🧠 思考中...</span>
+          <span className="streaming-cursor" style={{ color: "#8b5cf6" }}>▎</span>
+        </div>
+      ) : (
+        <button
+          onClick={() => setExpanded(!expanded)}
+          style={{
+            color: "#6b7280",
+            fontSize: 13,
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            padding: 0,
+            display: "flex",
+            alignItems: "center",
+            gap: 4,
+          }}
+        >
+          <span style={{ fontSize: 10 }}>{expanded ? "▼" : "▶"}</span>
+          {expanded ? "隐藏推理过程" : "展开推理过程"}
+        </button>
+      )}
+
+      {/* 始终显示思考内容（流式时也显示） */}
+      {(expanded || isStreamingThought) && (
+        <div
+          style={{
+            marginTop: isStreamingThought ? 0 : 8,
+            color: "#4b5563",
+            fontSize: 14,
+            lineHeight: 1.6,
+            maxHeight: 300,
+            overflowY: "auto",
+          }}
+        >
+          <XMarkdown>{thoughts}</XMarkdown>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // AI头像 - 和Logo一样的紫色渐变T字母
 function AIAvatar() {
   return (
@@ -129,24 +196,41 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
 
       {/* 内容区域 - 无背景框 */}
       <div style={{ flex: 1, minWidth: 0, maxWidth: "100%" }}>
-        {isStreaming && !message.content ? (
+        {/* 等待思考开始：显示 "正在思考" */}
+        {isStreaming && !message.thoughts ? (
           <ThinkingIndicator />
         ) : (
           <>
-            <div
-              className="message-content-wrapper"
-              style={{
-                fontSize: 15,
-                lineHeight: 1.7,
-                color: "#374151",
-                maxWidth: "100%",
-              }}
-            >
-              <XMarkdown>{message.content}</XMarkdown>
-              {isStreaming && (
-                <span className="streaming-cursor" style={{ marginLeft: 2, color: "#6366f1" }}>▎</span>
-              )}
-            </div>
+            {/* 思考过程（实时流式显示） */}
+            {message.thoughts && (
+              <ThoughtSection
+                thoughts={message.thoughts}
+                isStreamingThought={isStreaming && !message.content}
+              />
+            )}
+
+            {/* 正式回答 */}
+            {message.content && (
+              <div
+                className="message-content-wrapper"
+                style={{
+                  fontSize: 15,
+                  lineHeight: 1.7,
+                  color: "#374151",
+                  maxWidth: "100%",
+                }}
+              >
+                <XMarkdown>{message.content}</XMarkdown>
+                {isStreaming && (
+                  <span className="streaming-cursor" style={{ marginLeft: 2, color: "#6366f1" }}>▎</span>
+                )}
+              </div>
+            )}
+
+            {/* 正式回答还没开始，思考已完成：显示等待 */}
+            {!message.content && message.thoughts && !isStreaming && (
+              <div style={{ color: "#9ca3af", fontSize: 14 }}>准备回答...</div>
+            )}
 
             {/* 固定显示的操作栏 */}
             <div

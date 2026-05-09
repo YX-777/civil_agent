@@ -562,8 +562,10 @@ export async function POST(request: NextRequest) {
     // ========== Span: Agent 处理 ==========
     const agentSpan = trace.startSpan("agent_process");
 
-    // ========== 使用传统 SSE 格式 ==========
-    // 格式: data: {"type":"chunk","content":"..."}\n\n
+    // ========== 使用传统 SSE 格式（支持思考过程）==========
+    // 格式:
+    //   thought: data: {"type":"thought","content":"思考片段"}\n\n
+    //   content: data: {"type":"chunk","content":"回答片段"}\n\n
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({
@@ -571,9 +573,10 @@ export async function POST(request: NextRequest) {
         try {
           const streamGenerator = agentGraph.processStateStream(updatedState);
           let fullAssistantContent = "";
+          let fullThoughtContent = "";
           let finalState: any = updatedState;
 
-          // 流式发送文本内容
+          // 流式发送文本内容（支持 thought 和 content 分离）
           while (true) {
             const result = await streamGenerator.next();
             if (result.done) {
@@ -581,9 +584,16 @@ export async function POST(request: NextRequest) {
               break;
             }
             const chunk = result.value;
-            fullAssistantContent += chunk;
-            // 传统 SSE 格式
-            controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "chunk", content: chunk })}\n\n`));
+
+            // 根据 chunk 类型发送不同的 SSE 事件
+            if (chunk.type === "thought") {
+              fullThoughtContent += chunk.text;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "thought", content: chunk.text })}\n\n`));
+            } else {
+              // content 类型（正式回答）
+              fullAssistantContent += chunk.text;
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "chunk", content: chunk.text })}\n\n`));
+            }
           }
 
           // 结束 Agent Span
@@ -635,13 +645,14 @@ export async function POST(request: NextRequest) {
               ).catch(err => console.error("[Memory] ChromaDB同步失败:", err));
             }
 
-            // 发送完成事件
+            // 发送完成事件（包含思考过程）
             const quickReplies = persistedState.quickReplyOptions || [];
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({
               type: "done",
               quickReplies,
               conversationId: effectiveConversationId,
               turnId,
+              thoughts: fullThoughtContent || undefined,  // 新增：思考过程
             })}\n\n`));
           }
 
