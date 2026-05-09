@@ -32,9 +32,17 @@ echo "4. 生成 Prisma Client..."
 export DATABASE_URL="file:./packages/database/prisma/data/tech-mate.db"
 node node_modules/prisma/build/index.js generate --schema=packages/database/prisma/schema.prisma
 
-# 5. 构建项目（内存限制）
+# 5. 编译 TypeScript 包（关键！）
 echo ""
-echo "5. 构建项目..."
+echo "5. 编译 TypeScript 包..."
+cd packages/agent-langgraph && pnpm build && cd ../..
+cd packages/database && pnpm build && cd ../..
+cd packages/rag-engine && pnpm build && cd ../..
+cd packages/core && pnpm build && cd ../..
+
+# 6. 构建项目（内存限制）
+echo ""
+echo "6. 构建项目..."
 export NODE_OPTIONS="--max-old-space-size=12000"
 node node_modules/next/dist/bin/next build packages/web
 
