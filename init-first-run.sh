@@ -28,9 +28,9 @@ npx prisma generate
 cd ..
 echo "   ✅ Prisma Client 已生成"
 
-# 3. 构建所有包
+# 3. 构建所有包（增加内存限制，解决服务器内存不足问题）
 echo "🔨 构建项目..."
-pnpm -r build
+NODE_OPTIONS="--max-old-space-size=4096" pnpm -r build
 echo "   ✅ 项目已构建"
 
 # 4. 初始化数据库
