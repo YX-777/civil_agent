@@ -53,21 +53,30 @@ export class VectorDBService {
       return;
     }
 
-    // 如果之前初始化失败，直接跳过（避免重复报错）
+    // 如果之前初始化失败，等待一段时间后重试（而不是永久放弃）
     if (this.initFailed) {
-      return;
+      const retryDelay = 5000; // 5秒后重试
+      console.log(`[VectorDB] 初始化失败，${retryDelay}ms 后重试...`);
+      await new Promise(resolve => setTimeout(resolve, retryDelay));
+      this.initFailed = false; // 重置失败标记，允许重试
     }
 
     try {
+      console.log(`[VectorDB] 正在连接 ChromaDB: ${this.vectorDbPath}`);
       const { ChromaClient } = await getChromaDBClasses();
       this.chromaClient = new ChromaClient({ path: this.vectorDbPath });
 
+      // 测试连接
+      await this.chromaClient.heartbeat();
+      console.log(`[VectorDB] ChromaDB 连接成功`);
+
       await this.initializeCollections();
       this.initialized = true;
+      this.initFailed = false; // 成功后重置失败标记
     } catch (error) {
       console.error('Failed to initialize VectorDB:', error);
-      this.initFailed = true;  // 标记失败，不再重复初始化
-      // 不抛错，让主流程继续
+      this.initFailed = true;
+      // 不抛错，让主流程继续，但下次会尝试重试
     }
   }
 
@@ -83,13 +92,18 @@ export class VectorDBService {
     ];
 
     for (const config of collections) {
-      await this.createCollection(config.name, config.metadata);
+      try {
+        await this.createCollection(config.name, config.metadata);
+      } catch {
+        // 创建失败时继续，不阻断流程
+      }
     }
   }
 
   async createCollection(name: string, metadata?: any): Promise<void> {
     if (!this.chromaClient) {
-      throw new Error('VectorDB not initialized');
+      // 不抛错，直接返回
+      return;
     }
 
     try {
@@ -104,7 +118,7 @@ export class VectorDBService {
       this.collections.set(name, collection);
     } catch (error) {
       console.error(`Failed to create collection ${name}:`, error);
-      throw error;
+      // 不抛错，直接返回
     }
   }
 

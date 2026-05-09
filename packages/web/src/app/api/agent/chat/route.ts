@@ -634,17 +634,23 @@ export async function POST(request: NextRequest) {
               `[Agent API] turn_commit_success user=${effectiveUserId} conversation=${effectiveConversationId} turn=${turnId}`
             );
 
-            // ========== 异步同步短期记忆到 ChromaDB（暂时禁用）==========
-            // ChromaDB 同频失败不影响主流程，暂时禁用
-            // const shortMemoryId = persistedState._shortMemoryId;
-            // if (shortMemoryId && process.env.VECTOR_DB_PATH) {
-            //   syncShortMemoryToChroma(
-            //     shortMemoryId,
-            //     effectiveUserId,
-            //     sanitizeContent(userMessage.content).slice(0, 200),
-            //     JSON.stringify(extractTopicTags(message))
-            //   ).catch(err => console.error("[Memory] ChromaDB同步失败:", err));
-            // }
+            // ========== 异步同步短期记忆到 ChromaDB ==========
+            // ChromaDB 同频失败不影响主流程，但会记录错误日志
+            const shortMemoryId = persistedState._shortMemoryId;
+            if (shortMemoryId) {
+              syncShortMemoryToChroma(
+                shortMemoryId,
+                effectiveUserId,
+                sanitizeContent(userMessage.content).slice(0, 200),
+                JSON.stringify(extractTopicTags(message))
+              ).catch(err => {
+                console.error("[Memory] ChromaDB同步失败（不影响主流程）:", err);
+                // 提示用户检查 ChromaDB Server 是否启动
+                if (err.message?.includes('ECONNREFUSED') || err.message?.includes('connect')) {
+                  console.error("[Memory] 请确保 ChromaDB Server 已启动: chroma run --host 127.0.0.1 --port 8000 --path ./data/chroma");
+                }
+              });
+            }
 
             // 发送完成事件（包含思考过程）
             const quickReplies = persistedState.quickReplyOptions || [];

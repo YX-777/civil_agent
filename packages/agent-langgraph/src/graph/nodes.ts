@@ -63,6 +63,31 @@ export interface StreamChunk {
   text: string;
 }
 
+/**
+ * 过滤思考标签
+ * Qwen3 enable_thinking 开启后，content 可能仍包含思考标签
+ * 此函数过滤掉这些标签，只保留纯答案内容
+ */
+function filterThinkingTags(text: string): string {
+  if (!text) return "";
+
+  let filtered = text;
+
+  // 过滤 Qwen3 思考标签（特殊字符格式）
+  // 标签格式：темы...\/темы
+  // 直接使用正则匹配
+  filtered = filtered.replace(/темы[\s\S]*?темы/gi, "");
+
+  // 过滤其他常见的思考分隔符格式
+  filtered = filtered.replace(/<\|thought\|>/gi, "");
+  filtered = filtered.replace(/<\|begin_of_thought\|>[\s\S]*?<\|end_of_thought\|>/gi, "");
+
+  // 清理多余的空行
+  filtered = filtered.replace(/\n{3,}/g, "\n\n");
+
+  return filtered.trim();
+}
+
 export async function* streamDashscopeAPIWithThinking(
   systemPrompt: string,
   userPrompt: string
@@ -130,14 +155,19 @@ export async function* streamDashscopeAPIWithThinking(
 
         chunkCount++;
 
-        // 输出调试日志（每10个chunk输出一次，避免日志过多）
-        if (chunkCount <= 3 || chunkCount % 10 === 0) {
+        // 输出调试日志（前3个chunk输出完整信息，后续只输出 keys）
+        if (chunkCount <= 3) {
+          console.log(`[DashScope SSE #${chunkCount}] delta:`, JSON.stringify(delta));
+        } else if (chunkCount % 10 === 0) {
           console.log(`[DashScope SSE #${chunkCount}] delta keys:`, Object.keys(delta));
         }
 
         // 兼容多种可能的字段名
         const thoughtText = delta?.reasoning_content || delta?.reasoning || "";
-        const contentText = delta?.content || delta?.text || "";
+        let contentText = delta?.content || delta?.text || "";
+
+        // 过滤思考标签：content 可能包含思考过程标签
+        contentText = filterThinkingTags(contentText);
 
         if (thoughtText) {
           yield { type: "thought", text: thoughtText };
