@@ -32,6 +32,7 @@ export class VectorDBService {
   private chromaClient: any;
   private collections: Map<any, any> = new Map();
   private initialized: boolean = false;
+  private initFailed: boolean = false;  // 新增：标记初始化失败
   private vectorDbPath: string;
 
   constructor(vectorDbPath?: string) {
@@ -52,6 +53,11 @@ export class VectorDBService {
       return;
     }
 
+    // 如果之前初始化失败，直接跳过（避免重复报错）
+    if (this.initFailed) {
+      return;
+    }
+
     try {
       const { ChromaClient } = await getChromaDBClasses();
       this.chromaClient = new ChromaClient({ path: this.vectorDbPath });
@@ -60,7 +66,8 @@ export class VectorDBService {
       this.initialized = true;
     } catch (error) {
       console.error('Failed to initialize VectorDB:', error);
-      throw error;
+      this.initFailed = true;  // 标记失败，不再重复初始化
+      // 不抛错，让主流程继续
     }
   }
 
@@ -163,9 +170,14 @@ export class VectorDBService {
       await this.initialize();
     }
 
+    // 如果初始化失败，返回空数组
+    if (this.initFailed) {
+      return [];
+    }
+
     const coll = this.collections.get(collection);
     if (!coll) {
-      throw new Error(`Collection ${collection} not found`);
+      return [];  // Collection 不存在也返回空数组
     }
 
     try {
@@ -193,7 +205,7 @@ export class VectorDBService {
       return searchResults;
     } catch (error) {
       console.error(`Failed to search in ${collection}:`, error);
-      throw error;
+      return [];  // 搜索失败返回空数组，不抛错
     }
   }
 

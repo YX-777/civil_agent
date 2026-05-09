@@ -190,37 +190,43 @@ export class LongMemoryArchiver {
   }[]> {
     console.log(`[LongMemory] 搜索: "${query.slice(0, 50)}..."`);
 
-    const embeddingService = getEmbeddingService();
-    const vectorService = getVectorDBService();
+    try {
+      const embeddingService = getEmbeddingService();
+      const vectorService = getVectorDBService();
 
-    // 生成查询向量
-    const queryVector = await embeddingService.generateEmbedding(query);
+      // 生成查询向量
+      const queryVector = await embeddingService.generateEmbedding(query);
 
-    // ChromaDB 搜索
-    const results = await vectorService.search(
-      this.COLLECTION_NAME,
-      queryVector,
-      topK * 2, // 取更多结果，后面按权重排序
-      { user_id: userId }
-    );
+      // ChromaDB 搜索
+      const results = await vectorService.search(
+        this.COLLECTION_NAME,
+        queryVector,
+        topK * 2, // 取更多结果，后面按权重排序
+        { user_id: userId }
+      );
 
-    // 权重加权排序
-    const weightedResults = results.map((r: any) => {
-      const similarity = 1 - (r.distance || 0);
-      const weight = r.metadata?.weight || 0.5;
-      const finalScore = similarity * weight;
+      // 权重加权排序
+      const weightedResults = results.map((r: any) => {
+        const similarity = 1 - (r.distance || 0);
+        const weight = r.metadata?.weight || 0.5;
+        const finalScore = similarity * weight;
 
-      console.log(`  - ${r.id}: 相似度=${similarity.toFixed(2)}, 权重=${weight.toFixed(2)}, 最终=${finalScore.toFixed(2)}`);
+        console.log(`  - ${r.id}: 相似度=${similarity.toFixed(2)}, 权重=${weight.toFixed(2)}, 最终=${finalScore.toFixed(2)}`);
 
-      return {
-        content: r.content || r.metadata?.content || "",
-        score: finalScore,
-        metadata: r.metadata as LongMemoryMetadata,
-      };
-    }).sort((a, b) => b.score - a.score);
+        return {
+          content: r.content || r.metadata?.content || "",
+          score: finalScore,
+          metadata: r.metadata as LongMemoryMetadata,
+        };
+      }).sort((a, b) => b.score - a.score);
 
-    // 返回 topK
-    return weightedResults.slice(0, topK);
+      // 返回 topK
+      return weightedResults.slice(0, topK);
+    } catch (error) {
+      // ChromaDB 不可用时返回空数组，不阻断主流程
+      console.error(`[LongMemory] 长期记忆获取失败:`, error);
+      return [];
+    }
   }
 }
 
