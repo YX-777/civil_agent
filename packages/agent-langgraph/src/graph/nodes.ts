@@ -90,35 +90,63 @@ export async function* streamDashscopeAPIWithThinking(
   });
 
   const reader = response.body?.getReader();
-  if (!reader) return;
+  if (!reader) {
+    console.error('[DashScope] No reader available');
+    return;
+  }
 
   const decoder = new TextDecoder();
   let buffer = "";
+  let chunkCount = 0;
 
   while (true) {
     const { done, value } = await reader.read();
-    if (done) break;
+    if (done) {
+      console.log(`[DashScope] Stream ended, total chunks: ${chunkCount}`);
+      break;
+    }
 
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
     buffer = lines.pop() || "";
 
     for (const line of lines) {
-      if (line.startsWith("data: ")) {
-        const dataStr = line.slice(6);
-        if (dataStr === "[DONE]") continue;
-        try {
-          const parsed = JSON.parse(dataStr) as any;
-          const delta = parsed.choices?.[0]?.delta;
+      if (!line.trim()) continue;
+      if (!line.startsWith("data: ")) {
+        console.log('[DashScope] Non-data line:', line);
+        continue;
+      }
 
-          // 分离思考过程和正式回答
-          if (delta?.reasoning_content) {
-            yield { type: "thought", text: delta.reasoning_content };
-          }
-          if (delta?.content) {
-            yield { type: "content", text: delta.content };
-          }
-        } catch {}
+      const dataStr = line.slice(6).trim();
+      if (dataStr === "[DONE]") {
+        console.log('[DashScope] Received [DONE]');
+        continue;
+      }
+
+      try {
+        const parsed = JSON.parse(dataStr) as any;
+        const choice = parsed.choices?.[0];
+        const delta = choice?.delta || choice?.message || {};
+
+        chunkCount++;
+
+        // 输出调试日志（每10个chunk输出一次，避免日志过多）
+        if (chunkCount <= 3 || chunkCount % 10 === 0) {
+          console.log(`[DashScope SSE #${chunkCount}] delta keys:`, Object.keys(delta));
+        }
+
+        // 兼容多种可能的字段名
+        const thoughtText = delta?.reasoning_content || delta?.reasoning || "";
+        const contentText = delta?.content || delta?.text || "";
+
+        if (thoughtText) {
+          yield { type: "thought", text: thoughtText };
+        }
+        if (contentText) {
+          yield { type: "content", text: contentText };
+        }
+      } catch (parseError) {
+        console.error('[DashScope SSE] Parse error:', parseError, 'Raw:', dataStr.substring(0, 100));
       }
     }
   }
