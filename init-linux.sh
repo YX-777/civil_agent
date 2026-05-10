@@ -1,9 +1,16 @@
 #!/bin/bash
 # TechMate Linux 环境初始化脚本
 # 用于腾讯云 Ubuntu Server 22.04 LTS 首次部署
-# 使用方法：curl -fsSL https://xxx/init-linux.sh | bash
+# 使用方法：sudo bash init-linux.sh
 
 set -e
+
+# 检查 root 权限
+if [ "$EUID" -ne 0 ]; then
+    echo "❌ 请使用 root 权限运行此脚本"
+    echo "   sudo bash init-linux.sh"
+    exit 1
+fi
 
 echo "=========================================="
 echo "  TechMate Linux 环境初始化"

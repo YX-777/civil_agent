@@ -1,11 +1,22 @@
 #!/bin/bash
 # TechMate Linux 一键部署脚本
 # 包含：环境初始化 + 项目初始化 + 启动服务
-# 使用方法：curl -fsSL https://xxx/deploy-linux.sh | bash
+# 使用方法：sudo bash deploy-linux.sh
 
 set -e
 
-PROJECT_DIR="/opt/tech_mate"
+# 检查 root 权限
+if [ "$EUID" -ne 0 ]; then
+    echo "❌ 请使用 root 权限运行此脚本"
+    echo "   sudo bash deploy-linux.sh"
+    exit 1
+fi
+
+# 自动检测项目目录（优先使用脚本所在目录）
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="${SCRIPT_DIR}"
+
+echo "项目目录：$PROJECT_DIR"
 
 echo "=========================================="
 echo "  TechMate 一键部署"
@@ -89,14 +100,14 @@ mkdir -p data/chroma
 
 # 创建 systemd 服务（后台运行）
 # ChromaDB 服务
-cat > /etc/systemd/system/techmate-chroma.service << 'EOF'
+cat > /etc/systemd/system/techmate-chroma.service << EOF
 [Unit]
 Description=TechMate ChromaDB Server
 After=network.target
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/tech_mate
+WorkingDirectory=$PROJECT_DIR
 ExecStart=/usr/local/bin/chroma run --host localhost --port 8000 --path ./data/chroma
 Restart=always
 RestartSec=5
@@ -106,14 +117,14 @@ WantedBy=multi-user.target
 EOF
 
 # Web 服务
-cat > /etc/systemd/system/techmate-web.service << 'EOF'
+cat > /etc/systemd/system/techmate-web.service << EOF
 [Unit]
 Description=TechMate Web Server
 After=network.target techmate-chroma.service
 
 [Service]
 Type=simple
-WorkingDirectory=/opt/tech_mate/packages/web
+WorkingDirectory=$PROJECT_DIR/packages/web
 Environment=DATABASE_URL=file:./data/tech-mate.db
 Environment=NODE_OPTIONS=--max-old-space-size=4096
 ExecStart=/usr/bin/node ../../node_modules/next/dist/bin/next start -H 0.0.0.0
