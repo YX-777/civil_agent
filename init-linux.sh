@@ -72,7 +72,8 @@ if python3 -c "import chromadb" 2>/dev/null; then
     echo "   ChromaDB 已安装: $CHROMA_VERSION"
 else
     # Ubuntu 23.04+ 使用 PEP 668，需要 --break-system-packages
-    pip3 install --break-system-packages chromadb
+    # --ignore-installed 跳过卸载系统包（如 rich、click、bcrypt）
+    pip3 install --break-system-packages --ignore-installed chromadb
     echo "   ✅ ChromaDB 已安装"
 fi
 
