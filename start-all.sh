@@ -2,7 +2,9 @@
 
 set -euo pipefail
 
-ROOT_DIR="/Users/sxh/Code/project/civil_agent"
+# 使用脚本所在目录作为项目根目录（跨平台兼容）
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+ROOT_DIR="$SCRIPT_DIR"
 MCP_DIR="$ROOT_DIR/packages/mcp-bailian-rag"
 WEB_DIR="$ROOT_DIR"
 CHROMA_WEB_UI_DIR="$ROOT_DIR/chroma-web-ui"
