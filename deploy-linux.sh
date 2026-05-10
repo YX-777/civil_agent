@@ -100,7 +100,7 @@ echo "3️⃣  启动服务..."
 mkdir -p data/chroma
 
 # 创建 systemd 服务（后台运行）
-# ChromaDB 服务
+# ChromaDB 服务（使用 Python 模块启动，避免 CLI 路径问题）
 cat > /etc/systemd/system/techmate-chroma.service << EOF
 [Unit]
 Description=TechMate ChromaDB Server
@@ -109,7 +109,7 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=$PROJECT_DIR
-ExecStart=/usr/local/bin/chroma run --host localhost --port 8000 --path ./data/chroma
+ExecStart=/usr/bin/python3 -m chromadb run --host localhost --port 8000 --path ./data/chroma
 Restart=always
 RestartSec=5
 

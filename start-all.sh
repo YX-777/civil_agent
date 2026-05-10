@@ -93,8 +93,8 @@ sleep 2
 
 echo "💾 启动 ChromaDB Server (端口 8000)..."
 cd "$ROOT_DIR"
-# 使用 chroma CLI 直接启动（不依赖 Python 脚本）
-/Users/sxh/Library/Python/3.9/bin/chroma run --host localhost --port 8000 --path ./data/chroma >"$CHROMA_LOG" 2>&1 &
+# 使用 Python 模块启动（跨平台兼容）
+python3 -m chromadb run --host localhost --port 8000 --path ./data/chroma >"$CHROMA_LOG" 2>&1 &
 CHROMA_PID=$!
 echo "$CHROMA_PID" >"$CHROMA_PID_FILE"
 echo "   ChromaDB Server PID: $CHROMA_PID"
