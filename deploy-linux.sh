@@ -47,8 +47,8 @@ echo "   pnpm: $(pnpm -v)"
 apt install -y python3 python3-pip
 echo "   Python: $(python3 --version)"
 
-# 安装 ChromaDB
-pip3 install chromadb
+# 安装 ChromaDB（Ubuntu 23.04+ 需要 --break-system-packages）
+pip3 install --break-system-packages chromadb
 echo "   ChromaDB: 已安装"
 
 # 配置 swap（内存不足时）
