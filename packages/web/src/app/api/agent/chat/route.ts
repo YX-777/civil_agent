@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAgentGraph, createInitialState, startTrace, endTrace, TraceContext } from "@tech-mate/agent-langgraph";
+import { createAgentGraph, createInitialState, startTrace, endTrace, TraceContext, extractAndPersistFacts } from "@tech-mate/agent-langgraph";
 import { getDatabase } from "@/lib/database";
 import { getAgentStateRepository, getPrismaClient, getTaskService } from "@tech-mate/database";
 import {
@@ -162,6 +162,10 @@ async function commitConversationTurn(params: {
     // 保存记录 ID 用于后续向量同步
     params.persistedState._shortMemoryId = shortMemoryRecord.id;
     console.log(`[Memory] 短期记忆已存储(SQLite): 话题=${topicTags.join(",")}`);
+
+    // 用户事实提取（fire-and-forget）：从用户消息中识别"值得长期记忆"的事实
+    // 关键词命中（同步）+ LLM 提取（异步），直接写入 ChromaDB long_term_memory
+    void extractAndPersistFacts(userId, userMessage.content);
 
     // 助手回复也存储（可选）
     if (assistantMessage.content.length > 50) {

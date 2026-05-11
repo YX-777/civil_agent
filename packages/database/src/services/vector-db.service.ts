@@ -126,7 +126,8 @@ export class VectorDBService {
     collection: string,
     id: string,
     vector: number[],
-    metadata?: any
+    metadata?: any,
+    document?: string
   ): Promise<void> {
     if (!this.initialized) {
       await this.initialize();
@@ -141,7 +142,8 @@ export class VectorDBService {
       await coll.add({
         ids: [id],
         embeddings: [vector],
-        metadatas: metadata ? [metadata] : undefined
+        metadatas: metadata ? [metadata] : undefined,
+        documents: document ? [document] : undefined,
       });
     } catch (error) {
       console.error(`Failed to add embedding to ${collection}:`, error);

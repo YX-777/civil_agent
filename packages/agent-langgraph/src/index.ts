@@ -9,6 +9,7 @@ export { getMCPToolClient } from "./tools/mcp-tools";
 export { getEmotionDetector } from "./middleware/emotion-detector";
 export { getContextEnhancer } from "./middleware/context-enhancer";
 export { retrieveWithFallback, inferCategoryFromQuery } from "./utils/rag-fallback";
+export { extractAndPersistFacts, matchExplicitFacts } from "./memory/fact-extractor";
 
 // OpenTelemetry 可观测模块
 export {

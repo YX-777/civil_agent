@@ -309,46 +309,80 @@ function stripReferencesSection(content: string): string {
 }
 
 /**
- * Markdown 规范化（流式输出场景兜底）
+ * LLM 输出强力归一化 v3（行扫描 + 局部正则）
  *
- * 解决问题：
- * 1. LLM 偶尔输出 `###标题`（# 后没空格），react-markdown 不识别会原样显示
- * 2. 流式期间不完整的代码块（```未闭合）→ 闭合
- * 3. 列表项前缺空行 → 补
+ * 实测 qwen3.6-plus 流式输出 bug（基于真实 SSE 抓包）：
+ *  - `###X`（# 后无空格） / `text###heading`（标题没换行）
+ *  - `文字| 维度 | React | Vue |`（表格紧贴标题文字）
+ *  - `视图。 || **下一行**`（行尾 || 连接 = 缺失换行的 |\n|）
+ *  - ` ```typescript/** ` / ` ```希望... ` / ` ```--- `（代码栅栏紧贴前后内容）
+ *
+ * 注：模型本身的 intra-word 空格丢失（`Reactvs`、`defquick_sort`）无法修复，
+ *    这是 tokenizer 层面的缺陷，不属于 markdown 格式问题。
  */
 function normalizeMarkdown(content: string): string {
   if (!content) return content;
-  let text = content;
+  let text = content.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
 
-  // 1. 归一化不可见/特殊空白：全角空格 / NBSP / 零宽空格 / 回车 → 普通空格或换行
-  text = text.replace(/\r\n/g, "\n").replace(/\r/g, "\n");
-  text = text.replace(/[  -​　]/g, " ");
+  // ===== Phase 1: 代码栅栏（先于其他规则，避免误改 code 内容）=====
+  // 代码栅栏 ``` 前面非换行 → 前面补 \n\n
+  text = text.replace(/([^\n`])(```)/g, "$1\n\n$2");
+  // ```lang 后紧跟代码 → 加换行
+  text = text.replace(/(```[A-Za-z][A-Za-z0-9_+\-]*)(?=\S)/g, "$1\n");
+  // ``` 闭合后紧跟内容（非换行非反引号） → 后面补 \n\n
+  text = text.replace(/(```)(?=[^\n`])/g, "$1\n\n");
 
-  // 2. 代码块开头：```python<code> → ```python\n<code>
-  //    LLM 偶尔会把语言标签和代码挤同一行，react-markdown 不识别成代码块
-  text = text.replace(/```([A-Za-z][A-Za-z0-9_+\-]*)([^\n])/g, "```$1\n$2");
+  // ===== Phase 2: 标题（避免规则相互触发的关键：用 [^#] 排除已是标题的位置）=====
+  // 行首 #{N} 后无空格 → 加空格（lookahead 排除 # 和 \s，避免命中已正确的标题）
+  text = text.replace(/(^|\n)(#{1,6})(?![#\s])/g, "$1$2 ");
+  // 内联标题无空格（"文字###word"）→ 拆行 + 加空格；prev 排除 # 避免在 ### 内部触发
+  text = text.replace(/([^\n#\s])(#{1,6})(?![#\s])/g, "$1\n\n$2 ");
+  // 内联标题有空格（"文字### word"）→ 仅拆行；prev 排除 # 避免在 ### 内部触发
+  text = text.replace(/([^\n#])(#{1,6}[ \t]+\S)/g, "$1\n\n$2");
 
-  // 3. 代码块结尾：<code>``` 不在行首 → <code>\n```
-  //    匹配 ``` 前面非换行非反引号字符，强制插入换行
-  text = text.replace(/([^\n`])```/g, "$1\n```");
+  // ===== Phase 3: 表格（行扫描方式，避免误伤表格分隔行）=====
+  // 3a. 同一行内 inline 表格：前段文字 + |cell|cell|cell|... → 文字\n\n|...
+  //     line-by-line 处理：line 含 3+ 个 | 但首字符不是 |
+  const linesPhase3 = text.split("\n");
+  const out: string[] = [];
+  for (const line of linesPhase3) {
+    const trimmed = line.trimStart();
+    // 已经是表格行（以 | 起始）→ 原样
+    if (trimmed.startsWith("|")) {
+      out.push(line);
+      continue;
+    }
+    // 检测 "文字 | 单元 | 单元 | ...": 文字部分不含 |，至少 3 个 |
+    const m = line.match(/^([^|]+?[^|\s])([ \t]*)(\|[ \t]*[^|\n]{1,80}[ \t]*\|[ \t]*[^|\n]{1,80}[ \t]*\|.*)$/);
+    if (m && m[1].length >= 2) {
+      out.push(m[1]);
+      out.push("");
+      out.push(m[3]);
+    } else {
+      out.push(line);
+    }
+  }
+  text = out.join("\n");
 
-  // 4. 修复 # 后无空格（行首/换行后 1-6 个 #，紧跟非空白非 # 字符）
-  text = text.replace(/(^|\n)(#{1,6})(?=[^\s#])/g, "$1$2 ");
-
-  // 5. 修复行内出现 "...文字###标题..." 这种没换行的情况：把 ### 前补换行
-  text = text.replace(/([^\n])(#{1,6})\s+(?=\S)/g, (m, prev, hashes) => {
-    if (prev === " " || prev === "\t") return m;
-    return `${prev}\n\n${hashes} `;
-  });
-
-  // 4. 流式期间可能出现未闭合的代码块（```后未跟语言或未闭合），兜底闭合
-  const fenceCount = (text.match(/```/g) || []).length;
-  if (fenceCount % 2 === 1) {
-    text += "\n```";
+  // 3b. 双竖线行连接 `||` 修复（多次迭代直到收敛）
+  for (let pass = 0; pass < 5; pass++) {
+    const before = text;
+    text = text.replace(/(\|[^\n]{2,200}?)[ \t]*\|\|[ \t]*(?=\S)/g, "$1|\n| ");
+    if (text === before) break;
   }
 
-  // 5. 修复列表项前缺少空行（- 和 1. 前如果直接跟文字）
-  text = text.replace(/([^\n])\n([-*]|\d+\.)\s/g, "$1\n\n$2 ");
+  // 3c. 表格行后紧跟非表格非空内容 → 中间补空行
+  //     `|cell|\n非|内容` → `|cell|\n\n非|内容`
+  //     排除：空行、表格行、`#`（标题已处理）、`` ` `` (代码)
+  text = text.replace(/(\|[^\n]*\|)\n(?=[^\s|\n#`])/g, "$1\n\n");
+
+  // ===== Phase 4: 列表 =====
+  text = text.replace(/([^\n])\n([-*]|\d+\.)[ \t]/g, "$1\n\n$2 ");
+
+  // ===== Phase 5: 兜底 =====
+  // 未闭合代码块（流式中）
+  const fenceCount = (text.match(/```/g) || []).length;
+  if (fenceCount % 2 === 1) text += "\n```";
 
   return text;
 }
@@ -437,7 +471,7 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
           <ExecutionStepsSection steps={message.steps!} isStreaming={isStreaming && !hasContent} />
         )}
 
-        {/* 正式回答 — 使用 react-markdown + remark-gfm + 代码高亮 */}
+        {/* 正式回答 — react-markdown + remark-gfm + 强力 normalize（针对 qwen 输出 bug） */}
         {hasContent && (
           <div
             className="message-content-wrapper"
@@ -450,7 +484,7 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
               {normalizeMarkdown(stripReferencesSection(message.content))}
             </ReactMarkdown>
             {isStreaming && (
-              <span className="streaming-cursor" style={{ marginLeft: 2, color: "#6366f1" }}>▎</span>
+              <span className="streaming-cursor" style={{ marginLeft: 2, color: "#a78bfa" }}>▎</span>
             )}
           </div>
         )}

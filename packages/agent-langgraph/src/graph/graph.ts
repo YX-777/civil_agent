@@ -25,6 +25,7 @@ import {
 } from "./nodes";
 import { routeByIntent } from "./edges";
 import { getAgentConfig, validateAgentConfig } from "../config/agent.config";
+import { logAgentEvent } from "../utils/event-logger";
 
 /**
  * 把任务规划节点返回的 JSON（或中文 key:value）渲染成 markdown 表格
@@ -234,7 +235,21 @@ export function createAgentGraph() {
         stepDetail: detailParts.join(" · "),
       };
 
+      // 埋点：意图识别完成
+      logAgentEvent({
+        userId: state.userId,
+        eventType: "intent",
+        eventName: intent,
+        payload: {
+          intentLabel,
+          reasoning: decision?.reasoning,
+          keywords: decision?.keywords,
+        },
+        durationMs: Date.now() - intentT0,
+      });
+
       // Step 2: 根据意图选择流式节点
+      const nodeT0 = Date.now();
       try {
         if (intent === "create_task") {
           // === Step: 需求确认 / 信息收集 ===
@@ -311,6 +326,14 @@ export function createAgentGraph() {
             yield { type: "content", text: markdownPlan };
           }
 
+          logAgentEvent({
+            userId: state.userId,
+            eventType: "node",
+            eventName: "task_generation",
+            payload: { isAdjustment, planLength: planContent.length },
+            durationMs: Date.now() - nodeT0,
+          });
+
           return { ...currentState, ...result } as GraphStateType;
         } else if (intent === "progress_tracking") {
           const result = await progressQueryNode(currentState);
@@ -320,6 +343,12 @@ export function createAgentGraph() {
               yield { type: "content", text: lastMessage.content as string };
             }
           }
+          logAgentEvent({
+            userId: state.userId,
+            eventType: "node",
+            eventName: "progress_query",
+            durationMs: Date.now() - nodeT0,
+          });
           return { ...currentState, ...result } as GraphStateType;
         } else if (intent === "emotional_support") {
           const result = await emotionSupportNode(currentState);
@@ -329,6 +358,12 @@ export function createAgentGraph() {
               yield { type: "content", text: lastMessage.content as string };
             }
           }
+          logAgentEvent({
+            userId: state.userId,
+            eventType: "node",
+            eventName: "emotion_support",
+            durationMs: Date.now() - nodeT0,
+          });
           return { ...currentState, ...result } as GraphStateType;
         } else {
           // 默认（包括 general_inquiry）使用通用问答流式
@@ -345,6 +380,17 @@ export function createAgentGraph() {
             }
             yield r.value;
           }
+
+          logAgentEvent({
+            userId: state.userId,
+            eventType: "node",
+            eventName: "general_qa",
+            payload: {
+              sourcesCount: nodeResult?.usedSources?.length || 0,
+              ragResultsCount: nodeResult?.ragResults?.length || 0,
+            },
+            durationMs: Date.now() - nodeT0,
+          });
 
           return { ...currentState, ...(nodeResult || {}) } as GraphStateType;
         }

@@ -60,9 +60,12 @@ body {
   40% { opacity: 1; }
 }
 
-/* ========== Markdown 样式 ========== */
+/* ========== Markdown 样式（react-markdown 渲染） ========== */
 
-/* 标题：h1~h6 — 解决 ### 直接显示为文本的问题 */
+.message-content-wrapper > *:first-child { margin-top: 0 !important; }
+.message-content-wrapper > *:last-child { margin-bottom: 0 !important; }
+
+/* 标题 */
 .message-content-wrapper h1,
 .message-content-wrapper h2,
 .message-content-wrapper h3,
@@ -71,7 +74,7 @@ body {
 .message-content-wrapper h6 {
   font-weight: 600;
   line-height: 1.4;
-  margin: 16px 0 8px;
+  margin: 18px 0 8px;
   color: #1f2937;
 }
 .message-content-wrapper h1 { font-size: 22px; }
@@ -80,39 +83,37 @@ body {
 .message-content-wrapper h4 { font-size: 15px; }
 .message-content-wrapper h5,
 .message-content-wrapper h6 { font-size: 14px; color: #4b5563; }
-.message-content-wrapper > *:first-child { margin-top: 0 !important; }
 
-/* 段落与换行 */
+/* 段落 */
 .message-content-wrapper p {
   margin: 0 0 10px;
 }
-.message-content-wrapper p:last-child {
-  margin-bottom: 0;
-}
+.message-content-wrapper p:last-child { margin-bottom: 0; }
 
 /* 列表 */
 .message-content-wrapper ul,
 .message-content-wrapper ol {
-  padding-left: 22px;
+  padding-left: 24px;
   margin: 8px 0;
 }
-.message-content-wrapper li {
-  margin-bottom: 4px;
-}
-.message-content-wrapper li > p {
-  margin: 0;
-}
+.message-content-wrapper li { margin-bottom: 4px; }
+.message-content-wrapper li > p { margin: 0; }
 
 /* 粗体/斜体 */
 .message-content-wrapper strong { font-weight: 600; color: #1f2937; }
 .message-content-wrapper em { font-style: italic; }
 
-/* 行内代码 + 代码块 */
-.message-content-wrapper pre,
-.message-content-wrapper table {
-  max-width: 100%;
-  overflow-x: auto;
+/* 行内代码 */
+.message-content-wrapper code {
+  background: #f5f3ff;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 13.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  color: #c2410c;
 }
+
+/* 代码块 — 暗色主题 + 可滚动 */
 .message-content-wrapper pre {
   background: #1e293b;
   color: #f1f5f9;
@@ -122,42 +123,39 @@ body {
   font-size: 13px;
   line-height: 1.55;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  /* 超长代码块：双向滚动 + 限高，避免撑爆消息气泡 */
   max-height: 420px;
+  max-width: 100%;
   overflow: auto;
   scrollbar-width: thin;
   scrollbar-color: rgba(255,255,255,0.18) transparent;
 }
-.message-content-wrapper pre::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-.message-content-wrapper pre::-webkit-scrollbar-track {
-  background: transparent;
-}
-.message-content-wrapper pre::-webkit-scrollbar-thumb {
-  background: rgba(255,255,255,0.18);
-  border-radius: 3px;
-}
-.message-content-wrapper pre::-webkit-scrollbar-thumb:hover {
-  background: rgba(255,255,255,0.3);
-}
-.message-content-wrapper code {
-  background: #f3f4f6;
-  padding: 2px 6px;
-  border-radius: 4px;
-  font-size: 13.5px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-  color: #c2410c;
-}
+.message-content-wrapper pre::-webkit-scrollbar { width: 6px; height: 6px; }
+.message-content-wrapper pre::-webkit-scrollbar-track { background: transparent; }
+.message-content-wrapper pre::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.18); border-radius: 3px; }
+.message-content-wrapper pre::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.3); }
 .message-content-wrapper pre code {
   background: transparent;
   padding: 0;
   color: inherit;
   font-size: 13px;
 }
+/* highlight.js github 主题在暗底上对比度不足 → 重置颜色 */
+.message-content-wrapper pre code.hljs { background: transparent; color: #f1f5f9; }
+.message-content-wrapper pre code.hljs .hljs-keyword,
+.message-content-wrapper pre code.hljs .hljs-selector-tag,
+.message-content-wrapper pre code.hljs .hljs-built_in { color: #c4b5fd; }
+.message-content-wrapper pre code.hljs .hljs-string,
+.message-content-wrapper pre code.hljs .hljs-attr { color: #86efac; }
+.message-content-wrapper pre code.hljs .hljs-comment,
+.message-content-wrapper pre code.hljs .hljs-quote { color: #94a3b8; font-style: italic; }
+.message-content-wrapper pre code.hljs .hljs-number,
+.message-content-wrapper pre code.hljs .hljs-literal { color: #fbbf24; }
+.message-content-wrapper pre code.hljs .hljs-title,
+.message-content-wrapper pre code.hljs .hljs-function { color: #93c5fd; }
+.message-content-wrapper pre code.hljs .hljs-variable,
+.message-content-wrapper pre code.hljs .hljs-name { color: #fda4af; }
 
-/* 表格 — 横向滚动 + 隐藏滚动条 + 控制列宽 */
+/* 表格 — 横向滚动 */
 .message-content-wrapper table {
   display: block;
   width: 100%;
@@ -169,25 +167,18 @@ body {
   margin: 12px 0;
   font-size: 14px;
 }
-.message-content-wrapper table::-webkit-scrollbar {
-  display: none;
-}
+.message-content-wrapper table::-webkit-scrollbar { display: none; }
 .message-content-wrapper th,
 .message-content-wrapper td {
   border: 1px solid #e5e7eb;
   padding: 8px 12px;
   word-break: break-word;
+  vertical-align: top;
 }
 .message-content-wrapper th {
-  background: #f9fafb;
-  font-weight: 500;
-}
-/* 第一列（标签列）固定宽度，避免被内容撑爆 */
-.message-content-wrapper td:first-child,
-.message-content-wrapper th:first-child {
-  width: 110px;
-  min-width: 110px;
-  white-space: nowrap;
+  background: #faf9ff;
+  font-weight: 600;
+  color: #4b5563;
 }
 
 /* 链接 */
@@ -201,7 +192,7 @@ body {
 /* 引用 */
 .message-content-wrapper blockquote {
   border-left: 3px solid #a78bfa;
-  padding: 4px 12px;
+  padding: 6px 12px;
   background: #faf9ff;
   color: #6b7280;
   margin: 8px 0;

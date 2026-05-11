@@ -13,6 +13,7 @@ import {
 import { MetadataMode } from "llamaindex";
 import { getMCPToolClient } from "../tools/mcp-tools";
 import { getAgentConfig } from "../config/agent.config";
+import { logAgentEvent } from "./event-logger";
 
 export interface RAGFallbackResult {
   context: string;                         // 构建给 LLM 的 prompt
@@ -97,6 +98,7 @@ export async function retrieveWithFallback(
     topK?: number;
     preferHybrid?: boolean;
     fallbackToMCP?: boolean;
+    userId?: string;
   }
 ): Promise<RAGFallbackResult> {
   const config = getAgentConfig();
@@ -105,6 +107,17 @@ export async function retrieveWithFallback(
     topK: options?.topK ?? 5,
     preferHybrid: options?.preferHybrid ?? config.features?.ragEnabled ?? true,
     fallbackToMCP: options?.fallbackToMCP ?? true,
+  };
+  const ragT0 = Date.now();
+  const emit = (source: string, payload: Record<string, any>) => {
+    if (!options?.userId) return;
+    logAgentEvent({
+      userId: options.userId,
+      eventType: "rag",
+      eventName: source,
+      payload,
+      durationMs: Date.now() - ragT0,
+    });
   };
 
   // Step 1: 优先使用 LlamaIndex QueryEngine（HybridFusion + BGE-M3 + 三级策略）
@@ -119,14 +132,27 @@ export async function retrieveWithFallback(
 
       const hasResults = retrieveResult.sourceNodes.length > 0;
       if (hasResults || retrieveResult.tier !== "fallback") {
+        const mapped = retrieveResult.sourceNodes.slice(0, effectiveOptions.topK).map((nws) => ({
+          id: nws.node.id_,
+          content: nws.node.getContent(MetadataMode.NONE),
+          score: nws.score ?? 0,
+          metadata: nws.node.metadata || {},
+        }));
+        const avgScore = mapped.length > 0
+          ? mapped.reduce((s, r) => s + (r.score || 0), 0) / mapped.length
+          : 0;
+        emit("hybrid_retrieval", {
+          tier: retrieveResult.tier,
+          hits: mapped.length,
+          avgScore: Number(avgScore.toFixed(3)),
+          vectorCount: mapped.length,
+          bm25Count: 0,
+          webCount: 0,
+          category: effectiveOptions.category,
+        });
         return {
           context: retrieveResult.promptForLLM,
-          results: retrieveResult.sourceNodes.slice(0, effectiveOptions.topK).map((nws) => ({
-            id: nws.node.id_,
-            content: nws.node.getContent(MetadataMode.NONE),
-            score: nws.score ?? 0,
-            metadata: nws.node.metadata || {},
-          })),
+          results: mapped,
           source: "hybrid",
           tier: retrieveResult.tier,
         };
@@ -171,6 +197,12 @@ export async function retrieveWithFallback(
           .map((r: any) => r.content)
           .join("\n\n");
 
+        emit("mcp_fallback", {
+          tier: "mcp_fallback",
+          hits: mcpResult.data.results.length,
+          webCount: 0,
+          category: effectiveOptions.category,
+        });
         return {
           context: `用户问题：${query}\n相关知识：\n${context}`,
           results: mcpResult.data.results,
@@ -184,6 +216,7 @@ export async function retrieveWithFallback(
   }
 
   // Step 3: 完全失败，返回空 context
+  emit("no_results", { tier: "fallback", hits: 0 });
   return {
     context: `用户问题：${query}\n本地知识库中没有找到相关知识，请用自身知识回答。`,
     results: [],

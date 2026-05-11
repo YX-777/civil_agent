@@ -298,6 +298,31 @@ model ShortTermMemory {
   @@map("short_term_memories")
 }
 
+/// Agent 事件日志：记录每次对话中 Agent 内部的事件（意图识别、节点调用、RAG 检索等）
+/// 用于 dashboard 看板：展示系统真实运行情况
+model AgentEventLog {
+  id              String   @id @default(uuid())
+  userId          String   @map("user_id")
+  conversationId  String?  @map("conversation_id")
+
+  // 事件分类
+  eventType       String   @map("event_type")   // "intent" | "node" | "rag" | "guardrail"
+  eventName       String   @map("event_name")   // 具体事件名，如 "general_qa", "vector_retrieval"
+
+  // 负载（JSON 字符串，按 eventType 不同结构不同）
+  payloadJson     String?  @map("payload_json")
+
+  // 耗时（毫秒，可选）
+  durationMs      Int?     @map("duration_ms")
+
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([eventType, createdAt(sort: Desc)])
+  @@index([conversationId])
+  @@map("agent_event_log")
+}
+
 /// 元记忆：用户画像 + 技能图谱聚合
 model MetaMemory {
   id              String   @id @default(uuid())

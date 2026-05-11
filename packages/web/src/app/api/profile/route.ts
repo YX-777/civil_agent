@@ -6,14 +6,10 @@ const DEFAULT_USER_ID = "default-user";
 
 function serializeProfile(profile: {
   nickname: string;
-  targetScore: number;
-  examDate: Date | null;
   totalStudyDays: number;
 }) {
   return {
     nickname: profile.nickname,
-    targetScore: profile.targetScore,
-    examDate: profile.examDate ? profile.examDate.toISOString() : null,
     totalStudyDays: profile.totalStudyDays,
   };
 }
@@ -63,15 +59,9 @@ export async function PATCH(request: NextRequest) {
     const body = await request.json();
     const userId = typeof body?.userId === "string" && body.userId.trim() ? body.userId.trim() : DEFAULT_USER_ID;
     const nickname = typeof body?.nickname === "string" ? body.nickname.trim() : "";
-    const targetScore = typeof body?.targetScore === "number" ? body.targetScore : Number(body?.targetScore);
-    const examDateRaw = typeof body?.examDate === "string" ? body.examDate.trim() : "";
 
     if (!nickname) {
       return NextResponse.json({ error: "nickname is required" }, { status: 400 });
-    }
-
-    if (!Number.isFinite(targetScore) || targetScore <= 0) {
-      return NextResponse.json({ error: "targetScore must be a positive number" }, { status: 400 });
     }
 
     const userRepo = getUserRepository();
@@ -79,8 +69,6 @@ export async function PATCH(request: NextRequest) {
 
     const updatedProfile = await userRepo.updateUserProfile(userId, {
       nickname,
-      targetScore,
-      examDate: examDateRaw ? new Date(examDateRaw) : null,
     });
 
     const statsSummary = await getStatsService().getStatsSummary(userId, "all");

@@ -10,7 +10,7 @@ import BottomNav from "@/components/shared/BottomNav";
 const { Title, Text } = Typography;
 const { Content } = Layout;
 
-const modules = ["React开发", "TypeScript进阶", "JavaScript深入", "CSS布局", "算法刷题"];
+const modules = ["React 开发", "TypeScript 进阶", "JavaScript 深入", "CSS 布局", "算法练习", "Node.js 后端", "AI 应用"];
 const durations = [
   { hours: 1, label: "1小时" },
   { hours: 2, label: "2小时" },
@@ -34,7 +34,7 @@ export default function FocusPage() {
 
   if (phase === "setup") {
     return (
-      <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+      <Layout style={{ minHeight: "100vh", background: "#fff" }}>
         {contextHolder}
         <Navbar />
         <Content style={{ padding: "16px", paddingBottom: 80 }}>
@@ -116,7 +116,7 @@ export default function FocusPage() {
 
   if (phase === "active") {
     return (
-      <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+      <Layout style={{ minHeight: "100vh", background: "#fff" }}>
         {contextHolder}
         <Navbar />
         <Content style={{ padding: "16px", paddingBottom: 80 }}>
@@ -125,7 +125,7 @@ export default function FocusPage() {
               <div style={{ 
                 fontSize: 64, 
                 fontWeight: "bold", 
-                color: "#3b82f6", 
+                color: "#a78bfa", 
                 fontFamily: "monospace",
                 marginBottom: 24 
               }}>
@@ -134,7 +134,7 @@ export default function FocusPage() {
 
               <Progress
                 percent={progress}
-                strokeColor="#3b82f6"
+                strokeColor="#a78bfa"
                 strokeWidth={16}
                 style={{ marginBottom: 24 }}
               />
@@ -173,7 +173,7 @@ export default function FocusPage() {
   }
 
   return (
-    <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+    <Layout style={{ minHeight: "100vh", background: "#fff" }}>
       {contextHolder}
       <Navbar />
       <Content style={{ padding: "16px", paddingBottom: 80 }}>
@@ -185,14 +185,14 @@ export default function FocusPage() {
             </Title>
 
             <Space direction="vertical" size={16} style={{ width: "100%", marginBottom: 32 }}>
-              <Card size="small" style={{ background: "#f5f5f5", border: "none" }}>
+              <Card size="small" style={{ background: "#faf9ff", border: "1px solid #ede9fe" }}>
                 <Text type="secondary">学习时长</Text>
                 <div style={{ fontSize: 24, fontWeight: "bold", marginTop: 8 }}>
                   {session?.duration}小时
                 </div>
               </Card>
 
-              <Card size="small" style={{ background: "#f5f5f5", border: "none" }}>
+              <Card size="small" style={{ background: "#faf9ff", border: "1px solid #ede9fe" }}>
                 <Text type="secondary">学习模块</Text>
                 <div style={{ fontSize: 20, fontWeight: "bold", marginTop: 8 }}>
                   {session?.module}

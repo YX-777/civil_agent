@@ -103,9 +103,18 @@ export interface FocusSession {
 
 export interface UserProfile {
   nickname: string;
-  targetScore: number;
-  examDate: string | null;
   totalStudyDays: number;
+}
+
+export interface LongTermMemoryItem {
+  id: string;
+  content: string;
+  contentType: string;
+  weight: number;
+  accessCount: number;
+  topics: string[];
+  creationDate: string | null;
+  lastAccessed: string | null;
 }
 
 export interface XhsDetailErrorBreakdown {

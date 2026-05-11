@@ -55,3 +55,12 @@ export {
   getMemoryFusionRetriever,
   type FusedMemoryContext,
 } from "./fusion";
+
+// 用户事实提取（短期 → 长期记忆的快捷通道）
+export {
+  extractAndPersistFacts,
+  matchExplicitFacts,
+  extractFactsViaLLM,
+  persistFacts,
+  type ExtractedFact,
+} from "./fact-extractor";

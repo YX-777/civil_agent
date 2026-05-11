@@ -17,6 +17,7 @@ import { getAgentConfig } from "../config/agent.config";
 import type { GraphStateType } from "./state";
 import { retrieveWithFallback } from "../utils/rag-fallback";
 import { shouldUseWebSearch, webSearch, type WebSearchResult } from "../tools/web-search";
+import { logAgentEvent } from "../utils/event-logger";
 import {
   buildGeneralAnswerPrompt,
   resolveXiaohongshuKnowledge,
@@ -1014,7 +1015,7 @@ export async function generalQANode(
     if (config.features.ragEnabled && shouldRouteToXiaohongshuRag(content)) {
       console.log("🔍 [RAG TEST] 正在调用 LlamaIndex QueryEngine（HybridFusion + BGE-M3 重排 + 三级策略）...");
 
-      const ragFallbackResult = await retrieveWithFallback(content, { topK: 5 });
+      const ragFallbackResult = await retrieveWithFallback(content, { topK: 5, userId: state.userId });
       ragContext = ragFallbackResult.context;
       ragResults = ragFallbackResult.results;
 
@@ -1192,7 +1193,7 @@ export async function* generalQANodeStream(
         stepStatus: "running",
       };
 
-      const ragFallbackResult = await retrieveWithFallback(content, { topK: 5 });
+      const ragFallbackResult = await retrieveWithFallback(content, { topK: 5, userId: state.userId });
       ragContext = ragFallbackResult.context;
       ragResults = ragFallbackResult.results;
 
@@ -1232,6 +1233,20 @@ export async function* generalQANodeStream(
         stepStatus: "running",
       };
       webResult = await webSearch(content);
+      const webDuration = Date.now() - webT0;
+      // 写入事件日志，供 Dashboard 累加 webCount
+      logAgentEvent({
+        userId: state.userId,
+        eventType: "rag",
+        eventName: "web_search",
+        payload: {
+          webCount: webResult?.citations.length ?? 0,
+          success: !!webResult,
+          ragTier,
+          query: content.slice(0, 80),
+        },
+        durationMs: webDuration,
+      });
       yield {
         type: "step",
         text: "",
@@ -1240,7 +1255,7 @@ export async function* generalQANodeStream(
         stepIcon: "🌐",
         stepStatus: webResult ? "done" : "skip",
         stepDetail: webResult
-          ? `Tavily · ${webResult.citations.length} 个来源 · ${Date.now() - webT0}ms`
+          ? `Tavily · ${webResult.citations.length} 个来源 · ${webDuration}ms`
           : "Tavily 调用失败，跳过",
       };
     } else {

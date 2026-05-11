@@ -10,7 +10,7 @@ import BottomNav from "@/components/shared/BottomNav";
 const { Title, Text } = Typography;
 const { Content } = Layout;
 const DEFAULT_USER_ID = "default-user";
-const MODULE_OPTIONS = ["React开发", "Next.js实战", "TypeScript进阶", "JavaScript深入", "算法刷题", "前端面试"];
+const MODULE_OPTIONS = ["React 开发", "Next.js 实战", "TypeScript 进阶", "JavaScript 深入", "算法练习", "前端面试", "AI 应用开发", "Node.js 后端"];
 const DIFFICULTY_OPTIONS = [
   { label: "简单", value: "easy" },
   { label: "中等", value: "medium" },
@@ -231,7 +231,7 @@ export default function TasksPage() {
 
   if (isLoading) {
     return (
-      <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+      <Layout style={{ minHeight: "100vh", background: "#fff" }}>
         {contextHolder}
         <Navbar />
         <Content style={{ padding: "16px", paddingBottom: 80 }}>
@@ -247,7 +247,7 @@ export default function TasksPage() {
   }
 
   return (
-    <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+    <Layout style={{ minHeight: "100vh", background: "#fff" }}>
       {contextHolder}
       <Navbar />
       <Content style={{ padding: "16px", paddingBottom: 80 }}>
@@ -257,7 +257,7 @@ export default function TasksPage() {
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
             <Col xs={24} sm={8}>
               <Card>
-                <div style={{ fontSize: 32, fontWeight: "bold", color: "#3b82f6", marginBottom: 8 }}>
+                <div style={{ fontSize: 32, fontWeight: "bold", color: "#a78bfa", marginBottom: 8 }}>
                   {todayTasks.length}
                 </div>
                 <Text type="secondary">今日任务</Text>
@@ -265,7 +265,7 @@ export default function TasksPage() {
             </Col>
             <Col xs={24} sm={8}>
               <Card>
-                <div style={{ fontSize: 32, fontWeight: "bold", color: "#6366f1", marginBottom: 8 }}>
+                <div style={{ fontSize: 32, fontWeight: "bold", color: "#8b5cf6", marginBottom: 8 }}>
                   {inProgressTasks.length}
                 </div>
                 <Text type="secondary">进行中</Text>
@@ -318,7 +318,7 @@ export default function TasksPage() {
             ) : (
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
                 {todayTasks.map((task) => (
-                  <Card key={task.id} size="small" style={{ background: "#f5f5f5", border: "none" }}>
+                  <Card key={task.id} size="small" style={{ background: "#faf9ff", border: "1px solid #ede9fe" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
@@ -348,7 +348,7 @@ export default function TasksPage() {
                             <Progress
                               percent={task.progress}
                               size="small"
-                              strokeColor="#3b82f6"
+                              strokeColor="#a78bfa"
                             />
                           </div>
                         )}
@@ -367,14 +367,14 @@ export default function TasksPage() {
             ) : (
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
                 {inProgressTasks.map((task) => (
-                  <Card key={task.id} size="small" style={{ background: "#f5f5f5", border: "none" }}>
+                  <Card key={task.id} size="small" style={{ background: "#faf9ff", border: "1px solid #ede9fe" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
                       <Text strong style={{ fontSize: 14 }}>{task.title}</Text>
                       <Badge status="processing" text="进行中" />
                     </div>
                     <Progress
                       percent={task.progress}
-                      strokeColor="#3b82f6"
+                      strokeColor="#a78bfa"
                       style={{ marginBottom: 8 }}
                     />
                     <div style={{ display: "flex", justifyContent: "space-between" }}>
@@ -404,14 +404,14 @@ export default function TasksPage() {
             ) : (
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
                 {filteredTasks.map((task) => (
-                  <Card key={task.id} size="small" style={{ background: "#f5f5f5", border: "none" }}>
+                  <Card key={task.id} size="small" style={{ background: "#faf9ff", border: "1px solid #ede9fe" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
                       <div style={{ flex: 1 }}>
                         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
                           <Text strong>{task.title}</Text>
                           <Badge status={getStatusColor(task.status)} text={getStatusLabel(task.status)} />
                           <Badge
-                            color={task.source === "agent" ? "#6366f1" : "#3b82f6"}
+                            color={task.source === "agent" ? "#8b5cf6" : "#a78bfa"}
                             text={task.source === "agent" ? "Agent 创建" : "手动创建"}
                           />
                         </div>
@@ -491,7 +491,7 @@ export default function TasksPage() {
             name="title"
             rules={[{ required: true, message: "请输入任务标题" }]}
           >
-            <Input placeholder="例如：数量关系专项练习 20 题" maxLength={60} />
+            <Input placeholder="例如：React Hooks 专项练习" maxLength={60} />
           </Form.Item>
 
           <Form.Item label="任务描述" name="description">
@@ -557,7 +557,7 @@ export default function TasksPage() {
             name="title"
             rules={[{ required: true, message: "请输入任务标题" }]}
           >
-            <Input placeholder="例如：数量关系专项练习 20 题" maxLength={60} />
+            <Input placeholder="例如：React Hooks 专项练习" maxLength={60} />
           </Form.Item>
           <Form.Item label="任务描述" name="description">
             <Input.TextArea rows={3} maxLength={200} />

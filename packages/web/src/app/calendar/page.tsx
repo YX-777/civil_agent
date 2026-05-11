@@ -94,7 +94,7 @@ export default function CalendarPage() {
 
   if (isLoading) {
     return (
-      <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+      <Layout style={{ minHeight: "100vh", background: "#fff" }}>
         <Navbar />
         <Content style={{ padding: "16px", paddingBottom: 80 }}>
           <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -109,7 +109,7 @@ export default function CalendarPage() {
   }
 
   return (
-    <Layout style={{ minHeight: "100vh", background: "#f5f5f5" }}>
+    <Layout style={{ minHeight: "100vh", background: "#fff" }}>
       <Navbar />
       <Content style={{ padding: "16px", paddingBottom: 80 }}>
         <div style={{ maxWidth: 1200, margin: "0 auto" }}>
@@ -122,7 +122,7 @@ export default function CalendarPage() {
                   title="连续学习"
                   value={getConsecutiveDays()}
                   suffix="天"
-                  valueStyle={{ color: "#3b82f6", fontSize: 32 }}
+                  valueStyle={{ color: "#a78bfa", fontSize: 32 }}
                   prefix={<FireOutlined />}
                 />
               </Card>
@@ -133,7 +133,7 @@ export default function CalendarPage() {
                   title="本月学习"
                   value={getTotalLearningHours()}
                   suffix="小时"
-                  valueStyle={{ color: "#6366f1", fontSize: 32 }}
+                  valueStyle={{ color: "#8b5cf6", fontSize: 32 }}
                   prefix={<ClockCircleOutlined />}
                 />
               </Card>
@@ -203,7 +203,7 @@ export default function CalendarPage() {
                       alignItems: "center",
                       justifyContent: "center",
                       gap: 4,
-                      border: isToday ? "2px solid #3b82f6" : "1px solid #d9d9d9",
+                      border: isToday ? "2px solid #a78bfa" : "1px solid #e5e7eb",
                     }}
                   >
                     <span style={{ fontSize: 14, fontWeight: 500 }}>{dayNumber}</span>
@@ -232,14 +232,14 @@ export default function CalendarPage() {
           >
             {selectedDate && (
               <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                <Card size="small" style={{ background: "#f5f5f5", border: "none" }}>
+                <Card size="small" style={{ background: "#faf9ff", border: "1px solid #ede9fe" }}>
                   <Text type="secondary">学习时长</Text>
                   <div style={{ fontSize: 24, fontWeight: "bold", marginTop: 8 }}>
                     {selectedDate.learningHours}小时
                   </div>
                 </Card>
 
-                <Card size="small" style={{ background: "#f5f5f5", border: "none" }}>
+                <Card size="small" style={{ background: "#faf9ff", border: "1px solid #ede9fe" }}>
                   <Text type="secondary">打卡状态</Text>
                   <div style={{ fontSize: 18, fontWeight: "bold", marginTop: 8 }}>
                     {selectedDate.completed ? "✅ 已打卡" : "❌ 未打卡"}
