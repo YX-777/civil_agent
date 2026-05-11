@@ -1,9 +1,31 @@
+export interface UsedSource {
+  type: "memory" | "kb" | "web";   // 🧠 对话记忆 / 📚 本地知识库 / 🌐 联网搜索
+  title: string;
+  detail?: string;
+  url?: string;
+  score?: number;
+}
+
+/**
+ * 执行轨迹（思考过程）：基于 LangGraph 节点真实执行步骤生成。
+ * 比模型 reasoning_content 简洁可控，对应面试讲法"Agent 调用链路实时可观测"。
+ */
+export interface ExecutionStep {
+  id: string;                                     // memory / rag / web / generate
+  label: string;
+  icon: string;
+  status: "running" | "done" | "skip";
+  detail?: string;
+}
+
 export interface Message {
   id: string;
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
-  thoughts?: string;  // 新增：AI 思考过程
+  thoughts?: string;          // AI 思考过程（已弃用，保留兼容）
+  steps?: ExecutionStep[];    // 执行轨迹
+  sources?: UsedSource[];     // 本次回答引用的来源
 }
 
 export interface Conversation {

@@ -16,6 +16,7 @@ import { getContextEnhancer } from "../middleware/context-enhancer";
 import { getAgentConfig } from "../config/agent.config";
 import type { GraphStateType } from "./state";
 import { retrieveWithFallback } from "../utils/rag-fallback";
+import { shouldUseWebSearch, webSearch, type WebSearchResult } from "../tools/web-search";
 import {
   buildGeneralAnswerPrompt,
   resolveXiaohongshuKnowledge,
@@ -23,6 +24,98 @@ import {
 } from "./xiaohongshu-rag";
 import { parseTaskPlanFromText } from "./task-plan";
 import { getMemoryFusionRetriever, type Message } from "../memory";
+import { getUserRepository } from "@tech-mate/database";
+
+/**
+ * 从用户消息中抽取姓名（正则方式，覆盖最常见的几种中文表达）
+ *
+ * 命中后回写到 UserProfile.nickname，下次任何会话的 memoryContextPrompt
+ * 都会带上"用户称呼"字段。
+ *
+ * 设计：保守命中而不是大而全。常见 false positive 用排除清单兜底。
+ */
+const NICKNAME_BLOCKLIST = new Set([
+  // 代词
+  "我", "你", "他", "她", "它", "您",
+  // 疑问代词 —— "我叫什么" 会被误抽成"什么"
+  "什么", "啥", "谁", "哪个", "哪位", "几", "多少", "啥子", "什麼",
+  // 角色泛称
+  "学生", "学习者", "用户", "小白", "新手", "老手",
+  "技术", "前端", "后端", "全栈", "工程师", "程序员", "开发者",
+  // 客套词
+  "好的", "可以", "知道", "明白", "对", "是", "不是",
+]);
+
+/**
+ * 判断是否是疑问句（问句不该抽姓名，比如"我叫什么"、"我是谁"）
+ */
+function isInterrogative(text: string): boolean {
+  if (!text) return false;
+  // 句末问号（中英文）
+  if (/[?？]\s*$/.test(text)) return true;
+  // 显式疑问代词出现在自报句式中
+  if (/我叫\s*(?:什么|啥|谁|哪个)/.test(text)) return true;
+  if (/我是\s*(?:谁|哪位|哪个)/.test(text)) return true;
+  if (/我的名字(?:是|叫)\s*(?:什么|啥|哪个)/.test(text)) return true;
+  // "吗 / 呢"语气词结尾
+  if (/(?:吗|呢)\s*[?？]?\s*$/.test(text)) return true;
+  return false;
+}
+
+export function extractNickname(text: string): string | null {
+  if (!text) return null;
+  // 疑问句整体跳过 —— 避免"我叫什么"被抽成"什么"
+  if (isInterrogative(text)) return null;
+  // 中文常见自报姓名表达
+  const patterns: RegExp[] = [
+    /我叫([一-龥A-Za-z]{1,8})/,
+    /我的名字(?:是|叫)([一-龥A-Za-z]{1,8})/,
+    /我是([一-龥A-Za-z]{1,8})(?:[，。,.!?！？]|$)/,
+    /叫我([一-龥A-Za-z]{1,8})/,
+    /[Mm]y name is\s+([A-Za-z]{2,12})/,
+    /[Ii]'?m\s+([A-Za-z]{2,12})(?:[\s,.!?]|$)/,
+  ];
+  for (const re of patterns) {
+    const m = text.match(re);
+    if (!m) continue;
+    const name = m[1].trim();
+    if (NICKNAME_BLOCKLIST.has(name)) continue;
+    // 兜底：抽出的"姓名"中如果包含任何黑名单词（如"什么名字"含"什么"），也跳过
+    let polluted = false;
+    for (const bad of NICKNAME_BLOCKLIST) {
+      if (bad.length >= 2 && name.includes(bad)) { polluted = true; break; }
+    }
+    if (polluted) continue;
+    if (name.length < 1 || name.length > 12) continue;
+    return name;
+  }
+  return null;
+}
+
+/**
+ * 检测并持久化用户姓名（异步，失败不阻塞主流程）
+ */
+async function detectAndSaveNickname(userId: string, content: string): Promise<string | null> {
+  const name = extractNickname(content);
+  if (!name) return null;
+
+  try {
+    const userRepo = getUserRepository();
+    // 确保 User + UserProfile 已存在
+    await userRepo.findOrCreateUser(userId);
+    const profile = await userRepo.getUserProfile(userId);
+    // 已有非默认昵称且不一致时也覆盖（用户重新自报）
+    if (profile?.nickname === name) {
+      return name;
+    }
+    await userRepo.updateUserProfile(userId, { nickname: name });
+    console.log(`👤 [Identity] 用户姓名已更新：${profile?.nickname || "未设置"} → ${name}`);
+    return name;
+  } catch (e) {
+    console.warn("[Identity] 写入 nickname 失败：", e);
+    return null;
+  }
+}
 
 /**
  * 直接调用百炼 API (绕过 LangChain 的兼容性问题)
@@ -56,11 +149,17 @@ async function callDashscopeAPI(systemPrompt: string, userPrompt: string): Promi
  * 流式调用百炼 API（带思考过程）
  * 开启 enable_thinking 后，返回 reasoning_content（思考）和 content（回答）
  */
-export type StreamChunkType = "thought" | "content";
+export type StreamChunkType = "thought" | "content" | "step";
 
 export interface StreamChunk {
   type: StreamChunkType;
   text: string;
+  // step 专用字段
+  stepId?: string;
+  stepLabel?: string;
+  stepIcon?: string;
+  stepStatus?: "running" | "done" | "skip";
+  stepDetail?: string;
 }
 
 /**
@@ -88,12 +187,99 @@ function filterThinkingTags(text: string): string {
   return filtered.trim();
 }
 
+/**
+ * 智能快捷回复 — 按本次回答用到的来源生成相关引导问题
+ *
+ * 设计理念：固定 "继续提问/深入话题/换个话题" 太空泛，根据真实场景给精准引导：
+ * - 用了本地 KB → "举个代码例子" / "和其他方案对比" / "深入原理"
+ * - 用了 web 搜索 → "看看最新动态" / "查官方文档" / "换个角度搜"
+ * - 都没用上 → 引导用户提供更具体场景
+ */
+export function buildSmartQuickReplies(opts: {
+  hasKB: boolean;
+  hasWeb: boolean;
+  query: string;
+}): string[] {
+  if (opts.hasKB && opts.hasWeb) {
+    return ["举个代码例子", "对比其他方案", "看官方文档"];
+  }
+  if (opts.hasKB) {
+    return ["举个代码例子", "深入原理", "和实战结合"];
+  }
+  if (opts.hasWeb) {
+    return ["看看最新动态", "找官方文档", "换个角度问"];
+  }
+  // 纯闲聊/记忆类
+  return ["给我推荐学习方向", "我想学 React", "我想学 AI/Agent"];
+}
+
+/**
+ * 用轻量 LLM 根据当前问答生成相关追问
+ *
+ * 设计：用 qwen-turbo 控制延迟（300-600ms），失败时回落到 buildSmartQuickReplies。
+ * 这里调用的轻量模型与意图识别共用，复用 createLightLLM。
+ */
+async function generateContextualQuickReplies(
+  query: string,
+  answer: string,
+  fallback: string[]
+): Promise<string[]> {
+  try {
+    // 答案太短就用 fallback（没有上下文价值）
+    if (!answer || answer.length < 40) return fallback;
+
+    const prompt = `用户刚问了：${query}
+
+助手刚回答了（摘要）：${answer.slice(0, 500)}
+
+请基于这次问答，提出 3 个用户最可能想接着问的相关问题。
+
+要求：
+- 每个问题 ≤ 14 个汉字
+- 必须与刚才回答的具体技术点强相关（出现回答里的关键词），不要泛泛
+- 三个问题角度不要重复（一个深入原理 / 一个实战代码 / 一个对比扩展）
+- 严格输出 JSON 数组（不要 markdown 包裹、不要解释）：["问题1","问题2","问题3"]`;
+
+    const llm = createLightLLM();
+    const response = await llm.invoke([new HumanMessage(prompt)]);
+    const raw = (response.content as string).trim();
+    // 剥可能的 ```json 包裹
+    const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+    const match = cleaned.match(/\[[\s\S]*\]/);
+    if (!match) return fallback;
+    const arr = JSON.parse(match[0]);
+    if (!Array.isArray(arr) || arr.length === 0) return fallback;
+    const result = arr.slice(0, 3).map(String).map(s => s.trim()).filter(s => s.length > 0 && s.length <= 20);
+    return result.length > 0 ? result : fallback;
+  } catch (e) {
+    console.warn("[QuickReplies] 动态生成失败，回退固定模板：", e);
+    return fallback;
+  }
+}
+
 export async function* streamDashscopeAPIWithThinking(
   systemPrompt: string,
-  userPrompt: string
+  userPrompt: string,
+  options?: {
+    history?: Array<{ role: "user" | "assistant" | "system"; content: string }>;
+  }
 ): AsyncGenerator<StreamChunk> {
   const config = getAgentConfig();
   const apiKey = config.llm.apiKey;
+
+  // 组装 messages：system + 历史对话 + 当前用户消息
+  // 历史对话可让模型保持多轮上下文连贯（用户名字、上文提及的话题等）
+  const messages: Array<{ role: string; content: string }> = [
+    { role: "system", content: systemPrompt },
+  ];
+  if (options?.history?.length) {
+    for (const m of options.history) {
+      if (!m.content) continue;
+      if (m.role === "system") continue; // system 由我们统一注入
+      messages.push({ role: m.role, content: m.content });
+    }
+  }
+  messages.push({ role: "user", content: userPrompt });
 
   const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
     method: "POST",
@@ -102,15 +288,14 @@ export async function* streamDashscopeAPIWithThinking(
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      model: "qwen3.6-plus",  // 前端编程能力增强的模型（思考过程为英文）
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
+      model: "qwen3.6-plus",  // 前端编程能力增强的模型
+      messages,
       temperature: 0.2,
       max_tokens: config.llm.maxTokens,
       stream: true,
-      enable_thinking: true,  // 开启思考模式
+      // 关闭思考模式：qwen3.6-plus 的 reasoning_content 是英文 self-talk，
+      // 不仅冗长还会在思考过程里把答案预演一遍，UX 极差。直接输出正式答案。
+      enable_thinking: false,
     }),
   });
 
@@ -223,7 +408,128 @@ export function createQuickReplies(texts: string[]): QuickReplyOption[] {
 
 /**
  * 意图识别节点
+ *
+ * LLM 现在按 JSON 返回 { intent, reasoning, keywords }，
+ * 三种映射兼容：
+ * - 旧 prompt 返回纯意图字符串（容错）
+ * - 新 prompt 返回 JSON 对象（标准路径）
+ * - 部分模型把 JSON 包在 ```json ... ``` 里（剥壳）
  */
+const INTENT_ALIASES: Record<string, UserIntent> = {
+  general_qa: "general_inquiry",
+  query_progress: "progress_tracking",
+  emotion_support: "emotional_support",
+  greeting: "general_inquiry", // 当前 graph 没有 greeting 节点，回落到通用
+};
+
+function normalizeIntent(raw: string): UserIntent {
+  const v = (raw || "").trim().toLowerCase();
+  if (INTENT_ALIASES[v]) return INTENT_ALIASES[v];
+  // 直接匹配 UserIntent 枚举值
+  const known: UserIntent[] = [
+    "create_task", "update_task", "delete_task", "list_tasks",
+    "search_knowledge", "study_material", "exam_simulation",
+    "progress_tracking", "emotional_support", "general_inquiry",
+  ];
+  if (known.includes(v as UserIntent)) return v as UserIntent;
+  return "general_inquiry";
+}
+
+function parseIntentResponse(text: string): {
+  intent: UserIntent;
+  reasoning: string;
+  keywords: string[];
+} {
+  const fallback = { intent: "general_inquiry" as UserIntent, reasoning: "默认通用问答", keywords: [] as string[] };
+  if (!text) return fallback;
+
+  // 剥 ```json ... ``` 外壳
+  let stripped = text.trim();
+  stripped = stripped.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+
+  // 找第一个 { ... } 块
+  const m = stripped.match(/\{[\s\S]*\}/);
+  if (m) {
+    try {
+      const obj = JSON.parse(m[0]);
+      return {
+        intent: normalizeIntent(String(obj.intent || "")),
+        reasoning: String(obj.reasoning || "").slice(0, 60),
+        keywords: Array.isArray(obj.keywords) ? obj.keywords.slice(0, 3).map(String) : [],
+      };
+    } catch {
+      // JSON 解析失败，往下走
+    }
+  }
+
+  // 兜底：把整个文本当作意图名
+  return {
+    intent: normalizeIntent(stripped),
+    reasoning: "LLM 未返回标准 JSON，按字符串解析",
+    keywords: [],
+  };
+}
+
+/**
+ * 本地规则兜底：高置信度关键词命中直接返回，跳过 LLM
+ *
+ * 设计：保守命中、宁可漏判。命中要求"非常明显"，
+ * 这样命中率不高但准确度极高；未命中再走 LLM 兜底。
+ */
+function ruleBasedIntent(content: string): {
+  intent: UserIntent;
+  reasoning: string;
+  keywords: string[];
+} | null {
+  const text = content.trim();
+  if (!text) return null;
+
+  // 学习计划相关（含"调整/重做"，让快捷回复也能命中）
+  const planKeywords = [
+    "学习计划", "学习路径", "学习路线", "制定计划", "规划学习", "怎么学",
+    "调整任务", "调整计划", "重新规划", "改一下计划", "再来一份", "换一个计划",
+  ];
+  for (const kw of planKeywords) {
+    if (text.includes(kw)) {
+      return { intent: "create_task", reasoning: "命中本地规则：学习计划关键词", keywords: [kw] };
+    }
+  }
+
+  // 进度查询
+  const progressKeywords = ["学到哪", "学到什么程度", "我的进度", "学习进度", "学了多少"];
+  for (const kw of progressKeywords) {
+    if (text.includes(kw)) {
+      return { intent: "progress_tracking", reasoning: "命中本地规则：进度查询关键词", keywords: [kw] };
+    }
+  }
+
+  // 情绪支持（明显负面情绪）
+  const emotionKeywords = ["压力大", "焦虑", "崩溃", "学不下去", "想放弃", "好累"];
+  for (const kw of emotionKeywords) {
+    if (text.includes(kw)) {
+      return { intent: "emotional_support", reasoning: "命中本地规则：负面情绪关键词", keywords: [kw] };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * 轻量 LLM（专用于意图识别），qwen-turbo-latest 比 qwen3.6-plus 快 3-5 倍
+ */
+function createLightLLM() {
+  const config = getAgentConfig();
+  return new ChatOpenAI({
+    modelName: "qwen-turbo-latest",
+    temperature: 0,
+    maxTokens: 120,
+    apiKey: config.llm.apiKey,
+    configuration: {
+      baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    },
+  });
+}
+
 export async function intentRecognitionNode(
   state: GraphStateType
 ): Promise<Partial<GraphStateType>> {
@@ -232,25 +538,40 @@ export async function intentRecognitionNode(
   const lastMessage = state.messages[state.messages.length - 1];
   const content = lastMessage.content as string;
 
+  // Fast path: 本地规则命中直接返回（0 LLM 调用）
+  const ruleHit = ruleBasedIntent(content);
+  if (ruleHit) {
+    logger.info(`Intent fast-path: ${ruleHit.intent} | ${ruleHit.reasoning}`);
+    return {
+      userIntent: ruleHit.intent,
+      intentDecision: { reasoning: ruleHit.reasoning, keywords: ruleHit.keywords },
+    };
+  }
+
   const intentPrompt = SYSTEM_PROMPTS.INTENT_RECOGNITION.replace("{message}", content);
 
   try {
-    const llm = createLLM();
-
+    // 用轻量模型，避免 qwen3.6-plus 的 1-2 秒延迟
+    const llm = createLightLLM();
     const response = await llm.invoke([new HumanMessage(intentPrompt)]);
-    const intentText = response.content as string;
-    const intent = intentText.trim() as UserIntent;
+    const raw = response.content as string;
+    const parsed = parseIntentResponse(raw);
 
-    logger.info(`Detected intent: ${intent}`);
+    logger.info(`Detected intent: ${parsed.intent} | reasoning: ${parsed.reasoning}`);
 
     return {
-      userIntent: intent,
+      userIntent: parsed.intent,
+      intentDecision: {
+        reasoning: parsed.reasoning,
+        keywords: parsed.keywords,
+      },
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));
     logger.error("Intent recognition failed", err);
     return {
       userIntent: "general_inquiry",
+      intentDecision: { reasoning: "意图识别异常，回落通用问答", keywords: [] },
     };
   }
 }
@@ -340,6 +661,79 @@ export async function eveningReviewNode(
 }
 
 /**
+ * 检测用户原始需求是否足够生成计划
+ *
+ * 充足判定：消息里能识别出明确的技术栈方向。
+ * 否则需要反问用户具体想学什么。
+ */
+function detectTechStackSignal(text: string): { matched: boolean; label: string | null } {
+  const checks: Array<[RegExp, string]> = [
+    [/(React|Reactjs|响应式组件|jsx)/i, "React 开发"],
+    [/(Vue|vue3|vue\.js)/i, "Vue 开发"],
+    [/(Next\.?js|SSR|全栈)/i, "Next.js 实战"],
+    [/(TypeScript|TS|类型体操|类型推导)/i, "TypeScript 进阶"],
+    [/(JavaScript深入|原型链|闭包|JS 基础|js基础)/i, "JavaScript 深入"],
+    [/(CSS|布局|Flex|Grid|动画|样式)/i, "CSS 布局"],
+    [/(Node\.?js|后端|Express|API 开发)/i, "Node.js 后端"],
+    [/(算法|LeetCode|刷题|数据结构)/i, "算法刷题"],
+    [/(面试|大厂|八股|简历|应聘)/i, "前端面试"],
+    [/(AI|LangChain|Agent|大模型|RAG)/i, "AI 应用开发"],
+  ];
+  for (const [re, label] of checks) {
+    if (re.test(text)) return { matched: true, label };
+  }
+  return { matched: false, label: null };
+}
+
+/**
+ * 判断 create_task 当前轮是否需要追问用户
+ *
+ * 充足条件（满足任一即可）：
+ * 1. 用户本轮输入命中明确技术栈
+ * 2. 用户本轮输入是对前一轮反问的回答（前一条 assistant 是 clarification 反问）
+ * 3. 已经存在"上一份计划"（说明是调整流程，沿用前一份的 tech_stack）
+ */
+function shouldClarifyTaskPlan(state: GraphStateType): { needClarify: boolean } {
+  const lastUserMessage = state.messages.filter((m: any) => (m.role || m._getType?.()) === "user").pop();
+  const userText = typeof lastUserMessage?.content === "string" ? lastUserMessage.content : "";
+
+  // 本轮命中明确技术栈 → 信息够
+  if (detectTechStackSignal(userText).matched) return { needClarify: false };
+
+  // 上一条 assistant 含追问标识 → 用户本轮是在回答 → 信息够
+  for (let i = state.messages.length - 2; i >= 0; i--) {
+    const msg: any = state.messages[i];
+    const role = msg.role || msg._getType?.();
+    const c = typeof msg.content === "string" ? msg.content : "";
+    if (role === "assistant" || role === "ai") {
+      if (c.includes("【需求确认】") || c.includes("你最想专攻") || c.includes("📋") || c.includes("学习计划")) {
+        return { needClarify: false };
+      }
+      break;
+    }
+  }
+
+  return { needClarify: true };
+}
+
+/**
+ * 构造追问消息（带快捷回复，让用户在不需要打字的情况下回答）
+ */
+function buildClarificationMessage(): string {
+  return [
+    "【需求确认】",
+    "",
+    "好的！来一起规划一份学习计划 📋",
+    "",
+    "在动手生成之前，先了解一下你的想法：",
+    "",
+    "**你最想专攻哪个方向？**",
+    "",
+    "如果不在下面的快捷选项里，也可以直接打字告诉我，比如 _\"想做 Electron 桌面端\"_ / _\"想冲腾讯面试\"_。",
+  ].join("\n");
+}
+
+/**
  * 任务生成节点
  */
 export async function taskGenerationNode(
@@ -348,6 +742,26 @@ export async function taskGenerationNode(
   logger.info("Task generation node executing");
 
   try {
+    // === 多轮对话：先检查需求是否充足 ===
+    const { needClarify } = shouldClarifyTaskPlan(state);
+    if (needClarify) {
+      logger.info("Task generation: 需求不充足，进入追问轮");
+      const clarifyContent = buildClarificationMessage();
+      return {
+        messages: [...state.messages, new AIMessage(clarifyContent)],
+        quickReplyOptions: createQuickReplies([
+          "React 开发",
+          "Vue 开发",
+          "TypeScript 进阶",
+          "前端面试",
+          "AI 应用开发",
+          "刷算法",
+        ]),
+        waitingForUserInput: true,
+        clarificationNeeded: true,
+      };
+    }
+
     const llm = createLLM();
     const mcpClient = getMCPToolClient();
 
@@ -375,10 +789,31 @@ export async function taskGenerationNode(
       .replace("{weakModules}", "待分析")
       .replace("{studyHabits}", "待分析");
 
-    // 把用户原始需求也传递给模型，强调技术学习场景
-    const enhancedUserPrompt = `用户具体需求：${userRequest}
+    // 抽取上一份计划（如果存在），作为"调整"场景的上下文
+    // 触发条件：messages 中有上一条 assistant 消息且包含计划标识
+    let previousPlan: string | null = null;
+    for (let i = state.messages.length - 2; i >= 0; i--) {
+      const msg: any = state.messages[i];
+      const role = msg.role || (msg._getType ? msg._getType() : "");
+      const c = typeof msg.content === "string" ? msg.content : "";
+      if ((role === "assistant" || role === "ai") && (c.includes("学习计划") || c.includes("tech_stack") || c.includes("📋"))) {
+        previousPlan = c;
+        break;
+      }
+    }
+
+    // 把用户原始需求 + 上一份计划（如有）都传给模型
+    const adjustmentContext = previousPlan
+      ? `\n上一份计划：\n${previousPlan}\n\n请基于上一份计划做有针对性的调整（不要重复输出一遍）。\n`
+      : "";
+
+    const enhancedUserPrompt = `用户具体需求：${userRequest}${adjustmentContext}
 
 ${userPrompt}`;
+
+    if (previousPlan) {
+      console.log("📋 [Task] 检测到上一份计划，进入调整模式");
+    }
 
     const response = await llm.invoke([
       new SystemMessage(systemPrompt),
@@ -577,7 +1012,7 @@ export async function generalQANode(
     let ragResults: any[] = [];
 
     if (config.features.ragEnabled && shouldRouteToXiaohongshuRag(content)) {
-      console.log("🔍 [RAG TEST] 正在调用 HybridRetriever...");
+      console.log("🔍 [RAG TEST] 正在调用 LlamaIndex QueryEngine（HybridFusion + BGE-M3 重排 + 三级策略）...");
 
       const ragFallbackResult = await retrieveWithFallback(content, { topK: 5 });
       ragContext = ragFallbackResult.context;
@@ -688,15 +1123,25 @@ export async function* generalQANodeStream(
     const lastMessage = state.messages[state.messages.length - 1];
     const content = lastMessage.content as string;
 
+    // ========== 用户身份抽取（在记忆检索前先持久化姓名）==========
+    // 这样如果用户说"我叫小明"，会立刻写入 UserProfile.nickname，
+    // 紧随其后的记忆融合就会在 fusedContext 顶部带上"用户称呼"。
+    await detectAndSaveNickname(state.userId, content);
+
     const contextEnhancer = getContextEnhancer();
     const enhancedMessage = await contextEnhancer.enhanceUserMessage(state.userId, content);
     const config = getAgentConfig();
 
     // ========== 四层记忆融合检索（面试核心亮点）==========
-    console.log("\n");
-    console.log("=".repeat(60));
-    console.log("🧠 [Memory] 开始四层记忆融合检索");
-    console.log("=".repeat(60));
+    const memT0 = Date.now();
+    yield {
+      type: "step",
+      text: "",
+      stepId: "memory",
+      stepLabel: "融合四阶分层记忆",
+      stepIcon: "🧠",
+      stepStatus: "running",
+    };
 
     // 转换消息格式为 Memory Message
     const memoryMessages: Message[] = state.messages.map((msg: any) => ({
@@ -715,8 +1160,16 @@ export async function* generalQANodeStream(
     // 将融合后的上下文添加到系统提示
     const memoryContextPrompt = fusedMemory.fusedContext;
     console.log(`🧠 [Memory] 融合上下文已生成，长度: ${memoryContextPrompt.length} 字符`);
-    console.log("=".repeat(60));
-    console.log("\n");
+
+    yield {
+      type: "step",
+      text: "",
+      stepId: "memory",
+      stepLabel: "融合四阶分层记忆",
+      stepIcon: "🧠",
+      stepStatus: "done",
+      stepDetail: `瞬时${state.messages.length}条 · 短期/长期/元 共 ${memoryContextPrompt.length} 字符上下文 · ${Date.now() - memT0}ms`,
+    };
 
     // ========== RAG Engine 集成测试日志 ==========
     console.log("=".repeat(60));
@@ -729,41 +1182,164 @@ export async function* generalQANodeStream(
     let ragResults: any[] = [];
 
     if (config.features.ragEnabled && shouldRouteToXiaohongshuRag(content)) {
-      console.log("🔍 [RAG TEST] 正在调用 HybridRetriever...");
+      const ragT0 = Date.now();
+      yield {
+        type: "step",
+        text: "",
+        stepId: "rag",
+        stepLabel: "检索本地知识库",
+        stepIcon: "🔍",
+        stepStatus: "running",
+      };
 
       const ragFallbackResult = await retrieveWithFallback(content, { topK: 5 });
       ragContext = ragFallbackResult.context;
       ragResults = ragFallbackResult.results;
 
-      // ========== RAG 检索结果日志 ==========
-      console.log("=".repeat(60));
-      console.log("✅ [RAG TEST] 检索来源:", ragFallbackResult.source);
-      console.log("✅ [RAG TEST] 三级策略:", ragFallbackResult.tier);
-      console.log("✅ [RAG TEST] 检索到文档数:", ragResults.length);
-      if (ragResults.length > 0) {
-        console.log("✅ [RAG TEST] 第一条文档标题:", ragResults[0]?.metadata?.title || "无标题");
-        console.log("✅ [RAG TEST] 第一条文档分类:", ragResults[0]?.metadata?.category || "无分类");
-        console.log("✅ [RAG TEST] 第一条文档分数:", ragResults[0]?.score || "无分数");
-      }
-      console.log("=".repeat(60));
-      console.log("\n");
+      yield {
+        type: "step",
+        text: "",
+        stepId: "rag",
+        stepLabel: "检索本地知识库",
+        stepIcon: "🔍",
+        stepStatus: "done",
+        stepDetail: `LlamaIndex 混合检索 · 命中 ${ragResults.length} 条 · ${ragFallbackResult.tier} · ${Date.now() - ragT0}ms`,
+      };
     } else {
-      console.log("🔍 [RAG TEST] 白名单未命中，跳过 RAG 检索");
-      console.log("=".repeat(60));
-      console.log("\n");
+      yield {
+        type: "step",
+        text: "",
+        stepId: "rag",
+        stepLabel: "检索本地知识库",
+        stepIcon: "🔍",
+        stepStatus: "skip",
+        stepDetail: "问题不属于知识库分类，跳过",
+      };
     }
 
-    // 构建 prompt：优先使用 RAG context，否则使用原始消息
-    const userPrompt = ragContext || enhancedMessage;
+    // ========== 联网搜索智能路由 ==========
+    // 触发条件：RAG tier=fallback/expand 或问题命中时效/显式联网关键词
+    let webResult: WebSearchResult | null = null;
+    const ragTier: string | undefined = ragResults.length > 0 ? "candidates" : undefined;
+    if (shouldUseWebSearch(content, ragTier)) {
+      const webT0 = Date.now();
+      yield {
+        type: "step",
+        text: "",
+        stepId: "web",
+        stepLabel: "联网搜索",
+        stepIcon: "🌐",
+        stepStatus: "running",
+      };
+      webResult = await webSearch(content);
+      yield {
+        type: "step",
+        text: "",
+        stepId: "web",
+        stepLabel: "联网搜索",
+        stepIcon: "🌐",
+        stepStatus: webResult ? "done" : "skip",
+        stepDetail: webResult
+          ? `Tavily · ${webResult.citations.length} 个来源 · ${Date.now() - webT0}ms`
+          : "Tavily 调用失败，跳过",
+      };
+    } else {
+      yield {
+        type: "step",
+        text: "",
+        stepId: "web",
+        stepLabel: "联网搜索",
+        stepIcon: "🌐",
+        stepStatus: "skip",
+        stepDetail: "本地知识充足且无时效关键词，跳过",
+      };
+    }
 
-    // 使用默认 system prompt，不强制思考格式（让模型自然思考）
-    const systemPrompt = SYSTEM_PROMPTS.DEFAULT;
+    // ========== 装配 systemPrompt：DEFAULT + 四阶记忆 + RAG 带来源 + 来源规则 ==========
+    let enhancedSystemPrompt = SYSTEM_PROMPTS.DEFAULT;
+    const usedSources: Array<{ type: "memory" | "kb" | "web"; title: string; detail?: string; url?: string; score?: number }> = [];
 
-    // 使用带思考模式的 DashScope API（替代 LangChain llm.stream）
+    if (memoryContextPrompt && memoryContextPrompt.trim().length > 0) {
+      enhancedSystemPrompt += `\n\n## 🧠 对话记忆与用户画像\n${memoryContextPrompt}`;
+      usedSources.push({ type: "memory", title: "四阶分层记忆", detail: "瞬时/短期/长期/元记忆融合" });
+    }
+
+    if (ragResults.length > 0) {
+      const ragBlock = ragResults
+        .map((r, i) => {
+          const title = r.metadata?.title || `知识点 ${i + 1}`;
+          const category = r.metadata?.category ? ` · ${r.metadata.category}` : "";
+          const text = (r.content || "").trim();
+          usedSources.push({ type: "kb", title: `${title}${category}`, score: r.score });
+          return `${i + 1}. 【📚 本地知识库 · ${title}${category}】\n${text}`;
+        })
+        .join("\n\n");
+      enhancedSystemPrompt += `\n\n## 📚 本地知识库检索结果\n${ragBlock}`;
+    }
+
+    if (webResult && webResult.answer) {
+      const webCitations = webResult.citations.slice(0, 5);
+      const citationsList = webCitations
+        .map((c, i) => `   - [${c.title || c.url}](${c.url})`)
+        .join("\n");
+      enhancedSystemPrompt += `\n\n## 🌐 联网搜索结果\n${webResult.answer}\n\n参考链接：\n${citationsList || "（无）"}`;
+      webCitations.forEach((c) => {
+        usedSources.push({
+          type: "web",
+          title: c.title || c.url,
+          url: c.url,
+        });
+      });
+      if (webCitations.length === 0) {
+        // 没有 citations 时也记一条 web 来源
+        usedSources.push({ type: "web", title: "Perplexity Sonar 综合搜索" });
+      }
+    }
+
+    // 回答规则（来源不在正文里列，前端会独立渲染来源 chip 区块）
+    enhancedSystemPrompt += `\n\n## 📌 回答规则
+1. 严格利用上面的【🧠 对话记忆】保持上下文连贯。若记忆中包含用户姓名/技能/偏好等信息，回答时必须用上，绝对不要回复"我没有存储或访问个人信息"等推卸性话术。
+2. 优先基于【📚 本地知识库】和【🌐 联网搜索结果】回答技术问题；都不足时再结合你的通用知识。
+3. **不要在回答末尾列"参考来源"区块**——系统会在 UI 中独立展示参考来源 chip，正文里重复列出反而冗余。如果想强调某个来源，在正文中自然提及即可（例如"根据 Next.js 16 发布日志..."）。
+4. 回答要简洁、有结构（适当使用标题、列表），不要堆砌"思考过程"或"自我提醒"之类的内部内容。
+`;
+
+    // ========== 装配历史对话 ==========
+    // state.messages 最后一条是当前用户消息，单独作为 userPrompt；前面的作为 history
+    const historyForLLM = state.messages
+      .slice(0, -1)
+      .map((msg: any) => {
+        const rawRole = msg.role || (msg._getType ? msg._getType() : "user");
+        const role: "user" | "assistant" =
+          rawRole === "assistant" || rawRole === "ai" ? "assistant" : "user";
+        const content = typeof msg.content === "string" ? msg.content : "";
+        return { role, content };
+      })
+      .filter((m: any) => m.content && m.content.trim().length > 0);
+
+    console.log(`🧩 [Context] 注入历史消息 ${historyForLLM.length} 条 + memoryPrompt ${memoryContextPrompt.length} 字符 + ragResults ${ragResults.length} 条`);
+
+    // userPrompt 保持纯净：当前问题 + 时间/日期/学习上下文（由 enhanceUserMessage 注入）
+    const userPrompt = enhancedMessage;
+
+    const genT0 = Date.now();
+    yield {
+      type: "step",
+      text: "",
+      stepId: "generate",
+      stepLabel: "生成回答",
+      stepIcon: "✨",
+      stepStatus: "running",
+      stepDetail: `qwen3.6-plus · 注入 ${historyForLLM.length} 条历史 + ${ragResults.length} 条知识 + ${usedSources.filter(s => s.type === "web").length} 个 web 来源`,
+    };
+
+    // 使用 DashScope API
     let fullContent = "";
     let fullThought = "";
 
-    for await (const chunk of streamDashscopeAPIWithThinking(systemPrompt, userPrompt)) {
+    for await (const chunk of streamDashscopeAPIWithThinking(enhancedSystemPrompt, userPrompt, {
+      history: historyForLLM,
+    })) {
       if (chunk.type === "thought") {
         fullThought += chunk.text;
       } else {
@@ -772,16 +1348,37 @@ export async function* generalQANodeStream(
       yield chunk;  // 直接 yield StreamChunk
     }
 
+    // LLM 流式完成后 yield generate done step（让前端 ExecutionStepsSection 显示"已完成"）
+    yield {
+      type: "step",
+      text: "",
+      stepId: "generate",
+      stepLabel: "生成回答",
+      stepIcon: "✨",
+      stepStatus: "done",
+      stepDetail: `qwen3.6-plus · ${fullContent.length} 字 · ${Date.now() - genT0}ms`,
+    };
+
     LogTools.logAgentDecision(state.userId, state.userIntent, "General QA Stream");
 
-    console.log(`🧠 [Thinking] 思考过程长度: ${fullThought.length} 字符`);
+    console.log(`📎 [Sources] 本次使用来源: ${usedSources.map(s => `${s.type}/${s.title}`).join(", ") || "无"}`);
+
+    // ========== 智能快捷回复 ==========
+    // 优先用轻量 LLM 基于当前问答生成 3 个相关追问；失败时回落到 buildSmartQuickReplies 模板
+    const fallbackReplies = buildSmartQuickReplies({
+      hasKB: ragResults.length > 0,
+      hasWeb: usedSources.some(s => s.type === "web"),
+      query: content,
+    });
+    const smartReplies = await generateContextualQuickReplies(content, fullContent, fallbackReplies);
 
     return {
       ...state,
       messages: [...state.messages, new AIMessage(fullContent)],
-      quickReplyOptions: createQuickReplies(["继续提问", "深入这个话题", "换个话题"]),
+      quickReplyOptions: createQuickReplies(smartReplies),
       waitingForUserInput: false,
       ragResults,
+      usedSources,
     };
   } catch (error) {
     const err = error instanceof Error ? error : new Error(String(error));

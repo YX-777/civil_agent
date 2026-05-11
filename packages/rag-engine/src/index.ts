@@ -10,7 +10,26 @@ export { ThreeTierStrategy, TieredResponse } from "./strategies/three-tier-strat
 export { getRAGConfig, DEFAULT_RAG_CONFIG } from "./config/rag.config";
 export { initializeKnowledgeBase, ALL_KNOWLEDGE } from "./scripts/init-knowledge-base";
 
-// 单例 HybridRetriever
+// LlamaIndex 适配层（推荐入口）
+export {
+  DashScopeEmbedding,
+  LlamaVectorRetriever,
+  LlamaBM25Retriever,
+  HybridFusionRetriever,
+  BgeM3NodePostprocessor,
+  ThreeTierSynthesizer,
+  LlamaIndexQueryEngine,
+  createLlamaIndexQueryEngine,
+  getLlamaIndexQueryEngine,
+} from "./llamaindex";
+export type {
+  LlamaIndexQueryEngineOptions,
+  LlamaIndexQueryParams,
+  LlamaIndexQueryResult,
+  LlamaIndexRetrieveResult,
+} from "./llamaindex";
+
+// 单例 HybridRetriever（保留备用，generalQANode 已切到 LlamaIndex QueryEngine）
 import { HybridRetriever } from "./retrievers/hybrid-retriever";
 
 let hybridRetrieverInstance: HybridRetriever | null = null;

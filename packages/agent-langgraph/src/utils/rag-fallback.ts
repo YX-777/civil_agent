@@ -1,9 +1,16 @@
 /**
  * RAG 检索降级封装
- * 优先使用 HybridRetriever，失败时降级到 MCP RAG
+ * 优先使用 LlamaIndex QueryEngine（HybridFusion + BGE-M3 重排 + 三级策略），
+ * 失败时降级到 MCP RAG。
  */
 
-import { getHybridRetriever, RetrieveOptions, HybridSearchResult } from "@tech-mate/rag-engine";
+import {
+  getLlamaIndexQueryEngine,
+  getHybridRetriever,
+  RetrieveOptions,
+  HybridSearchResult,
+} from "@tech-mate/rag-engine";
+import { MetadataMode } from "llamaindex";
 import { getMCPToolClient } from "../tools/mcp-tools";
 import { getAgentConfig } from "../config/agent.config";
 
@@ -100,28 +107,51 @@ export async function retrieveWithFallback(
     fallbackToMCP: options?.fallbackToMCP ?? true,
   };
 
-  // Step 1: 尝试 HybridRetriever
+  // Step 1: 优先使用 LlamaIndex QueryEngine（HybridFusion + BGE-M3 + 三级策略）
   if (effectiveOptions.preferHybrid) {
     try {
-      const hybridRetriever = getHybridRetriever();
-      const retrieveOptions: RetrieveOptions = {
+      const queryEngine = getLlamaIndexQueryEngine();
+      const retrieveResult = await queryEngine.retrieveOnly({
+        query,
         topK: effectiveOptions.topK,
         category: effectiveOptions.category,
-      };
+      });
 
-      const result = await hybridRetriever.retrieve(query, retrieveOptions);
-
-      // 非完全失败时返回 Hybrid 结果
-      if (result.tier !== "fallback" || result.allResults.length > 0) {
+      const hasResults = retrieveResult.sourceNodes.length > 0;
+      if (hasResults || retrieveResult.tier !== "fallback") {
         return {
-          context: result.promptForLLM,
-          results: result.allResults.slice(0, effectiveOptions.topK),
+          context: retrieveResult.promptForLLM,
+          results: retrieveResult.sourceNodes.slice(0, effectiveOptions.topK).map((nws) => ({
+            id: nws.node.id_,
+            content: nws.node.getContent(MetadataMode.NONE),
+            score: nws.score ?? 0,
+            metadata: nws.node.metadata || {},
+          })),
           source: "hybrid",
-          tier: result.tier,
+          tier: retrieveResult.tier,
         };
       }
     } catch (error) {
-      console.warn("[RAG Fallback] HybridRetriever failed:", error);
+      console.warn("[RAG Fallback] LlamaIndex QueryEngine failed:", error);
+      // 二次兜底：旧 HybridRetriever（生产保险，避免 LlamaIndex 路径异常时主流程整体失败）
+      try {
+        const hybridRetriever = getHybridRetriever();
+        const retrieveOptions: RetrieveOptions = {
+          topK: effectiveOptions.topK,
+          category: effectiveOptions.category,
+        };
+        const result = await hybridRetriever.retrieve(query, retrieveOptions);
+        if (result.tier !== "fallback" || result.allResults.length > 0) {
+          return {
+            context: result.promptForLLM,
+            results: result.allResults.slice(0, effectiveOptions.topK),
+            source: "hybrid",
+            tier: result.tier,
+          };
+        }
+      } catch (legacyError) {
+        console.warn("[RAG Fallback] Legacy HybridRetriever also failed:", legacyError);
+      }
     }
   }
 

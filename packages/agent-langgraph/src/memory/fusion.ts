@@ -13,6 +13,7 @@
 import {
   getShortTermMemoryRepository,
   getMetaMemoryRepository,
+  getUserRepository,
 } from "@tech-mate/database";
 import {
   getInstantMemoryManager,
@@ -124,6 +125,9 @@ export class MemoryFusionRetriever {
 
   /**
    * 获取元记忆（用户画像）
+   *
+   * 额外读取 UserProfile.nickname —— 这是用户跨会话的"身份"，
+   * 必须放进 fusedContext 让 LLM 看到，否则用户刷新一次就被遗忘。
    */
   private async getMetaMemory(userId: string): Promise<any> {
     try {
@@ -134,9 +138,23 @@ export class MemoryFusionRetriever {
       const repo = getMetaMemoryRepository();
       const meta = await repo.findByUserId(userId);
 
+      // 读取用户昵称（跨会话身份）
+      let nickname: string | null = null;
+      try {
+        const userRepo = getUserRepository();
+        const profile = await userRepo.getUserProfile(userId);
+        // 过滤默认值"学习者"——它不是用户真名
+        if (profile?.nickname && profile.nickname !== "学习者") {
+          nickname = profile.nickname;
+        }
+      } catch (e) {
+        console.warn("[Memory] 读取 nickname 失败", e);
+      }
+
       if (meta) {
         return {
           summary,
+          nickname,
           strongAreas: JSON.parse(meta.strongAreas || "[]"),
           weakAreas: JSON.parse(meta.weakAreas || "[]"),
           learningStyle: meta.learningStyle,
@@ -148,6 +166,7 @@ export class MemoryFusionRetriever {
       // 如果没有元记忆，返回默认值
       return {
         summary,
+        nickname,
         strongAreas: [],
         weakAreas: [],
         learningStyle: null,
@@ -158,6 +177,7 @@ export class MemoryFusionRetriever {
       console.error("[Memory] 元记忆获取失败:", error);
       return {
         summary: "",
+        nickname: null,
         strongAreas: [],
         weakAreas: [],
         learningStyle: null,
@@ -184,6 +204,11 @@ export class MemoryFusionRetriever {
     meta: any
   ): string {
     let context = "";
+
+    // 用户身份（跨会话的核心信息，放最前面让 LLM 一眼看到）
+    if (meta.nickname) {
+      context += `【用户称呼】${meta.nickname}（请使用此称呼与用户交流；用户已自报姓名，不要忽略）\n\n`;
+    }
 
     // 元记忆作为系统提示的一部分
     if (meta.summary) {

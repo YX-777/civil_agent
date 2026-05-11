@@ -223,6 +223,43 @@ export class VectorDBService {
     }
   }
 
+  /**
+   * 拉取 collection 中的全部文档（不带向量），用于 BM25 等需要全量索引的场景。
+   * ChromaDB JS SDK `coll.get({})` 不传 ids 时返回全部记录。
+   */
+  async getAllDocuments(
+    collection: string
+  ): Promise<Array<{ id: string; content: string; metadata: Record<string, any> }>> {
+    if (!this.initialized) {
+      await this.initialize();
+    }
+    if (this.initFailed) return [];
+
+    const coll = this.collections.get(collection);
+    if (!coll) return [];
+
+    try {
+      const results = await coll.get({
+        include: ['documents', 'metadatas'],
+      });
+
+      const docs: Array<{ id: string; content: string; metadata: Record<string, any> }> = [];
+      if (results.ids) {
+        for (let i = 0; i < results.ids.length; i++) {
+          docs.push({
+            id: results.ids[i],
+            content: results.documents?.[i] || "",
+            metadata: results.metadatas?.[i] || {},
+          });
+        }
+      }
+      return docs;
+    } catch (error) {
+      console.error(`Failed to getAllDocuments from ${collection}:`, error);
+      return [];
+    }
+  }
+
   async get(collection: string, id: string): Promise<VectorSearchResult | null> {
     if (!this.initialized) {
       await this.initialize();

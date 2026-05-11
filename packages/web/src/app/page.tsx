@@ -78,8 +78,29 @@ export default function ChatPage() {
       .then(r => r.json())
       .then(data => {
         if (data.messages?.length) {
-          setAgentMessages(data.messages.map((m: any) => ({ id: m.id, role: m.role, content: m.content, timestamp: new Date(m.timestamp) })));
-        } else setAgentMessages([]);
+          setAgentMessages(data.messages.map((m: any) => {
+            // 恢复持久化的 sources / steps（保存在 Message.metadata JSON 字段）
+            let sources, steps;
+            if (m.metadata) {
+              try {
+                const meta = typeof m.metadata === "string" ? JSON.parse(m.metadata) : m.metadata;
+                sources = meta?.sources;
+                steps = meta?.steps;
+              } catch (e) { /* 容忍 metadata 格式异常 */ }
+            }
+            return {
+              id: m.id,
+              role: m.role,
+              content: m.content,
+              timestamp: new Date(m.timestamp),
+              ...(sources ? { sources } : {}),
+              ...(steps ? { steps } : {}),
+            };
+          }));
+        }
+        // 注意：当 data.messages 为空时不调 setAgentMessages([])，
+        // 让 useAgent 内部的欢迎语 useEffect 自己生成欢迎语，
+        // 否则会把刚显示的欢迎语清空。
       })
       .catch(() => message.error("加载会话失败"));
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -157,14 +178,24 @@ export default function ChatPage() {
             ) : (
               <div>
                 {messages.map((m, i) => (
-                  <MessageBubble key={m.id} message={m} isStreaming={isLoading && m.role === "assistant" && i === messages.length - 1 && !m.content} />
+                  <MessageBubble
+                    key={m.id}
+                    message={m}
+                    isStreaming={isLoading && m.role === "assistant" && i === messages.length - 1 && !m.content}
+                  />
                 ))}
-                <div ref={messagesEndRef} style={{ height: 100 }} />
+                {/* 快捷回复紧跟最后一条消息，避免与答案之间留大块空白 */}
+                {quickReplies?.length > 0 && (
+                  <div style={{ paddingLeft: 52 }}>
+                    <QuickReplies options={quickReplies} onSelect={handleQuickReply} />
+                  </div>
+                )}
+                {/* 滚动锚点 + 底部最小留白（不再 100px 大空白） */}
+                <div ref={messagesEndRef} style={{ height: 8 }} />
               </div>
             )}
 
             {error && <Alert message="发送失败" description={error} type="error" closable onClose={clearError} style={{ marginTop: 16 }} />}
-            {quickReplies?.length > 0 && <QuickReplies options={quickReplies} onSelect={handleQuickReply} />}
           </div>
         </Content>
 

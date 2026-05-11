@@ -61,74 +61,158 @@ body {
 }
 
 /* ========== Markdown 样式 ========== */
+
+/* 标题：h1~h6 — 解决 ### 直接显示为文本的问题 */
+.message-content-wrapper h1,
+.message-content-wrapper h2,
+.message-content-wrapper h3,
+.message-content-wrapper h4,
+.message-content-wrapper h5,
+.message-content-wrapper h6 {
+  font-weight: 600;
+  line-height: 1.4;
+  margin: 16px 0 8px;
+  color: #1f2937;
+}
+.message-content-wrapper h1 { font-size: 22px; }
+.message-content-wrapper h2 { font-size: 19px; }
+.message-content-wrapper h3 { font-size: 17px; }
+.message-content-wrapper h4 { font-size: 15px; }
+.message-content-wrapper h5,
+.message-content-wrapper h6 { font-size: 14px; color: #4b5563; }
+.message-content-wrapper > *:first-child { margin-top: 0 !important; }
+
+/* 段落与换行 */
+.message-content-wrapper p {
+  margin: 0 0 10px;
+}
+.message-content-wrapper p:last-child {
+  margin-bottom: 0;
+}
+
+/* 列表 */
+.message-content-wrapper ul,
+.message-content-wrapper ol {
+  padding-left: 22px;
+  margin: 8px 0;
+}
+.message-content-wrapper li {
+  margin-bottom: 4px;
+}
+.message-content-wrapper li > p {
+  margin: 0;
+}
+
+/* 粗体/斜体 */
+.message-content-wrapper strong { font-weight: 600; color: #1f2937; }
+.message-content-wrapper em { font-style: italic; }
+
+/* 行内代码 + 代码块 */
 .message-content-wrapper pre,
 .message-content-wrapper table {
   max-width: 100%;
   overflow-x: auto;
 }
-
 .message-content-wrapper pre {
-  background: #f9fafb;
-  border-radius: 6px;
-  padding: 12px;
+  background: #1e293b;
+  color: #f1f5f9;
+  border-radius: 8px;
+  padding: 14px 16px;
   margin: 12px 0;
+  font-size: 13px;
+  line-height: 1.55;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  /* 超长代码块：双向滚动 + 限高，避免撑爆消息气泡 */
+  max-height: 420px;
+  overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255,255,255,0.18) transparent;
 }
-
+.message-content-wrapper pre::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.message-content-wrapper pre::-webkit-scrollbar-track {
+  background: transparent;
+}
+.message-content-wrapper pre::-webkit-scrollbar-thumb {
+  background: rgba(255,255,255,0.18);
+  border-radius: 3px;
+}
+.message-content-wrapper pre::-webkit-scrollbar-thumb:hover {
+  background: rgba(255,255,255,0.3);
+}
 .message-content-wrapper code {
   background: #f3f4f6;
   padding: 2px 6px;
   border-radius: 4px;
-  font-size: 14px;
+  font-size: 13.5px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  color: #c2410c;
 }
-
 .message-content-wrapper pre code {
   background: transparent;
   padding: 0;
+  color: inherit;
+  font-size: 13px;
 }
 
+/* 表格 — 横向滚动 + 隐藏滚动条 + 控制列宽 */
 .message-content-wrapper table {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   border-collapse: collapse;
   margin: 12px 0;
   font-size: 14px;
 }
-
+.message-content-wrapper table::-webkit-scrollbar {
+  display: none;
+}
 .message-content-wrapper th,
 .message-content-wrapper td {
   border: 1px solid #e5e7eb;
   padding: 8px 12px;
+  word-break: break-word;
 }
-
 .message-content-wrapper th {
   background: #f9fafb;
   font-weight: 500;
 }
-
-.message-content-wrapper ul,
-.message-content-wrapper ol {
-  padding-left: 20px;
+/* 第一列（标签列）固定宽度，避免被内容撑爆 */
+.message-content-wrapper td:first-child,
+.message-content-wrapper th:first-child {
+  width: 110px;
+  min-width: 110px;
+  white-space: nowrap;
 }
 
-.message-content-wrapper li {
-  margin-bottom: 4px;
-}
-
+/* 链接 */
 .message-content-wrapper a {
-  color: #a78bfa;
+  color: #8b5cf6;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
+.message-content-wrapper a:hover { color: #7c3aed; }
 
+/* 引用 */
 .message-content-wrapper blockquote {
-  border-left: 3px solid #e5e7eb;
-  padding-left: 12px;
+  border-left: 3px solid #a78bfa;
+  padding: 4px 12px;
+  background: #faf9ff;
   color: #6b7280;
   margin: 8px 0;
+  border-radius: 0 4px 4px 0;
 }
 
-.message-content-wrapper p {
-  margin-bottom: 8px;
-}
-
-.message-content-wrapper p:last-child {
-  margin-bottom: 0;
+/* 分隔线 */
+.message-content-wrapper hr {
+  border: none;
+  border-top: 1px solid #e5e7eb;
+  margin: 16px 0;
 }
 
 /* ========== 输入框聚焦 ========== */

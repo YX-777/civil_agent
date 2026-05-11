@@ -81,6 +81,7 @@ async function commitConversationTurn(params: {
   assistantMessage: { role: "assistant"; content: string; timestamp: Date };
   persistedState: any;
   fallbackTitleSource: string;
+  assistantSteps?: Array<{ id: string; label: string; icon: string; status: string; detail?: string }>;
 }) {
   const {
     prisma,
@@ -102,12 +103,25 @@ async function commitConversationTurn(params: {
         timestamp: userMessage.timestamp,
       },
     });
+    // 助手消息持久化时把 sources / steps 写入 metadata 字段，
+    // 这样刷新页面或恢复会话时前端能拿回参考来源 + 执行轨迹
+    const messageMetadata: Record<string, any> = {};
+    if (Array.isArray(persistedState?.usedSources) && persistedState.usedSources.length > 0) {
+      messageMetadata.sources = persistedState.usedSources;
+    }
+    if (Array.isArray(params.assistantSteps) && params.assistantSteps.length > 0) {
+      messageMetadata.steps = params.assistantSteps;
+    }
+
     await tx.message.create({
       data: {
         conversationId,
         role: assistantMessage.role,
         content: assistantMessage.content,
         timestamp: assistantMessage.timestamp,
+        metadata: Object.keys(messageMetadata).length > 0
+          ? JSON.stringify(messageMetadata)
+          : null,
       },
     });
     await tx.agentState.upsert({
@@ -575,8 +589,10 @@ export async function POST(request: NextRequest) {
           let fullAssistantContent = "";
           let fullThoughtContent = "";
           let finalState: any = updatedState;
+          // 收集执行轨迹，最终持久化到 Message.metadata
+          const collectedStepsMap = new Map<string, any>();
 
-          // 流式发送文本内容（支持 thought 和 content 分离）
+          // 流式发送文本内容（支持 thought / step / content 分离）
           while (true) {
             const result = await streamGenerator.next();
             if (result.done) {
@@ -589,12 +605,35 @@ export async function POST(request: NextRequest) {
             if (chunk.type === "thought") {
               fullThoughtContent += chunk.text;
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "thought", content: chunk.text })}\n\n`));
+            } else if (chunk.type === "step") {
+              // 执行步骤事件 — 按 stepId 合并 running → done
+              const stepRecord = {
+                id: chunk.stepId,
+                label: chunk.stepLabel,
+                icon: chunk.stepIcon,
+                status: chunk.stepStatus,
+                detail: chunk.stepDetail,
+              };
+              if (chunk.stepId) {
+                collectedStepsMap.set(chunk.stepId, stepRecord);
+              }
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                type: "step",
+                stepId: chunk.stepId,
+                label: chunk.stepLabel,
+                icon: chunk.stepIcon,
+                status: chunk.stepStatus,
+                detail: chunk.stepDetail,
+              })}\n\n`));
             } else {
               // content 类型（正式回答）
               fullAssistantContent += chunk.text;
               controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "chunk", content: chunk.text })}\n\n`));
             }
           }
+
+          // 步骤列表（按收集顺序）
+          const collectedSteps = Array.from(collectedStepsMap.values());
 
           // 结束 Agent Span
           trace.endSpan(agentSpan, "success");
@@ -625,6 +664,7 @@ export async function POST(request: NextRequest) {
               userMessage,
               assistantMessage,
               persistedState,
+              assistantSteps: collectedSteps,
               fallbackTitleSource: message,
             });
 
@@ -652,14 +692,16 @@ export async function POST(request: NextRequest) {
               });
             }
 
-            // 发送完成事件（包含思考过程）
+            // 发送完成事件（包含思考过程 + 来源）
             const quickReplies = persistedState.quickReplyOptions || [];
+            const sources = persistedState.usedSources || [];
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({
               type: "done",
               quickReplies,
               conversationId: effectiveConversationId,
               turnId,
-              thoughts: fullThoughtContent || undefined,  // 新增：思考过程
+              thoughts: fullThoughtContent || undefined,
+              sources,  // 新增：本次回答引用的来源（记忆/知识库/联网）
             })}\n\n`));
           }
 

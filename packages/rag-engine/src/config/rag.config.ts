@@ -36,7 +36,9 @@ export const DEFAULT_RAG_CONFIG: RAGConfig = {
   reranker: {
     topK: 10,
     apiKey: process.env.DASHSCOPE_API_KEY || "",
-    endpoint: "https://dashscope.aliyuncs.com/api/v1/services/rerank",
+    // 阿里云百炼 rerank API 原生端点（v1 完整路径）
+    // 参考: https://help.aliyun.com/zh/model-studio/text-rerank-api
+    endpoint: "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank",
   },
   threeTierStrategy: {
     tier1Threshold: 0.85,

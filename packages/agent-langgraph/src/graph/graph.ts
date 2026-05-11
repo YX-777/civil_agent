@@ -27,6 +27,78 @@ import { routeByIntent } from "./edges";
 import { getAgentConfig, validateAgentConfig } from "../config/agent.config";
 
 /**
+ * 把任务规划节点返回的 JSON（或中文 key:value）渲染成 markdown 表格
+ *
+ * 兼容三种输入：
+ * 1. 严格 JSON: {"tech_stack":"React","daily_practice":"每天3个","difficulty":"基础","duration":"7天","reason":"..."}
+ * 2. JSON 被 ```json 包裹
+ * 3. 中文 key:value（"技术栈：xxx\n练习量：xxx"）
+ */
+function formatTaskPlanAsMarkdown(raw: string): string {
+  const header = "## 📋 为你定制的学习计划";
+  const footer = "> 如需调整，请使用下方快捷按钮。";
+  const safe = (v: any) => (v == null ? "—" : String(v).trim() || "—");
+
+  // 1) 尝试提取 JSON
+  let parsed: Record<string, any> | null = null;
+  const cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/```\s*$/i, "").trim();
+  const m = cleaned.match(/\{[\s\S]*\}/);
+  if (m) {
+    try {
+      parsed = JSON.parse(m[0]);
+    } catch {
+      parsed = null;
+    }
+  }
+
+  if (parsed) {
+    const tech = safe(parsed.tech_stack || parsed.techStack || parsed.module || parsed.技术栈);
+    const practice = safe(parsed.daily_practice || parsed.dailyPractice || parsed.practice || parsed.练习量);
+    const difficulty = safe(parsed.difficulty || parsed.难度);
+    const duration = safe(parsed.duration || parsed.period || parsed.周期);
+    const reason = safe(parsed.reason || parsed.说明 || parsed.理由);
+    const path: any[] = Array.isArray(parsed.learning_path) ? parsed.learning_path : (Array.isArray(parsed.阶段) ? parsed.阶段 : []);
+    const resources: any[] = Array.isArray(parsed.resources) ? parsed.resources : (Array.isArray(parsed.推荐资料) ? parsed.推荐资料 : []);
+
+    const parts: string[] = [
+      header,
+      "",
+      "| 项目 | 内容 |",
+      "| --- | --- |",
+      `| 🎯 技术栈 | ${tech} |`,
+      `| 📝 练习量 | ${practice} |`,
+      `| 📊 难度 | ${difficulty} |`,
+      `| ⏳ 周期 | ${duration} |`,
+      "",
+    ];
+
+    if (path.length > 0) {
+      parts.push("### 🗺️ 学习路径");
+      path.forEach((p, i) => parts.push(`${i + 1}. ${String(p).trim()}`));
+      parts.push("");
+    }
+
+    if (resources.length > 0) {
+      parts.push("### 📚 推荐资料");
+      resources.forEach((r) => parts.push(`- ${String(r).trim()}`));
+      parts.push("");
+    }
+
+    if (reason && reason !== "—") {
+      parts.push(`**为什么选这个？** ${reason}`);
+      parts.push("");
+    }
+    parts.push(footer);
+
+    return parts.join("\n");
+  }
+
+  // 2) 中文 key:value 兜底（去掉可能的 JSON 残余后保留行）
+  const lines = cleaned.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+  return [header, "", ...lines, "", footer].join("\n");
+}
+
+/**
  * 创建 Agent StateGraph
  *
  * 面试讲法：
@@ -104,7 +176,17 @@ export function createAgentGraph() {
     processStateStream: async function* (
       state: GraphStateType
     ): AsyncGenerator<StreamChunk, GraphStateType, unknown> {
-      // Step 1: 执行意图识别（非流式，快速）
+      // ========== Step: 意图识别 ==========
+      const intentT0 = Date.now();
+      yield {
+        type: "step",
+        text: "",
+        stepId: "intent",
+        stepLabel: "意图识别",
+        stepIcon: "🎯",
+        stepStatus: "running",
+      };
+
       const intentResult = await intentRecognitionNode(state);
       const currentState: GraphStateType = {
         ...state,
@@ -114,6 +196,7 @@ export function createAgentGraph() {
           ? [...state.messages, ...intentResult.messages]
           : state.messages,
         userIntent: intentResult.userIntent || state.userIntent,
+        intentDecision: intentResult.intentDecision || state.intentDecision,
         waitingForUserInput: intentResult.waitingForUserInput ?? state.waitingForUserInput,
         quickReplyOptions: intentResult.quickReplyOptions || state.quickReplyOptions,
         ragResults: intentResult.ragResults || state.ragResults,
@@ -123,36 +206,111 @@ export function createAgentGraph() {
       const intent = currentState.userIntent;
       logger.info(`Stream routing by intent: ${intent}`);
 
+      // 意图友好名称映射
+      const intentLabels: Record<string, string> = {
+        create_task: "制定学习计划",
+        progress_tracking: "查询学习进度",
+        emotional_support: "情绪支持",
+        general_inquiry: "通用问答",
+      };
+
+      // 拼出更详细的 detail：意图 + 理由 + 关键词 + 耗时
+      const decision = currentState.intentDecision;
+      const intentLabel = intentLabels[intent] || intent;
+      const detailParts: string[] = [intentLabel];
+      if (decision?.reasoning) detailParts.push(decision.reasoning);
+      if (decision?.keywords && decision.keywords.length > 0) {
+        detailParts.push(`关键词：${decision.keywords.join("、")}`);
+      }
+      detailParts.push(`${Date.now() - intentT0}ms`);
+
+      yield {
+        type: "step",
+        text: "",
+        stepId: "intent",
+        stepLabel: "意图识别",
+        stepIcon: "🎯",
+        stepStatus: "done",
+        stepDetail: detailParts.join(" · "),
+      };
+
       // Step 2: 根据意图选择流式节点
       try {
         if (intent === "create_task") {
-          // 任务生成节点（使用带思考的流式）
-          const lastUserMessage = currentState.messages.filter(m => m.role === "user").pop();
-          const userRequest = typeof lastUserMessage?.content === "string"
-            ? lastUserMessage.content
-            : "用户想学习技术";
+          // === Step: 需求确认 / 信息收集 ===
+          const checkT0 = Date.now();
+          yield {
+            type: "step",
+            text: "",
+            stepId: "clarify",
+            stepLabel: "需求确认",
+            stepIcon: "❓",
+            stepStatus: "running",
+          };
 
-          const planSystemPrompt = `你是 TechMate 任务规划引擎。请先分析用户需求，再生成学习计划。
+          const result = await taskGenerationNode(currentState);
+          const lastMessage = result.messages?.[result.messages.length - 1];
+          const planContent = typeof lastMessage?.content === "string" ? lastMessage.content : "";
 
-分析步骤：
-1. 用户的技术背景是什么？
-2. 用户想要学习什么？
-3. 合适的学习路径是什么？
-
-然后输出 JSON 格式的学习计划。`;
-
-          const planUserPrompt = `用户需求：${userRequest}\n请生成技术学习计划。`;
-
-          let planJson = "";
-          for await (const chunk of streamDashscopeAPIWithThinking(planSystemPrompt, planUserPrompt)) {
-            yield chunk;
-            if (chunk.type === "content") {
-              planJson += chunk.text;
-            }
+          // 分支 1：需要追问，不进入"生成计划"step，直接 yield 反问内容
+          if (result.clarificationNeeded) {
+            yield {
+              type: "step",
+              text: "",
+              stepId: "clarify",
+              stepLabel: "需求确认",
+              stepIcon: "❓",
+              stepStatus: "done",
+              stepDetail: `信息不充足，发起追问 · ${Date.now() - checkT0}ms`,
+            };
+            // 反问消息不包 markdown 表格，直接原文输出（剥掉【需求确认】内部标记前面的换行即可）
+            yield { type: "content", text: planContent };
+            return { ...currentState, ...result } as GraphStateType;
           }
 
-          // 解析 JSON...
-          const result = await taskGenerationNode(currentState);
+          // 分支 2：信息充足，进入完整生成链路
+          yield {
+            type: "step",
+            text: "",
+            stepId: "clarify",
+            stepLabel: "需求确认",
+            stepIcon: "❓",
+            stepStatus: "done",
+            stepDetail: `需求明确 · ${Date.now() - checkT0}ms`,
+          };
+
+          // 上一份计划检测（用于区分是"调整"还是"新建"）
+          const isAdjustment = currentState.messages.some((m: any) => {
+            const role = m.role || (m._getType ? m._getType() : "");
+            const c = typeof m.content === "string" ? m.content : "";
+            return (role === "assistant" || role === "ai") && (c.includes("📋") || c.includes("学习计划"));
+          });
+
+          // 检索 + 生成两个 step 在 taskGenerationNode 内部已完成，这里 yield 收尾状态
+          yield {
+            type: "step",
+            text: "",
+            stepId: "rag",
+            stepLabel: "检索学习历史",
+            stepIcon: "📚",
+            stepStatus: "done",
+            stepDetail: "已注入用户进度上下文",
+          };
+          yield {
+            type: "step",
+            text: "",
+            stepId: "generate",
+            stepLabel: "生成学习计划",
+            stepIcon: "🎯",
+            stepStatus: "done",
+            stepDetail: isAdjustment ? "基于上一份计划调整" : "结构化新计划已就绪",
+          };
+
+          if (planContent) {
+            const markdownPlan = formatTaskPlanAsMarkdown(planContent);
+            yield { type: "content", text: markdownPlan };
+          }
+
           return { ...currentState, ...result } as GraphStateType;
         } else if (intent === "progress_tracking") {
           const result = await progressQueryNode(currentState);
@@ -176,12 +334,19 @@ export function createAgentGraph() {
           // 默认（包括 general_inquiry）使用通用问答流式
           const streamGenerator = generalQANodeStream(currentState);
 
-          // generalQANodeStream 现在直接返回 StreamChunk
-          for await (const chunk of streamGenerator) {
-            yield chunk;
+          // 关键：用 next() 显式捕获 generator 的 return value
+          // for-await-of 会丢失 return value，导致 usedSources/ragResults 等字段无法回传到 finalState
+          let nodeResult: any = null;
+          while (true) {
+            const r = await streamGenerator.next();
+            if (r.done) {
+              nodeResult = r.value;
+              break;
+            }
+            yield r.value;
           }
 
-          return currentState;
+          return { ...currentState, ...(nodeResult || {}) } as GraphStateType;
         }
       } catch (error) {
         const err = error instanceof Error ? error : new Error(String(error));

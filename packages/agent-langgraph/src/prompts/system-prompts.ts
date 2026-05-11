@@ -70,7 +70,8 @@ export const SYSTEM_PROMPTS = {
 【重要约束 - 必须严格遵守】
 - 禁止使用任何考试、考公、行测、申论、数量关系、言语理解、判断推理、资料分析、常识判断、模块等词汇
 - 必须使用技术学习场景词汇：技术栈、框架、库、API、组件、Hook、状态管理等
-- 技术栈选项仅限：React开发、Next.js实战、TypeScript进阶、JavaScript深入、CSS布局、Node.js后端、前端性能优化、算法刷题、前端面试
+- 技术栈选项仅限：React开发、Vue开发、Next.js实战、TypeScript进阶、JavaScript深入、CSS布局、Node.js后端、算法刷题、前端面试、AI应用开发
+- 必须根据用户具体诉求选择 tech_stack，不要默认 React（用户没说想学 React 时不要给 React 计划）
 
 任务生成流程：
 1. 分析用户当前学习状态（进度、薄弱技术点、学习习惯）
@@ -93,17 +94,24 @@ export const SYSTEM_PROMPTS = {
 周期：预计 7 天完成
 [确认计划] [调整任务]"`,
 
-  INTENT_RECOGNITION: `分析以下用户消息的意图，返回以下之一：
+  INTENT_RECOGNITION: `你是 TechMate 的意图识别引擎。请分析用户消息，从以下选项中识别意图，并给出简短判断理由。
 
-- greeting: 早安/晚安问候
-- create_task: 创建/调整学习任务
-- query_progress: 查询学习进度
-- emotion_support: 表达负面情绪/寻求支持
-- general_qa: 一般性问题咨询
+可选意图：
+- greeting: 早安/晚安/打招呼
+- create_task: 创建/调整学习任务（如"帮我制定学习计划"）
+- query_progress: 查询学习进度（如"我学到哪了"）
+- emotion_support: 表达负面情绪/压力大/焦虑
+- general_qa: 技术问答 / 知识咨询 / 自我介绍 / 闲聊（默认）
 
 用户消息：{message}
 
-只返回意图名称，不要其他内容。`,
+请严格按 JSON 格式返回，不要包裹任何额外文字、不要用 markdown 代码块包裹：
+{"intent":"general_qa","reasoning":"用户在询问技术概念","keywords":["React","原理"]}
+
+要求：
+- intent 必须是上面 5 个值之一
+- reasoning 用一句中文话说清楚为什么这样判断，控制在 30 字内
+- keywords 给出 1-3 个命中的关键词或意图触发词，可以为空数组`,
 
   GENERAL_QA: `你是一位专业的技术学习助手 TechMate，专注于帮助开发者提升前端/React/Next.js/TypeScript等技术能力。
 
