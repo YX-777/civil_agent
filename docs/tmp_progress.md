@@ -1,10 +1,107 @@
 # TechMate 改造进度记录
 
-> 最后更新：2026-05-09
+> 最后更新：2026-05-11
 
 ---
 
-## 一、本次会话总结（2026-05-09）
+## 零、本次会话总结（2026-05-11）
+
+### 0.1 三大功能补全（页面统一 + 个人记忆 + Agent 看板）
+
+针对此前的产品割裂感（Chat 之外的页面都是 mock、profile 是考公残留），完成：
+
+| 模块 | 改动 | 数据来源 |
+|------|------|---------|
+| **Profile 页面** | 去掉 targetScore/examDate，新增「🧠 个人记忆」面板（按权重排序、可删除） | `/api/memory/long-term` ← ChromaDB `long_term_memory` |
+| **Dashboard 页面** | 从 mock 学习数据改为 Agent 系统运行时看板（4 个 panel） | `/api/dashboard/agent` ← SQLite + ChromaDB |
+| **UI 风格统一** | calendar/focus/tasks/profile/dashboard 全部紫色 `#a78bfa`/`#8b5cf6` + 白底 | — |
+| **关键词清理** | 删除所有"考公/考试"残留，替换为前端面试相关 | — |
+
+**Agent Dashboard 四个 panel**：
+1. 总览（会话数 / 消息数 / 事件数）
+2. 四阶分层记忆 + 知识库
+3. RAG 三路命中（vector / bm25 / web）+ avgScore
+4. LangGraph 节点调用热力图 + 最近事件流水
+
+**新增/修改的核心文件**：
+- `packages/database/prisma/schema.prisma` — 新增 `AgentEventLog` 表
+- `packages/agent-langgraph/src/utils/event-logger.ts` — fire-and-forget 写事件流水
+- `packages/agent-langgraph/src/graph/graph.ts` — intent / node 节点 emit 事件
+- `packages/agent-langgraph/src/utils/rag-fallback.ts` — rag 检索 emit 事件（含 webCount）
+- `packages/web/src/app/api/dashboard/agent/route.ts` — 看板数据聚合
+- `packages/web/src/app/dashboard/AgentDashboardClient.tsx` — 看板 UI
+- `packages/web/src/app/api/memory/long-term/route.ts` — 长期记忆查询/删除 API
+
+### 0.2 用户事实提取器（长期记忆快通道）
+
+**痛点**：原架构下，长期记忆要等短期记忆 freshness 衰减到 < 0.1（半衰期 7 天）+ 手动跑 `memory-cron.ts --run` 才能生成。**普通聊天根本写不进长期记忆**，Profile 永远是空的。
+
+**修复**：新增 `packages/agent-langgraph/src/memory/fact-extractor.ts`，两条快通道：
+
+| 路径 | 触发方式 | 权重 | 成本 |
+|------|---------|------|------|
+| 关键词同步匹配 | "记住..." / "我叫 X" / "我是 X 岗位" / "我用 X" / "我喜欢 X" | 0.85-0.95 | 0 |
+| LLM 异步提取 | 每轮对话用 qwen-turbo-latest 判断"是否含值得记忆的事实" | 0.65 | 一次轻量 LLM 调用 |
+
+**接入点**：`packages/web/src/app/api/agent/chat/route.ts` 短期记忆写入后 fire-and-forget 调用 `extractAndPersistFacts(userId, userMessage.content)`。
+
+**顺手修了一个老 bug**：`packages/database/src/services/vector-db.service.ts:addEmbedding` 之前没把 `documents` 写入 ChromaDB（只写了 metadata），导致 `getAllDocuments` 取出来的 `content` 全是空字符串。给方法加了第 5 个参数 `document?: string`。
+
+### 0.3 Dashboard webCount 真实化
+
+**bug**：`rag-fallback.ts` 内 emit 时硬编码 `webCount: 0`，且 nodes.ts 真正调 webSearch 的位置没有 emit 任何事件 → 看板上"联网搜索"永远为 0。
+
+**修复**：`nodes.ts:1234` webSearch 调用之后 emit `{ eventType:'rag', eventName:'web_search', payload:{ webCount, success, ragTier, query, durationMs } }`，Dashboard 聚合时累加。
+
+### 0.4 Markdown 渲染重写（react-markdown + 强力 normalize v5）
+
+**问题诊断**：用户反馈 Chat 答复的 markdown 渲染"代码块/表格/标题换行全乱"。抓 SSE 实测发现 **qwen3.6-plus 流式输出本身就是残缺的 markdown**：
+- `###⚛️ Reactvs Vue\| 维度 \|...`（标题没换行、缺空格、表格紧贴标题）
+- `视图。 \|\| **下一行**`（表格行用 `\|\|` 双竖线连接而不是 `\|\n\|`）
+- `\`\`\`typescript/**`（代码栅栏后紧跟代码）
+- `\`\`\`---` / `\`\`\`希望...`（代码块结束后紧跟内容）
+- `**bold**- 列表`（bold 后紧贴 list marker）
+- `执行。-无数组`（句号后紧贴 dash）
+
+**修复过程中踩过的两个坑**：
+1. **尝试切换到 `@ant-design/x-markdown`**：失败。XMarkdown 的 streaming cache 把问题搞复杂，且 tail 光标会被注入到代码块内造成"代码块第一行多一个字母"。回退到 `react-markdown`。
+2. **正则回溯陷阱**：`(```[A-Za-z][A-Za-z0-9_+\-]*)(?=\S)` 在 `\`\`\`typescript\n` 上会回溯到 `\`\`\`typescrip` + 后跟 `t`，导致 `typescript` 被切成 `typescrip\nt`。改成显式排除字符类 `([^A-Za-z0-9_+\-\s\n])` 禁止回溯。
+
+**最终 normalize v5（5 个 Phase）**：详见 `packages/web/src/components/chat/MessageBubble.tsx` 内 `normalizeMarkdown` 函数注释。所有 v5 规则用本次会话抓的实测 SSE 数据测试通过。
+
+**注**：模型本身的 intra-word 空格丢失（`Reactvs`、`defquick_sort`）是 tokenizer 缺陷，无法用正则修复。
+
+### 0.5 已记录但未解决的问题：代码块内换行混乱
+
+**现象**：LLM 输出代码块时，多个语句、import、注释经常挤在一行：
+```ts
+// 实测 qwen3.6-plus 输出（含 intra-token 空格丢失）：
+import React, {useState, useEffect }from 'react';interface User {id:number;name: string;}
+const[user, setUser] = useState<User|null>(null);useEffect(() => {//标记是否已取消letisCancelled = false;
+```
+
+**已做的优化**（`MessageBubble.tsx::normalizeMarkdown` 的 reflow 段）：
+- `;<keyword>` → `;\n<keyword>`（语句分隔，关键字白名单：const/let/var/function/class/import/export/return/if/else/for/while/...）
+- `;<identifier>(` → `;\n<identifier>(`（兜底：分号后跟用户函数名也换行）
+- `;//` → `;\n//`（注释独占行）
+- `}<keyword>` → `}\n\n<keyword>`（顶级声明分隔）
+- 语句结束符 + 紧贴 `//` → 拆开
+
+**测试效果**：可读性大幅提升，但仍未完美。剩余无解的部分：
+1. **LLM intra-token 空格丢失**：`importReact`、`constUser`、`letisCancelled`、`useState<User|null>` 没空格 → 正则无法添加（不知道在哪两个字符之间补）
+2. **中文注释互相连接**：`//陷阱1：...信息// 这会导致...` → 中文文本里无明确边界标记
+3. **JS 语句不全用 `;` 分隔**：JSX 元素内、对象字面量、函数表达式间的换行靠语法结构判断，正则无能为力
+
+**根本解法（未实施）**：
+- A. **换模型** — qwen3.6-plus → qwen-max / qwen2.5-coder（专门为代码训练）/ gpt-4 / claude
+- B. **集成 prettier 浏览器版** — bundle 增加 1-2MB，stream done 后真正语法格式化
+- C. **后端二次格式化** — 流式完成后调一次轻量 LLM 专门修代码格式（成本+延迟）
+
+**暂时跳过原因**：当前优化后可读性足够面试讲解；前端 normalize 不应改代码语义，进一步优化收益递减。
+
+---
+
+## 一、上次会话总结（2026-05-09）
 
 ### 1.1 腾讯云 Windows Server 部署 ✅
 

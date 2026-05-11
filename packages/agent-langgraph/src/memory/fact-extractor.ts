@@ -221,6 +221,39 @@ export async function persistFacts(userId: string, facts: ExtractedFact[]): Prom
 }
 
 /**
+ * 任务完成回写长期记忆
+ * 闭环用：Chat 创建任务 → 用户在任务页完成 → 写入 long_term_memory → 下次 Chat RAG 检索到
+ */
+export async function persistTaskCompletionFact(
+  userId: string,
+  info: {
+    title: string;
+    module?: string | null;
+    actualMinutes?: number;
+    accuracy?: number;
+  },
+): Promise<void> {
+  try {
+    const parts = [
+      `用户已完成学习任务：${info.title}`,
+      info.module ? `模块：${info.module}` : null,
+      typeof info.actualMinutes === "number" ? `用时 ${info.actualMinutes} 分钟` : null,
+      typeof info.accuracy === "number" ? `正确率 ${Math.round(info.accuracy * 100)}%` : null,
+    ].filter(Boolean);
+
+    const fact: ExtractedFact = {
+      content: parts.join("，"),
+      topics: ["任务完成", info.module || "学习"].filter(Boolean) as string[],
+      weight: 0.75,
+      source: "explicit",
+    };
+    await persistFacts(userId, [fact]);
+  } catch (err: any) {
+    console.warn("[FactExtractor] persistTaskCompletionFact failed:", err?.message || err);
+  }
+}
+
+/**
  * 一站式入口：从一条用户消息中提取事实并落库
  * 设计为 fire-and-forget，不抛错、不阻塞主流程
  */

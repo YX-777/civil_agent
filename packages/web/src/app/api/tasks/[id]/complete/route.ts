@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getTaskService } from "@tech-mate/database";
 import { getDatabase } from "@/lib/database";
+import { persistTaskCompletionFact } from "@tech-mate/agent-langgraph";
 
 const DEFAULT_USER_ID = "default-user";
 
@@ -31,6 +32,15 @@ export async function POST(
       actualQuestionCount,
       accuracy,
       reflection,
+    });
+
+    // 闭环：完成任务 → 写长期记忆，下次 Chat 时 RAG 可检索到
+    // Fire-and-forget：不阻塞响应、不抛错
+    void persistTaskCompletionFact(userId, {
+      title: result.task.title,
+      module: result.task.module,
+      actualMinutes,
+      accuracy,
     });
 
     return NextResponse.json({ success: true, ...result });

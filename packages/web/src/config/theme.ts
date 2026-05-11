@@ -5,7 +5,7 @@ const { defaultAlgorithm, darkAlgorithm } = theme;
 export const antdTheme = {
   algorithm: defaultAlgorithm,
   token: {
-    colorPrimary: "#0D9488",
+    colorPrimary: "#8b5cf6",
     colorSuccess: "#10b981",
     colorWarning: "#f59e0b",
     colorError: "#ef4444",
@@ -14,42 +14,42 @@ export const antdTheme = {
     fontSize: 14,
     fontFamily: "'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
     colorBgContainer: "#FFFFFF",
-    colorBgLayout: "#F0FDFA",
-    colorText: "#134E4A",
-    colorTextSecondary: "#0F766E",
+    colorBgLayout: "#ffffff",
+    colorText: "#1f2937",
+    colorTextSecondary: "#6b7280",
   },
   components: {
     Button: {
       borderRadius: 10,
       fontWeight: 600,
-      primaryShadow: "0 4px 12px rgba(13, 148, 136, 0.25)",
+      primaryShadow: "0 4px 12px rgba(139, 92, 246, 0.25)",
     },
     Card: {
       borderRadius: 16,
-      boxShadow: "0 8px 32px rgba(13, 148, 136, 0.12)",
-      colorBgContainer: "rgba(255, 255, 255, 0.85)",
+      boxShadow: "0 4px 16px rgba(139, 92, 246, 0.08)",
+      colorBgContainer: "#ffffff",
     },
     Input: {
       borderRadius: 10,
-      colorBgContainer: "rgba(255, 255, 255, 0.9)",
+      colorBgContainer: "#ffffff",
     },
     Modal: {
       borderRadius: 16,
     },
     Menu: {
       itemBg: "transparent",
-      itemSelectedBg: "rgba(13, 148, 136, 0.1)",
-      itemSelectedColor: "#0D9488",
-      itemHoverBg: "rgba(13, 148, 136, 0.05)",
-      itemHoverColor: "#14B8A6",
+      itemSelectedBg: "rgba(139, 92, 246, 0.1)",
+      itemSelectedColor: "#8b5cf6",
+      itemHoverBg: "rgba(139, 92, 246, 0.05)",
+      itemHoverColor: "#a78bfa",
     },
     Layout: {
-      headerBg: "rgba(255, 255, 255, 0.85)",
+      headerBg: "#ffffff",
       headerPadding: "0 24px",
       headerHeight: 64,
     },
     Message: {
-      contentBg: "rgba(255, 255, 255, 0.95)",
+      contentBg: "#ffffff",
     },
   },
 };

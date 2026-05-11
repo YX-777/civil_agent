@@ -441,16 +441,30 @@ export async function POST(request: NextRequest) {
     if (normalizedMessage === "确认计划" && userState.pendingTaskPlan) {
       const turnId = generateTurnId();
       const taskService = getTaskService();
-      const createdTask = await taskService.createTask(effectiveUserId, {
-        title: userState.pendingTaskPlan.title,
-        description: userState.pendingTaskPlan.description,
-        module: userState.pendingTaskPlan.module ?? undefined,
-        difficulty: userState.pendingTaskPlan.difficulty,
-        estimatedMinutes: userState.pendingTaskPlan.estimatedMinutes,
-        dueDate: buildTaskDueDate(userState.pendingTaskPlan.periodDays),
-        status: "todo",
-        progress: 0,
-      });
+      const plan = userState.pendingTaskPlan;
+      // 周期 > 1 天 → 拆成 N 条按日子任务；否则保持单任务行为。
+      // 这样任务页能逐天勾选打卡，而不是一条大任务挂一整周。
+      const splitDays = Math.min(14, Math.max(1, plan.periodDays ?? 1));
+      const baseTitle = plan.title;
+      const createdTasks = [];
+      for (let i = 0; i < splitDays; i++) {
+        const dayLabel = splitDays > 1 ? ` · Day ${i + 1}/${splitDays}` : "";
+        const dueDate = new Date();
+        dueDate.setHours(23, 59, 59, 999);
+        dueDate.setDate(dueDate.getDate() + i);
+        const t = await taskService.createTask(effectiveUserId, {
+          title: `${baseTitle}${dayLabel}`,
+          description: plan.description,
+          module: plan.module ?? undefined,
+          difficulty: plan.difficulty,
+          estimatedMinutes: plan.estimatedMinutes,
+          dueDate,
+          status: "todo",
+          progress: 0,
+        });
+        createdTasks.push(t);
+      }
+      const createdTask = createdTasks[0];
 
       const userMessage = {
         id: generateId(),
@@ -459,13 +473,16 @@ export async function POST(request: NextRequest) {
         timestamp: new Date(),
       };
       const assistantContent = [
-        `好的，已经根据刚才的计划为你创建真实任务。`,
-        `任务标题：${createdTask.title}`,
-        userState.pendingTaskPlan.module ? `模块：${userState.pendingTaskPlan.module}` : null,
-        userState.pendingTaskPlan.periodDays ? `建议周期：${userState.pendingTaskPlan.periodDays} 天` : null,
-        `你现在可以去任务页查看，并在完成后继续沉淀学习记录。`,
+        splitDays > 1
+          ? `好的，已经按 ${splitDays} 天周期为你拆成 ${splitDays} 条子任务并写入任务页。`
+          : `好的，已经根据刚才的计划为你创建真实任务。`,
+        `任务标题：${baseTitle}`,
+        plan.module ? `模块：${plan.module}` : null,
+        plan.periodDays ? `建议周期：${plan.periodDays} 天` : null,
+        ``,
+        `👉 [前往任务页查看与勾选](/tasks)`,
       ]
-        .filter(Boolean)
+        .filter((s) => s !== null)
         .join("\n");
       const assistantMessage = {
         id: generateId(),
@@ -496,7 +513,7 @@ export async function POST(request: NextRequest) {
       });
 
       console.log(
-        `[Agent API] task_plan_confirmed user=${effectiveUserId} conversation=${effectiveConversationId} task=${createdTask.id}`
+        `[Agent API] task_plan_confirmed user=${effectiveUserId} conversation=${effectiveConversationId} task=${createdTask.id} subtasks=${createdTasks.length}`
       );
 
       return createImmediateSSE({
