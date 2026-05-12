@@ -10,48 +10,86 @@ echo "=========================================="
 
 cd "$(dirname "$0")"
 
-# 1. 拉取最新代码
+# 1. 拉取最新代码（带超时+重试，防国内网络卡死）
 echo ""
 echo "1️⃣  拉取最新代码..."
-git pull
+PULL_OK=0
+for i in 1 2 3; do
+  if timeout 90 git pull; then
+    PULL_OK=1
+    break
+  fi
+  echo "   第 $i 次失败（超时或网络中断），10s 后重试..."
+  sleep 10
+done
+if [ $PULL_OK -eq 0 ]; then
+  echo "   ❌ git pull 三次都失败，建议："
+  echo "      1) 检查网络：ping github.com"
+  echo "      2) 改 origin 走 ghproxy："
+  echo "         git remote set-url origin https://ghproxy.com/\$(git remote get-url origin)"
+  echo "      3) 或在本地跑 deploy-from-local.sh 跳过服务端 git pull"
+  exit 1
+fi
 
-# 2. 清理旧依赖
+# 2. 停止服务释放内存（2GB 机器关键，腾出 400-800MB 给后续 build）
 echo ""
-echo "2️⃣  清理旧依赖..."
+echo "2️⃣  停止服务释放内存..."
+for svc in techmate-web techmate-chroma; do
+  if systemctl is-active "$svc" &>/dev/null; then
+    systemctl stop "$svc" && echo "   ⏸️  $svc 已停止"
+  else
+    echo "   ℹ️  $svc 未运行，跳过"
+  fi
+done
+# 兜底：kill 掉非 systemd 拉起的 node/next/python chromadb 进程
+pkill -f "next start" 2>/dev/null || true
+pkill -f "chromadb.cli" 2>/dev/null || true
+sleep 2
+free -h 2>/dev/null | head -3 || true
+
+# 3. 清理旧依赖
+echo ""
+echo "3️⃣  清理旧依赖..."
 rm -rf node_modules packages/*/node_modules pnpm-lock.yaml 2>/dev/null || true
 rm -rf packages/web/.next 2>/dev/null || true
+rm -rf packages/*/dist 2>/dev/null || true   # 强制重建，避免旧 dist 残留导致新导出丢失
 
-# 3. 安装依赖
+# 4. 安装依赖
 echo ""
-echo "3️⃣  安装依赖..."
+echo "4️⃣  安装依赖..."
 pnpm install
 
-# 4. 生成 Prisma Client
+# 5. 生成 Prisma Client
 echo ""
-echo "4️⃣  生成 Prisma Client..."
+echo "5️⃣  生成 Prisma Client..."
 cd packages/database && npx prisma generate && cd ..
 
-# 5. 编译 TypeScript 包
+# 6. 编译 TypeScript 包（按依赖顺序：core → database → rag-engine → agent-langgraph）
 echo ""
-echo "5️⃣  编译 TypeScript 包..."
-cd packages/agent-langgraph && pnpm build && cd ../..
+echo "6️⃣  编译 TypeScript 包..."
+cd packages/core && pnpm build && cd ../..
 cd packages/database && pnpm build && cd ../..
 cd packages/rag-engine && pnpm build && cd ../..
-cd packages/core && pnpm build && cd ../..
+cd packages/agent-langgraph && pnpm build && cd ../..
 
-# 6. 构建项目（内存限制）
+# 7. 构建项目（内存限制）
 echo ""
-echo "6️⃣  构建项目..."
+echo "7️⃣  构建项目..."
 NODE_OPTIONS="--max-old-space-size=4096" pnpm --filter @tech-mate/web build
 
-# 7. 重启服务（使用 systemd）
+# 8. 启动服务（先 chroma 后 web，遵守 systemd After 依赖）
 echo ""
-echo "7️⃣  重启服务..."
-if systemctl is-active techmate-web &>/dev/null; then
-    systemctl restart techmate-web
-    echo "   ✅ Web 服务已重启"
-else
-    echo "   提示：服务未使用 systemd 管理，请手动重启"
+echo "8️⃣  启动服务..."
+START_ANY=0
+for svc in techmate-chroma techmate-web; do
+  if systemctl list-unit-files "$svc.service" &>/dev/null && \
+     systemctl cat "$svc" &>/dev/null; then
+    systemctl start "$svc" && echo "   ▶️  $svc 已启动"
+    START_ANY=1
+  fi
+done
+if [ $START_ANY -eq 0 ]; then
+  echo "   提示：未检测到 systemd 服务，请手动启动：bash start-all.sh"
 fi
 
 echo ""
