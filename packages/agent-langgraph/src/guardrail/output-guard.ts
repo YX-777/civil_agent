@@ -87,15 +87,33 @@ export function computeFactCoverage(claims: string[], sources: RAGSourceSnippet[
   return { ratio: coveredCount / claims.length, uncoveredClaims: uncovered };
 }
 
-/** Jaccard 相似度（cosine 退化版，不依赖 embedding） */
+/** Jaccard 相似度（cosine 退化版，不依赖 embedding）
+ *
+ * 关键修正：中文没有空格，原版按 \s+ 切会把整句中文当成一个 token，
+ *          导致 Q&A 的 sim 永远接近 0。这里做 CJK-aware 分词：
+ *          - 英文/数字按空格切
+ *          - 中文按 2-char bigram 滑窗
+ *          - 两者合并去重
+ */
 function jaccardSimilarity(a: string, b: string): number {
-  const tokenize = (s: string) =>
-    new Set(
-      s.toLowerCase()
-        .replace(/[，。！？,.!?；;:：]/g, " ")
-        .split(/\s+/)
-        .filter(t => t.length >= 2),
-    );
+  const tokenize = (s: string): Set<string> => {
+    const tokens = new Set<string>();
+    const cleaned = s.toLowerCase().replace(/[，。！？,.!?；;:：、（）()\[\]【】「」""'']/g, " ");
+    // 英文/数字 token（长度 ≥ 2）
+    for (const tok of cleaned.split(/\s+/)) {
+      if (tok.length >= 2 && /[a-z0-9]/.test(tok)) tokens.add(tok);
+    }
+    // CJK 字符 bigram
+    const cjk = cleaned.replace(/[^一-龥]/g, " ");
+    for (const seg of cjk.split(/\s+/)) {
+      if (seg.length >= 2) {
+        for (let i = 0; i <= seg.length - 2; i++) {
+          tokens.add(seg.slice(i, i + 2));
+        }
+      }
+    }
+    return tokens;
+  };
   const sa = tokenize(a);
   const sb = tokenize(b);
   if (sa.size === 0 || sb.size === 0) return 0;
@@ -129,10 +147,15 @@ export async function checkOutput(input: OutputGuardInput): Promise<GuardResult>
   }
 
   // ---- 2) 事实交叉验证 ----
+  // 关键修正：若用户问题根本没走 RAG（web 搜索 / 普通对话 / 创意任务），
+  //          没有 ground truth 可对照，不应该判幻觉。只在有 RAG 来源时才做这一步。
   const claims = extractFactualClaims(input.answer);
-  const { ratio, uncoveredClaims } = computeFactCoverage(claims, input.ragSources ?? []);
+  const hasRagContext = (input.ragSources ?? []).length > 0;
+  const { ratio, uncoveredClaims } = hasRagContext
+    ? computeFactCoverage(claims, input.ragSources ?? [])
+    : { ratio: 1, uncoveredClaims: [] as string[] };
 
-  if (claims.length > 0 && ratio < policies.factVerificationRatio) {
+  if (hasRagContext && claims.length > 0 && ratio < policies.factVerificationRatio) {
     hits.push({
       ruleId: "out-low-fact-coverage",
       ruleName: "low-fact-coverage",

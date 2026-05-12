@@ -39,7 +39,7 @@ export default function BottomNav() {
         items={navItems.map((item) => ({
           key: item.key,
           label: (
-            <Link href={item.href} style={{ textDecoration: "none" }}>
+            <Link href={item.href} prefetch style={{ textDecoration: "none" }}>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 4, color: pathname === item.key ? "#374151" : "#9ca3af" }}>
                 <span style={{ fontSize: 20, color: pathname === item.key ? "#a78bfa" : "#9ca3af" }}>{item.icon}</span>
                 <span style={{ fontSize: 12, fontWeight: pathname === item.key ? 500 : 400 }}>{item.label}</span>

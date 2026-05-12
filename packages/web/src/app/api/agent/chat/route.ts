@@ -734,9 +734,15 @@ export async function POST(request: NextRequest) {
             const sources = persistedState.usedSources || [];
 
             // ========== GuardRail L3：输出验证（先跑，再持久化，保证 traceId 和 guardrail 一起入库）==========
+            // 关键：corpus 用 detail（真实文档内容）+ title 拼接，不要只传 title，
+            //      否则 factCoverage 永远算不到知识库正文，长期 0% 误报。
             const ragSnippets = (sources || [])
               .filter((s: any) => s?.type === "kb" || s?.type === "rag")
-              .map((s: any) => ({ content: s.title || "", title: s.title, url: s.url }));
+              .map((s: any) => ({
+                content: [s.detail, s.title].filter(Boolean).join("\n") || "",
+                title: s.title,
+                url: s.url,
+              }));
             const l3 = await runInTrace(trace, () => checkOutput({
               question: message!,
               answer: fullAssistantContent,

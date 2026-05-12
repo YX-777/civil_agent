@@ -129,8 +129,9 @@ export default function ChatSidebar({
 
   // 会话列表区域
   const renderConversationList = () => {
-    // loading 时显示空状态图标（不显示骨架屏）
-    if (isLoading) {
+    // 只在「真正首次加载」（既在 loading 又一条都没有）时显示骨架，
+    // 避免回答完成后 loadConversations 触发的 silent refresh 整列表闪一下"加载中..."
+    if (isLoading && conversations.length === 0) {
       return (
         <div style={{
           display: "flex",

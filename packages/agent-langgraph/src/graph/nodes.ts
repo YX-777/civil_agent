@@ -1267,7 +1267,10 @@ export async function* generalQANodeStream(
           // 透传 metadata.source_url（content-ingestion 写入时已保存原文链接）
           // 这样前端 SourcesSection 可以渲染成可点的 <a target="_blank">
           const url = (r.metadata?.source_url || r.metadata?.sourceUrl || "").trim() || undefined;
-          usedSources.push({ type: "kb", title: `${title}${category}`, score: r.score, url });
+          // detail 透传知识点正文片段（截短到 400 字），用于 GuardRail L3 事实交叉验证
+          // 不传完整 content 是避免 SSE payload 膨胀 / 前端展示溢出
+          const detailSnippet = text.length > 0 ? text.slice(0, 400) : undefined;
+          usedSources.push({ type: "kb", title: `${title}${category}`, detail: detailSnippet, score: r.score, url });
           return `${i + 1}. 【📚 本地知识库 · ${title}${category}】\n${text}`;
         })
         .join("\n\n");

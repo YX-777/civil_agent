@@ -381,11 +381,16 @@ function GuardRailBadge({ guardrail, traceId, conversationId }: { guardrail: Gua
           <div>
             <strong>L3 输出验证</strong>:{" "}
             {outputPassed ? "✅ 通过" : `⚠️ ${guardrail.output.hits} 项`}
-            {typeof guardrail.output.similarity === "number" && (
-              <span>· 相关性 {(guardrail.output.similarity * 100).toFixed(0)}%</span>
+            {typeof guardrail.output.similarity === "number" && guardrail.output.similarity > 0 && (
+              <span> · 相关性 {(guardrail.output.similarity * 100).toFixed(0)}%</span>
             )}
             {typeof guardrail.output.factCoverage === "number" && (
-              <span> · 事实覆盖 {(guardrail.output.factCoverage * 100).toFixed(0)}%</span>
+              <span>
+                {" "}· 事实覆盖 {(guardrail.output.factCoverage * 100).toFixed(0)}%
+                {guardrail.output.factCoverage === 1 && (
+                  <span style={{ fontSize: 11, opacity: 0.7, marginLeft: 4 }}>（无 RAG 来源时跳过此检查）</span>
+                )}
+              </span>
             )}
           </div>
           {traceId && (
