@@ -165,11 +165,23 @@ async function retrieveWithFallbackInner(
   if (effectiveOptions.preferHybrid) {
     try {
       const queryEngine = getLlamaIndexQueryEngine();
-      const retrieveResult = await queryEngine.retrieveOnly({
+      let retrieveResult = await queryEngine.retrieveOnly({
         query,
         topK: effectiveOptions.topK,
         category: effectiveOptions.category,
       });
+
+      // Category 软降级：第一次带 category 命中 0 时，自动回退到全库检索
+      // 原因：远程 chroma 实际 category 分布不均（多数为 general/frontend），
+      // 强类目过滤会把 80%+ 候选挤出 → 让向量语义匹配兜底
+      if (retrieveResult.sourceNodes.length === 0 && effectiveOptions.category) {
+        console.log(`[RAG] category="${effectiveOptions.category}" 0 命中，回退到全库检索`);
+        retrieveResult = await queryEngine.retrieveOnly({
+          query,
+          topK: effectiveOptions.topK,
+          category: undefined,
+        });
+      }
 
       const hasResults = retrieveResult.sourceNodes.length > 0;
       if (hasResults || retrieveResult.tier !== "fallback") {
