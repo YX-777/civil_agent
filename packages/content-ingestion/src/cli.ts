@@ -10,9 +10,10 @@
  */
 import { IContentAdapter } from "./types";
 import { DevtoAdapter } from "./adapters/devto-adapter";
-import { RuanyfAdapter } from "./adapters/ruanyf-adapter";
 import { RuanyfWeeklyAdapter } from "./adapters/ruanyf-weekly-adapter";
 import { GithubAwesomeAdapter } from "./adapters/github-awesome-adapter";
+import { HuggingFaceBlogAdapter } from "./adapters/huggingface-blog-adapter";
+import { LangChainBlogAdapter } from "./adapters/langchain-blog-adapter";
 import { persistArticles } from "./persister";
 
 function parseArgs(): { source: string; limit: number; dryRun: boolean; verbose: boolean } {
@@ -34,9 +35,10 @@ function parseArgs(): { source: string; limit: number; dryRun: boolean; verbose:
 function buildAdapter(source: string): IContentAdapter | null {
   switch (source) {
     case "devto": return new DevtoAdapter();
-    case "ruanyf": return new RuanyfAdapter();
     case "weekly": return new RuanyfWeeklyAdapter();
     case "awesome": return new GithubAwesomeAdapter();
+    case "hf-blog": return new HuggingFaceBlogAdapter();
+    case "langchain-blog": return new LangChainBlogAdapter();
     default: return null;
   }
 }
@@ -44,7 +46,7 @@ function buildAdapter(source: string): IContentAdapter | null {
 async function main() {
   const { source, limit, dryRun, verbose } = parseArgs();
   if (!source) {
-    console.error("Usage: ingest --source <devto|ruanyf|weekly|awesome> [--limit N] [--dry-run] [--verbose]");
+    console.error("Usage: ingest --source <devto|weekly|awesome|hf-blog|langchain-blog> [--limit N] [--dry-run] [--verbose]");
     process.exit(1);
   }
 
@@ -71,6 +73,8 @@ async function main() {
       ? { minLength: 500, maxLength: 20000, requireKeyword: false } // awesome README 段落更长，且本身就是技术 list
       : source === "weekly"
       ? { minLength: 500, maxLength: 20000, requireKeyword: true }
+      : source === "hf-blog" || source === "langchain-blog"
+      ? { minLength: 300, maxLength: 30000, requireKeyword: false } // 官方 AI 博客本身就是技术内容，免关键词
       : { minLength: 300, maxLength: 30000, requireKeyword: true },
   });
 

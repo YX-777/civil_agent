@@ -12,7 +12,8 @@ import { Article, FetchOptions, IContentAdapter } from "../types";
  * 这里不带 token，单 adapter 限制 100 条左右刚好。
  */
 
-const TAGS = ["ai", "javascript", "react", "typescript", "webdev", "node"];
+// AI 主题前置（前几个 tag 会拉更多文章），保证 ai/agent/llm/langchain 类目占比
+const TAGS = ["ai", "llm", "agent", "langchain", "rag", "machinelearning", "openai", "javascript", "react", "typescript", "webdev", "node"];
 const BASE = "https://dev.to";
 
 interface DevtoListItem {
@@ -58,7 +59,11 @@ function stripHtml(s: string): string {
 
 function categoryFromTags(tags: string[] = []): string {
   const tl = tags.map((t) => t.toLowerCase());
-  if (tl.some((t) => ["ai", "llm", "machinelearning", "ml", "rag"].includes(t))) return "ai";
+  if (tl.some((t) => ["langchain", "langgraph"].includes(t))) return "langchain";
+  if (tl.some((t) => ["rag", "retrievalaugmentation"].includes(t))) return "rag";
+  if (tl.some((t) => ["agent", "agentic", "autonomousagent"].includes(t))) return "agent";
+  if (tl.some((t) => ["llm", "gpt", "claude", "openai", "anthropic"].includes(t))) return "llm";
+  if (tl.some((t) => ["ai", "machinelearning", "ml"].includes(t))) return "ai";
   if (tl.some((t) => ["react", "vue", "angular", "svelte", "css", "html", "frontend", "webdev"].includes(t))) return "frontend";
   if (tl.some((t) => ["node", "backend", "python", "go", "rust"].includes(t))) return "backend";
   return "general";

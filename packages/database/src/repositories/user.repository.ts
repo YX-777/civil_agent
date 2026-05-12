@@ -54,6 +54,11 @@ export class UserRepository extends BaseRepository<User> {
   async findOrCreateUser(userId: string): Promise<User> {
     const existing = await this.findByUserId(userId);
     if (existing) {
+      // 兜底：旧数据可能 User 存在但 UserProfile 缺失（schema 演进过的老库）
+      if (!(existing as any).profile) {
+        await this.prisma.userProfile.create({ data: { userId } });
+        return (await this.findByUserId(userId)) as User;
+      }
       return existing;
     }
     return this.createUser(userId);
