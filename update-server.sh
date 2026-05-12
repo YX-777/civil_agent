@@ -86,13 +86,10 @@ echo ""
 echo "5️⃣  生成 Prisma Client..."
 pnpm --filter @tech-mate/database exec npx prisma generate
 
-# 6. 编译 TypeScript 包（按依赖顺序：core → database → rag-engine → agent-langgraph）
+# 6. 编译所有 workspace 包（pnpm -r 自动按拓扑顺序，排除 web 让它单独走 step 7）
 echo ""
 echo "6️⃣  编译 TypeScript 包..."
-pnpm --filter @tech-mate/core build
-pnpm --filter @tech-mate/database build
-pnpm --filter @tech-mate/rag-engine build
-pnpm --filter @tech-mate/agent-langgraph build
+pnpm -r --filter "!@tech-mate/web" build
 
 # 7. 构建项目（内存限制）
 echo ""
