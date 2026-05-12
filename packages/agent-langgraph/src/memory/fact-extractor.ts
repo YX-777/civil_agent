@@ -21,6 +21,7 @@ import { randomUUID } from "crypto";
 import {
   getVectorDBService,
   getEmbeddingService,
+  getUserRepository,
 } from "@tech-mate/database";
 import { ChatOpenAI } from "@langchain/openai";
 
@@ -33,6 +34,11 @@ export interface ExtractedFact {
   source: "explicit" | "llm";
 }
 
+// 疑问词黑名单：避免把"我叫什么名字？"这类反问句的"什么名字"当成名字提取
+// 全字符匹配（startsWith）即可，因为这些词都是高频疑问引导
+const INTERROGATIVE_BLACKLIST = ["什么", "啥", "谁", "哪", "怎么", "如何", "为什么", "多少", "几"];
+const NAME_NOISE_PREFIX = /^(?:一个|个|的|了|啊|吧|呢|很|挺|超|有点|可能|大概|应该|似乎|或者|还有)/;
+
 /**
  * 关键词匹配（轻量、同步、零成本）
  * 命中明确的"用户声明"模式，直接产出事实
@@ -41,31 +47,45 @@ export function matchExplicitFacts(message: string): ExtractedFact[] {
   const text = message.trim();
   if (text.length < 2 || text.length > 500) return [];
 
+  // 整句包含问号 → 几乎可以肯定是疑问句而非声明，跳过名字/角色提取
+  // （"记住"模式不受影响：用户说"请记住我叫 X 吗？"这种边界场景极少见）
+  const isQuestion = /[?？]/.test(text);
+
   const facts: ExtractedFact[] = [];
 
-  // 模式 1: "我叫 X" / "我的名字是 X" / "叫我 X"
-  const nameMatch = text.match(/(?:^|[^A-Za-z一-龥])(?:我叫|我的名字是|叫我|我是)([A-Za-z一-龥][A-Za-z一-龥0-9_·\s]{0,15}?)(?:[，。,.\s!?!？]|$)/);
-  if (nameMatch?.[1]) {
-    const name = nameMatch[1].trim();
-    if (name.length >= 1 && name.length <= 16 && !/^(?:一个|个|的|了|啊|吧|呢)/.test(name)) {
-      facts.push({
-        content: `用户的名字/称呼是「${name}」`,
-        topics: ["身份", "称呼"],
-        weight: 0.9,
-        source: "explicit",
-      });
+  // 模式 1: "我叫 X" / "我的名字是 X" / "叫我 X"（疑问句跳过）
+  if (!isQuestion) {
+    const nameMatch = text.match(/(?:^|[^A-Za-z一-龥])(?:我叫|我的名字是|叫我|我是)([A-Za-z一-龥][A-Za-z一-龥0-9_·\s]{0,15}?)(?:[，。,.\s!?!？]|$)/);
+    if (nameMatch?.[1]) {
+      const name = nameMatch[1].trim();
+      const looksLikeQuestion = INTERROGATIVE_BLACKLIST.some(w => name.startsWith(w));
+      if (
+        name.length >= 1 &&
+        name.length <= 16 &&
+        !NAME_NOISE_PREFIX.test(name) &&
+        !looksLikeQuestion
+      ) {
+        facts.push({
+          content: `用户的名字/称呼是「${name}」`,
+          topics: ["身份", "称呼"],
+          weight: 0.9,
+          source: "explicit",
+        });
+      }
     }
   }
 
-  // 模式 2: "我是 X 工程师 / 开发 / 学生 / 程序员"
-  const roleMatch = text.match(/我是\s*(.{1,20}?(?:工程师|开发(?:者|人员)?|程序员|学生|实习生|架构师|经理|主管|设计师|产品|测试|运维))/);
-  if (roleMatch?.[1]) {
-    facts.push({
-      content: `用户的职业身份：${roleMatch[1].trim()}`,
-      topics: ["职业", "身份"],
-      weight: 0.85,
-      source: "explicit",
-    });
+  // 模式 2: "我是 X 工程师 / 开发 / 学生 / 程序员"（疑问句跳过）
+  if (!isQuestion) {
+    const roleMatch = text.match(/我是\s*(.{1,20}?(?:工程师|开发(?:者|人员)?|程序员|学生|实习生|架构师|经理|主管|设计师|产品|测试|运维))/);
+    if (roleMatch?.[1]) {
+      facts.push({
+        content: `用户的职业身份：${roleMatch[1].trim()}`,
+        topics: ["职业", "身份"],
+        weight: 0.85,
+        source: "explicit",
+      });
+    }
   }
 
   // 模式 3: 显式"记住"指令 — "记住 X" / "请记住 X" / "帮我记住 X"
@@ -178,7 +198,18 @@ JSON：`;
 }
 
 /**
+ * 从事实文本里抽出名字 —— 仅当 content 是 "用户的名字/称呼是「X」" 这个固定模板时返回 X
+ * 用于把 ChromaDB 长期记忆和 SQLite UserProfile.nickname 双向同步
+ */
+function extractNameFromFactContent(content: string): string | null {
+  const m = content.match(/^用户的名字\/称呼是「(.+?)」$/);
+  return m?.[1]?.trim() || null;
+}
+
+/**
  * 把事实写入 ChromaDB long_term_memory
+ * 副作用：如果事实里含"用户的名字"，同步更新 SQLite UserProfile.nickname
+ * （这样 Profile 页头像旁的名字、欢迎语等所有读 UserProfile 的地方都能自动用上）
  */
 export async function persistFacts(userId: string, facts: ExtractedFact[]): Promise<number> {
   if (facts.length === 0) return 0;
@@ -188,6 +219,7 @@ export async function persistFacts(userId: string, facts: ExtractedFact[]): Prom
   await vectorService.initialize();
 
   let saved = 0;
+  let pendingNickname: string | null = null;
   for (const f of facts) {
     try {
       const vector = await embeddingService.generateEmbedding(f.content);
@@ -213,10 +245,29 @@ export async function persistFacts(userId: string, facts: ExtractedFact[]): Prom
       );
       saved++;
       console.log(`[FactExtractor] saved (${f.source}, w=${f.weight.toFixed(2)}): ${f.content.slice(0, 60)}`);
+
+      // 抓出名字事实，最后统一同步（高 weight 优先 = explicit 模式 1 命中）
+      const name = extractNameFromFactContent(f.content);
+      if (name && (!pendingNickname || f.weight >= 0.85)) {
+        pendingNickname = name;
+      }
     } catch (err: any) {
       console.warn("[FactExtractor] persist failed:", err?.message || err);
     }
   }
+
+  // 同步 UserProfile.nickname（fire-and-forget，失败不影响主流程）
+  if (pendingNickname) {
+    try {
+      const userRepo = getUserRepository();
+      await userRepo.findOrCreateUser(userId);
+      await userRepo.updateUserProfile(userId, { nickname: pendingNickname });
+      console.log(`[FactExtractor] synced UserProfile.nickname = "${pendingNickname}"`);
+    } catch (err: any) {
+      console.warn("[FactExtractor] sync nickname failed:", err?.message || err);
+    }
+  }
+
   return saved;
 }
 
