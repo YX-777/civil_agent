@@ -1,0 +1,23 @@
+{
+  "name": "@tech-mate/content-ingestion",
+  "version": "1.0.0",
+  "private": true,
+  "description": "TechMate 内容采集 - 多源技术文章 ingestion pipeline",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "ingest": "tsx src/cli.ts",
+    "bootstrap": "tsx scripts/bootstrap-300.ts"
+  },
+  "dependencies": {
+    "@tech-mate/core": "workspace:*",
+    "@tech-mate/database": "workspace:*",
+    "fast-xml-parser": "^4.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.0"
+  }
+}

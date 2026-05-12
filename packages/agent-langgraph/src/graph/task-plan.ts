@@ -14,10 +14,19 @@ export interface ParsedTaskPlan {
 
 function extractLineValue(planText: string, labels: string[]): string | null {
   for (const label of labels) {
-    const regex = new RegExp(`${label}[：:]\\s*(.+)`, "i");
-    const match = planText.match(regex);
-    if (match?.[1]) {
-      return match[1].trim();
+    // 1) 普通形式："模块：React"
+    const colonRe = new RegExp(`${label}[：:]\\s*(.+)`, "i");
+    const colonMatch = planText.match(colonRe);
+    if (colonMatch?.[1]) {
+      // 如果命中的内容里含 markdown 管道符，说明命中了表格行里的右侧，需要清理
+      return colonMatch[1].trim().replace(/\s*\|.*$/, "").trim();
+    }
+    // 2) markdown 表格形式："| 🎯 模块 | React开发 |" 或 "|模块|React|"
+    //    label 前后允许 emoji + 空格 + 其它修饰；只关心 label 和它右边那一格
+    const tableRe = new RegExp(`\\|[^|\\n]*?${label}[^|\\n]*?\\|([^|\\n]+)\\|`, "i");
+    const tableMatch = planText.match(tableRe);
+    if (tableMatch?.[1]) {
+      return tableMatch[1].trim();
     }
   }
   return null;
@@ -66,11 +75,13 @@ export function parseTaskPlanFromText(planText: string): ParsedTaskPlan | null {
   const trimmedPlan = planText.trim();
   if (!trimmedPlan) return null;
 
-  const rawModule = extractLineValue(trimmedPlan, ["模块", "科目"]);
+  // 实际 Agent 输出常见 label：技术栈 / 练习量 / 推荐理由
+  // 同时兼容老版 prompt 里的"模块/题量"等
+  const rawModule = extractLineValue(trimmedPlan, ["技术栈", "模块", "科目"]);
   const rawDifficulty = extractLineValue(trimmedPlan, ["难度"]);
-  const rawQuestionCount = extractLineValue(trimmedPlan, ["题量", "任务量"]);
-  const rawPeriod = extractLineValue(trimmedPlan, ["周期", "时长"]);
-  const reason = extractLineValue(trimmedPlan, ["理由", "说明", "调整说明"]);
+  const rawQuestionCount = extractLineValue(trimmedPlan, ["题量", "任务量", "练习量"]);
+  const rawPeriod = extractLineValue(trimmedPlan, ["周期", "时长", "预计周期"]);
+  const reason = extractLineValue(trimmedPlan, ["推荐理由", "理由", "说明", "调整说明"]);
 
   const module = normalizeModule(rawModule);
   const dailyQuestionCount = extractFirstInteger(rawQuestionCount);

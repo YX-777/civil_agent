@@ -16,7 +16,10 @@ export async function GET(request: NextRequest) {
     }
 
     const conversationRepo = getConversationRepository();
-    const conversations = await conversationRepo.findByUserId(userId);
+    // 默认拉 200 条；前端可显式传 ?limit=N 微调
+    const limitParam = searchParams.get('limit');
+    const limit = limitParam ? Math.max(1, Math.min(500, parseInt(limitParam, 10))) : 200;
+    const conversations = await conversationRepo.findByUserId(userId, limit);
 
     return NextResponse.json({ success: true, conversations });
   } catch (error) {

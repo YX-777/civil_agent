@@ -1,12 +1,107 @@
 # TechMate 改造进度记录
 
-> 最后更新：2026-05-11
+> 最后更新：2026-05-12
 
 ---
 
-## 零、本次会话总结（2026-05-11）
+## 零、本次会话总结（2026-05-12）
 
-### 0.1 三大功能补全（页面统一 + 个人记忆 + Agent 看板）
+围绕"让面试演示真的能跑通"做了一整天密集修复 + 性能优化 + 知识库扩容。
+
+### 0.0 Tasks 页 Agent 联动（Chat → 任务 → Memory 闭环）
+
+| 改动 | 文件 | 一句话讲法 |
+|------|------|---------|
+| Chat 拆子任务 + 跳转链接 | `web/src/app/api/agent/chat/route.ts:441-518` | 确认计划时按 `periodDays` 循环 `taskService.createTask` 拆 N 条 Day i/N 子任务，回复加 `👉 [前往任务页查看与勾选](/tasks)` markdown 链接 |
+| 完成任务回写长期记忆 | `web/src/app/api/tasks/[id]/complete/route.ts` + `agent-langgraph/src/memory/fact-extractor.ts::persistTaskCompletionFact` | 完成任务 fire-and-forget 写 ChromaDB `long_term_memory`，下次 Chat RAG 可检索 |
+| 紫色主题统一 | `web/src/config/theme.ts` | `colorPrimary` 从 `#0D9488`(teal-green) 改 `#8b5cf6`(purple) + 背景/Card/Menu 全部紫色系 |
+
+### 0.1 content-ingestion 多源采集包（知识库 40 → 750 条）
+
+**为什么做**：原 XHS MCP 抓取不稳定（403 风控频发），简历里"小红书 RAG 知识库"撑不住面试问到内部时。
+
+**Spike 失败的方案**（面试讲故事核心素材）：
+- ❌ 掘金 RSSHub × 3 镜像 全部 502/timeout
+- ❌ InfoQ RSS 只有摘要无正文
+- ❌ SegmentFault articles feed 403
+- ❌ git clone ruanyf/weekly fatal: early EOF
+- ❌ GitHub Contents API 国内 DNS 易污染
+- ❌ raw.githubusercontent.com 当前抽风 502
+
+**最终采用的 4 个 adapter**（独立 `packages/content-ingestion` 包）：
+
+| 来源 | 入库 chunks | URL 形式 |
+|---|---|---|
+| ruanyf-weekly | 398 | jsdelivr CDN 枚举 `issue-N.md` |
+| devto | 220 | 两阶段 API（列表 + 详情） |
+| github-awesome | 82 | jsdelivr CDN + H2 切分 6 个 README |
+| ruanyf atom | 10 | RSS feed.xml |
+| 原 TechMate 知识库 | 40 | (硬编码 init_knowledge_base.py) |
+| **合计** | **750 ChromaDB chunks** | |
+
+**关键工程决策**：
+- **jsdelivr CDN 替代 raw.githubusercontent.com**：国内 100% 可用，零风控
+- **Adapter 模式 + Pipeline 三道过滤**：长度 + 关键词白名单 + 去重 (md5 前 500 字符)
+- **chunker 段落优先**：长文按 `\n\n` 切，单段超长按句号兜底，目标 chunk 2000 字
+- **embedding 维度对齐**：用 v2 (1536 维)，与原 40 条 collection 一致
+
+**入库 metadata 含 source_url**：750/750 100% 覆盖率（原 40 条手动补刷为 GitHub init 脚本链接）。
+
+**面试讲故事**："原计划掘金/InfoQ/SegmentFault RSS → spike 评估发现公网代理全跪、InfoQ 只有摘要、SegmentFault articles 403 → 改走 GitHub repo + dev.to API + RSS atom → Adapter 模式抽象 4 类异构源 + Pipeline 三道过滤 + 单次脚本 5 小时跑出 750 条 chunks。"
+
+### 0.2 修复"确认计划"创建任务失败（两个串联 bug）
+
+**Bug 1**：前端 `use-agent.ts:270` 给所有快捷回复加了前缀 `用户选择了快捷回复选项：`，但 route.ts 用 `=== "确认计划"` 严格相等 → 永远 miss。
+
+**Bug 2**：`task-plan.ts::parseTaskPlanFromText` 老正则只识别 `模块：value`，但实际 LLM 输出是 markdown 表格 `| 🎯 技术栈 | React开发 |` → 解析失败 → `pendingTaskPlan = null` → state 里从不存在这个字段 → 即使 Bug 1 修了也没用。
+
+**修复**：
+- `route.ts:438` 加 `quickReplyText = msg.replace(/^用户选择了快捷回复选项：/, "")`
+- `task-plan.ts::extractLineValue` 新增 markdown 表格行匹配 + 加 `技术栈/练习量/推荐理由` 别名
+
+### 0.3 task-generation 改为流式 + Memory/RAG 并行（性能优化 60%+）
+
+**根因**：`graph.ts` 原本 `await taskGenerationNode()` 是**同步阻塞 LLM 调用**，用户在"需求确认" step 看到 `running` 时实际后台默默生成 markdown 5-15s，毫无反馈。
+
+**优化**：
+1. **task-generation 全程流式**：把 graph.ts create_task 分支拆成 clarify（毫秒级本地判断）+ generate（流式 LLM）两个 step，用 `streamDashscopeAPIWithThinking` 替代 `llm.invoke`，**首字节 ~1s 而非 5-15s**
+2. **Memory 四个 retriever 并行**：`fusion.ts` 用 `Promise.all` 替代 4 次串行 `await`
+3. **Memory + RAG 并行**：`generalQANodeStream` 把记忆融合检索和知识库 RAG 用 `Promise.all` 一起跑（两者 collection 独立）
+4. **Tavily 超时 15s → 5s**：避免外部 API 偶发抽风把整条 chat 拖死
+5. **新增 Markdown prompt**：`task-prompts.ts::GENERATE_TASK_PLAN_MARKDOWN` 让 LLM 直接出 markdown 表格，跳过 JSON 中间形态
+
+**实测**：curl 端到端 4.87s（原 15-25s），首字节 ~1s，3 条子任务真实落库。
+
+### 0.4 kb source_url 透传（参考来源可点击外链）
+
+**Bug**：`nodes.ts:1288` 把 kb 类型 source 加进 `usedSources` 时没带 url 字段，丢失了 `metadata.source_url`。
+
+**修复**：
+- `nodes.ts:1290` 增加 `url: r.metadata?.source_url || undefined` 透传
+- 原 TechMate 知识库 40 条 metadata 没有 source_url → 用 python 一次性补刷为 `https://github.com/sxh/civil_agent/blob/main/init_knowledge_base.py`
+- **最终覆盖率 750/750 (100%)**
+
+**面试讲法**："知识库可信度三层保证：来源透明（每条标注 source）+ 原文可追溯（metadata.source_url 公开 URL，用户可点击核验）+ 相关度可见（cosine 相似度百分比）。"
+
+### 0.5 UI 三件套修复（侧栏滚动 + 流式抖动 + Markdown 紧贴标题）
+
+| Bug | 根因 | 修复 |
+|---|---|---|
+| 左侧会话列表无法滚动 | antd Sider 内部多一层 `.ant-layout-sider-children` wrapper，flex 设在外层 `<aside>` 不生效 | `globals.css` 加 `.chat-sidebar > .ant-layout-sider-children { display:flex; flex-direction:column; height:100% }` |
+| 回答时左侧列表抖动 | `!isAgentLoading && (按钮区)` 条件渲染，agent 流式时按钮整块卸载 → 下方列表上移 | 改成永远渲染按钮，流式时 `disabled` + 文字变"回答中…"，Layout 稳定 |
+| `###🚀第3 天` / `###混合架构` 紧贴标题不换行 | 原正则 9 `[^\n#](#{1,6}[ \t]+\S)` 要求 `#` 后必须有空格 | `MessageBubble.tsx::normalizeMarkdown` 加规则 9b（中文标点 + `###X` 强制拆行）+ 9c（拆出来后补空格） |
+
+### 0.6 会话列表只显示 10 条 bug
+
+**Bug**：`conversation.repository.ts:19` 默认 `limit: 10` 硬编码，API 没传 limit → 永远只拿前 10 条。db 里 44 条用户以为"被删了"。
+
+**修复**：repo 默认 `limit: 200` + API 支持 `?limit=N` 查询参数（1-500 clamp）。
+
+---
+
+## 一、历史会话总结（2026-05-11）
+
+### 1.1 三大功能补全（页面统一 + 个人记忆 + Agent 看板）
 
 针对此前的产品割裂感（Chat 之外的页面都是 mock、profile 是考公残留），完成：
 

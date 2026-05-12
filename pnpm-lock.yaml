@@ -25,7 +25,7 @@ importers:
     dependencies:
       '@langchain/community':
         specifier: ^1.1.8
-        version: 1.1.28(@aws-crypto/sha256-js@5.2.0)(@browserbasehq/sdk@2.10.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.59.1)(deepmerge@4.3.1)(dotenv@17.4.2)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.11(typescript@5.9.3))(@langchain/core@1.1.45(@opentelemetry/api@1.9.0)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))(@opentelemetry/api@1.9.0)(chromadb@1.10.5(openai@6.37.0(ws@8.20.0)(zod@3.25.76)))(d3-dsv@3.0.1)(html-to-text@9.0.5)(ibm-cloud-sdk-core@5.4.14)(ioredis@5.10.1)(jsonwebtoken@9.0.3)(lodash@4.18.1)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(pg@8.20.0)(playwright@1.59.1)(ws@8.20.0)
+        version: 1.1.28(@aws-crypto/sha256-js@5.2.0)(@browserbasehq/sdk@2.10.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.59.1)(deepmerge@4.3.1)(dotenv@17.4.2)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.11(typescript@5.9.3))(@langchain/core@1.1.45(@opentelemetry/api@1.9.0)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))(@opentelemetry/api@1.9.0)(chromadb@1.10.5(openai@6.37.0(ws@8.20.0)(zod@3.25.76)))(d3-dsv@3.0.1)(fast-xml-parser@4.5.6)(html-to-text@9.0.5)(ibm-cloud-sdk-core@5.4.14)(ioredis@5.10.1)(jsonwebtoken@9.0.3)(lodash@4.18.1)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(pg@8.20.0)(playwright@1.59.1)(ws@8.20.0)
       '@langchain/core':
         specifier: ^1.1.17
         version: 1.1.45(@opentelemetry/api@1.9.0)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(ws@8.20.0)
@@ -71,6 +71,28 @@ importers:
         version: 4.21.0
       typescript:
         specifier: ^5.3.3
+        version: 5.9.3
+
+  packages/content-ingestion:
+    dependencies:
+      '@tech-mate/core':
+        specifier: workspace:*
+        version: link:../core
+      '@tech-mate/database':
+        specifier: workspace:*
+        version: link:../database
+      fast-xml-parser:
+        specifier: ^4.3.0
+        version: 4.5.6
+    devDependencies:
+      '@types/node':
+        specifier: ^20.0.0
+        version: 20.19.40
+      tsx:
+        specifier: ^4.7.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.3.0
         version: 5.9.3
 
   packages/core:
@@ -2913,6 +2935,10 @@ packages:
   fast-uri@3.1.2:
     resolution: {integrity: sha512-rVjf7ArG3LTk+FS6Yw81V1DLuZl1bRbNrev6Tmd/9RaroeeRRJhAt7jg/6YFxbvAQXUCavSoZhPPj6oOx+5KjQ==}
 
+  fast-xml-parser@4.5.6:
+    resolution: {integrity: sha512-Yd4vkROfJf8AuJrDIVMVmYfULKmIJszVsMv7Vo71aocsKgFxpdlpSHXSaInvyYfgw2PRuObQSW2GFpVMUjxu9A==}
+    hasBin: true
+
   fastq@1.20.1:
     resolution: {integrity: sha512-GGToxJ/w1x32s/D2EKND7kTil4n8OVk/9mycTc4VDza13lOvpUZTGX3mFSCtV9ksdGBVzvsyAVLM6mHFThxXxw==}
 
@@ -4365,6 +4391,9 @@ packages:
   strip-literal@2.1.1:
     resolution: {integrity: sha512-631UJ6O00eNGfMiWG78ck80dfBab8X6IVFB51jZK5Icd7XAs60Z5y7QdSd/wGIklnWvRbUNloVzhOKKmutxQ6Q==}
 
+  strnum@1.1.2:
+    resolution: {integrity: sha512-vrN+B7DBIoTTZjnPNewwhx6cBA/H+IS7rfW68n7XxC1y7uoiGQBxaKzqucGUgavX15dJgiGztLJ8vxuEzwqBdA==}
+
   strtok3@10.3.5:
     resolution: {integrity: sha512-ki4hZQfh5rX0QDLLkOCj+h+CVNkqmp/CMf8v8kZpkNVK6jGQooMytqzLZYUVYIZcFZ6yDB70EfD8POcFXiF5oA==}
     engines: {node: '>=18'}
@@ -5281,7 +5310,7 @@ snapshots:
       - openai
       - ws
 
-  '@langchain/community@1.1.28(@aws-crypto/sha256-js@5.2.0)(@browserbasehq/sdk@2.10.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.59.1)(deepmerge@4.3.1)(dotenv@17.4.2)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.11(typescript@5.9.3))(@langchain/core@1.1.45(@opentelemetry/api@1.9.0)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))(@opentelemetry/api@1.9.0)(chromadb@1.10.5(openai@6.37.0(ws@8.20.0)(zod@3.25.76)))(d3-dsv@3.0.1)(html-to-text@9.0.5)(ibm-cloud-sdk-core@5.4.14)(ioredis@5.10.1)(jsonwebtoken@9.0.3)(lodash@4.18.1)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(pg@8.20.0)(playwright@1.59.1)(ws@8.20.0)':
+  '@langchain/community@1.1.28(@aws-crypto/sha256-js@5.2.0)(@browserbasehq/sdk@2.10.0)(@browserbasehq/stagehand@1.14.0(@playwright/test@1.59.1)(deepmerge@4.3.1)(dotenv@17.4.2)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(zod@3.25.76))(@ibm-cloud/watsonx-ai@1.7.11(typescript@5.9.3))(@langchain/core@1.1.45(@opentelemetry/api@1.9.0)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(ws@8.20.0))(@opentelemetry/api@1.9.0)(chromadb@1.10.5(openai@6.37.0(ws@8.20.0)(zod@3.25.76)))(d3-dsv@3.0.1)(fast-xml-parser@4.5.6)(html-to-text@9.0.5)(ibm-cloud-sdk-core@5.4.14)(ioredis@5.10.1)(jsonwebtoken@9.0.3)(lodash@4.18.1)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(pg@8.20.0)(playwright@1.59.1)(ws@8.20.0)':
     dependencies:
       '@browserbasehq/stagehand': 1.14.0(@playwright/test@1.59.1)(deepmerge@4.3.1)(dotenv@17.4.2)(openai@6.37.0(ws@8.20.0)(zod@3.25.76))(zod@3.25.76)
       '@ibm-cloud/watsonx-ai': 1.7.11(typescript@5.9.3)
@@ -5302,6 +5331,7 @@ snapshots:
       '@browserbasehq/sdk': 2.10.0
       chromadb: 1.10.5(openai@6.37.0(ws@8.20.0)(zod@3.25.76))
       d3-dsv: 3.0.1
+      fast-xml-parser: 4.5.6
       html-to-text: 9.0.5
       ioredis: 5.10.1
       jsonwebtoken: 9.0.3
@@ -7241,6 +7271,10 @@ snapshots:
 
   fast-uri@3.1.2: {}
 
+  fast-xml-parser@4.5.6:
+    dependencies:
+      strnum: 1.1.2
+
   fastq@1.20.1:
     dependencies:
       reusify: 1.1.0
@@ -9058,6 +9092,8 @@ snapshots:
   strip-literal@2.1.1:
     dependencies:
       js-tokens: 9.0.1
+
+  strnum@1.1.2: {}
 
   strtok3@10.3.5:
     dependencies:

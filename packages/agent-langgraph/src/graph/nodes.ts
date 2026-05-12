@@ -694,7 +694,7 @@ function detectTechStackSignal(text: string): { matched: boolean; label: string 
  * 2. 用户本轮输入是对前一轮反问的回答（前一条 assistant 是 clarification 反问）
  * 3. 已经存在"上一份计划"（说明是调整流程，沿用前一份的 tech_stack）
  */
-function shouldClarifyTaskPlan(state: GraphStateType): { needClarify: boolean } {
+export function shouldClarifyTaskPlan(state: GraphStateType): { needClarify: boolean } {
   const lastUserMessage = state.messages.filter((m: any) => (m.role || m._getType?.()) === "user").pop();
   const userText = typeof lastUserMessage?.content === "string" ? lastUserMessage.content : "";
 
@@ -720,7 +720,7 @@ function shouldClarifyTaskPlan(state: GraphStateType): { needClarify: boolean } 
 /**
  * 构造追问消息（带快捷回复，让用户在不需要打字的情况下回答）
  */
-function buildClarificationMessage(): string {
+export function buildClarificationMessage(): string {
   return [
     "【需求确认】",
     "",
@@ -1133,7 +1133,9 @@ export async function* generalQANodeStream(
     const enhancedMessage = await contextEnhancer.enhanceUserMessage(state.userId, content);
     const config = getAgentConfig();
 
-    // ========== 四层记忆融合检索（面试核心亮点）==========
+    // ========== Memory + RAG 并行检索（性能优化）==========
+    // 两条链路无数据依赖：memory 用 long_term_memory collection，RAG 用 tech_knowledge collection
+    // 串行 4-7s → 并行 max ≈ 2-4s，省 ~40-50% 等待时间
     const memT0 = Date.now();
     yield {
       type: "step",
@@ -1144,46 +1146,8 @@ export async function* generalQANodeStream(
       stepStatus: "running",
     };
 
-    // 转换消息格式为 Memory Message
-    const memoryMessages: Message[] = state.messages.map((msg: any) => ({
-      role: msg.role || (msg._getType ? msg._getType() : "user"),
-      content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
-    }));
-
-    // 执行四层记忆融合检索
-    const memoryRetriever = getMemoryFusionRetriever();
-    const fusedMemory = await memoryRetriever.retrieve(
-      state.userId,
-      content,
-      memoryMessages
-    );
-
-    // 将融合后的上下文添加到系统提示
-    const memoryContextPrompt = fusedMemory.fusedContext;
-    console.log(`🧠 [Memory] 融合上下文已生成，长度: ${memoryContextPrompt.length} 字符`);
-
-    yield {
-      type: "step",
-      text: "",
-      stepId: "memory",
-      stepLabel: "融合四阶分层记忆",
-      stepIcon: "🧠",
-      stepStatus: "done",
-      stepDetail: `瞬时${state.messages.length}条 · 短期/长期/元 共 ${memoryContextPrompt.length} 字符上下文 · ${Date.now() - memT0}ms`,
-    };
-
-    // ========== RAG Engine 集成测试日志 ==========
-    console.log("=".repeat(60));
-    console.log("🔍 [RAG TEST] 用户问题:", content);
-    console.log("🔍 [RAG TEST] 白名单命中:", shouldRouteToXiaohongshuRag(content));
-    console.log("=".repeat(60));
-
-    // 使用 HybridRetriever + MCP 降级的 RAG 检索
-    let ragContext = "";
-    let ragResults: any[] = [];
-
-    if (config.features.ragEnabled && shouldRouteToXiaohongshuRag(content)) {
-      const ragT0 = Date.now();
+    const ragEnabled = config.features.ragEnabled && shouldRouteToXiaohongshuRag(content);
+    if (ragEnabled) {
       yield {
         type: "step",
         text: "",
@@ -1192,11 +1156,41 @@ export async function* generalQANodeStream(
         stepIcon: "🔍",
         stepStatus: "running",
       };
+    }
 
-      const ragFallbackResult = await retrieveWithFallback(content, { topK: 5, userId: state.userId });
+    const memoryMessages: Message[] = state.messages.map((msg: any) => ({
+      role: msg.role || (msg._getType ? msg._getType() : "user"),
+      content: typeof msg.content === "string" ? msg.content : JSON.stringify(msg.content),
+    }));
+
+    const memoryRetriever = getMemoryFusionRetriever();
+    const memoryPromise = memoryRetriever.retrieve(state.userId, content, memoryMessages);
+    const ragPromise = ragEnabled
+      ? retrieveWithFallback(content, { topK: 5, userId: state.userId })
+      : Promise.resolve(null);
+
+    // 并行执行（关键点）
+    const [fusedMemory, ragFallbackResult] = await Promise.all([memoryPromise, ragPromise]);
+
+    const memoryContextPrompt = fusedMemory.fusedContext;
+    console.log(`🧠 [Memory] 融合上下文已生成，长度: ${memoryContextPrompt.length} 字符`);
+
+    const memElapsed = Date.now() - memT0;
+    yield {
+      type: "step",
+      text: "",
+      stepId: "memory",
+      stepLabel: "融合四阶分层记忆",
+      stepIcon: "🧠",
+      stepStatus: "done",
+      stepDetail: `瞬时${state.messages.length}条 · 短期/长期/元 共 ${memoryContextPrompt.length} 字符上下文 · ${memElapsed}ms`,
+    };
+
+    let ragContext = "";
+    let ragResults: any[] = [];
+    if (ragFallbackResult) {
       ragContext = ragFallbackResult.context;
       ragResults = ragFallbackResult.results;
-
       yield {
         type: "step",
         text: "",
@@ -1204,7 +1198,7 @@ export async function* generalQANodeStream(
         stepLabel: "检索本地知识库",
         stepIcon: "🔍",
         stepStatus: "done",
-        stepDetail: `LlamaIndex 混合检索 · 命中 ${ragResults.length} 条 · ${ragFallbackResult.tier} · ${Date.now() - ragT0}ms`,
+        stepDetail: `LlamaIndex 混合检索 · 命中 ${ragResults.length} 条 · ${ragFallbackResult.tier} · ${memElapsed}ms（与记忆并行）`,
       };
     } else {
       yield {
@@ -1217,6 +1211,11 @@ export async function* generalQANodeStream(
         stepDetail: "问题不属于知识库分类，跳过",
       };
     }
+
+    console.log("=".repeat(60));
+    console.log("🔍 [RAG TEST] 用户问题:", content);
+    console.log("🔍 [RAG TEST] 命中:", ragResults.length, "条");
+    console.log("=".repeat(60));
 
     // ========== 联网搜索智能路由 ==========
     // 触发条件：RAG tier=fallback/expand 或问题命中时效/显式联网关键词
@@ -1285,7 +1284,10 @@ export async function* generalQANodeStream(
           const title = r.metadata?.title || `知识点 ${i + 1}`;
           const category = r.metadata?.category ? ` · ${r.metadata.category}` : "";
           const text = (r.content || "").trim();
-          usedSources.push({ type: "kb", title: `${title}${category}`, score: r.score });
+          // 透传 metadata.source_url（content-ingestion 写入时已保存原文链接）
+          // 这样前端 SourcesSection 可以渲染成可点的 <a target="_blank">
+          const url = (r.metadata?.source_url || r.metadata?.sourceUrl || "").trim() || undefined;
+          usedSources.push({ type: "kb", title: `${title}${category}`, score: r.score, url });
           return `${i + 1}. 【📚 本地知识库 · ${title}${category}】\n${text}`;
         })
         .join("\n\n");

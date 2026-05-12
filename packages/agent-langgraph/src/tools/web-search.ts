@@ -82,7 +82,9 @@ export async function webSearch(query: string): Promise<WebSearchResult | null> 
         include_answer: true,        // Tavily 会综合一段答案，省一次 LLM 调用
         include_raw_content: false,
       }),
-      signal: AbortSignal.timeout(15_000),
+      // 5s 上限：Tavily 偶尔抽到 8-10s，会把整条 Chat 链路拖死
+      // 失败/超时 → null，调用方有兜底（LLM 仍然能基于本地知识库回答）
+      signal: AbortSignal.timeout(5_000),
     });
 
     if (!response.ok) {

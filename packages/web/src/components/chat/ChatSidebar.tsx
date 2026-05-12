@@ -224,8 +224,11 @@ export default function ChatSidebar({
         </div>
       )}
 
-      {/* 展开状态 */}
+      {/* 展开状态
+          关键：antd Sider 内部多包一层 .ant-layout-sider-children wrapper，
+          flex 必须设在那一层（通过 className 在 globals.css 里指定）才能让列表 flex:1 滚动生效 */}
       <Sider
+        className="chat-sidebar"
         collapsed={collapsed}
         onCollapse={onCollapse}
         width={260}
@@ -239,6 +242,7 @@ export default function ChatSidebar({
           top: 0,
           zIndex: 20,
           display: collapsed ? "none" : "block",
+          overflow: "hidden",
         }}
         trigger={null}
       >
@@ -289,29 +293,30 @@ export default function ChatSidebar({
           />
         </div>
 
-        {/* 新建对话按钮 - Loading 或 Agent Loading 时隐藏 */}
-        {!isLoading && !isAgentLoading && (
-          <div style={{ padding: "12px 16px" }}>
+        {/* 新建对话按钮 — 流式时 disabled，不再用条件隐藏，避免下方列表跳动看上去像重刷新 */}
+        {!isLoading && (
+          <div style={{ padding: "12px 16px", flexShrink: 0 }}>
             <Button
               icon={<PlusOutlined />}
               onClick={onCreateConversation}
               block
+              disabled={isAgentLoading}
               style={{
                 borderRadius: 10,
                 background: "#fff",
                 border: "1px solid #e5e7eb",
-                color: "#6b7280",
+                color: isAgentLoading ? "#d1d5db" : "#6b7280",
                 height: 40,
                 fontSize: 14,
               }}
             >
-              开启新对话
+              {isAgentLoading ? "回答中…" : "开启新对话"}
             </Button>
           </div>
         )}
 
-        {/* 会话列表 */}
-        <div style={{ padding: "8px", flex: 1, overflowY: "auto" }}>
+        {/* 会话列表 — flex:1 现在生效（Sider 已是 flex 容器），高度自动占满剩余空间且可滚动 */}
+        <div style={{ padding: "8px", flex: 1, overflowY: "auto", minHeight: 0 }}>
           {renderConversationList()}
         </div>
       </Sider>

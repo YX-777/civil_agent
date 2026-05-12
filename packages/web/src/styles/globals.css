@@ -262,3 +262,14 @@ textarea::placeholder {
 .ant-menu-inline .ant-menu-item-selected .ant-menu-item-icon {
   color: #a78bfa !important;
 }
+
+/* ========== Chat 侧边栏滚动修复 ==========
+   antd Sider 默认子元素 wrapper (.ant-layout-sider-children) 不是 flex 容器，
+   导致内部的会话列表 flex:1 + overflowY:auto 不生效。
+   把它改成纵向 flex 容器后，列表区域能真正占满剩余高度并出现滚动条。 */
+.chat-sidebar > .ant-layout-sider-children {
+  display: flex !important;
+  flex-direction: column !important;
+  height: 100% !important;
+  overflow: hidden !important;
+}

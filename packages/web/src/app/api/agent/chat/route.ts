@@ -434,11 +434,14 @@ export async function POST(request: NextRequest) {
     setCachedState(effectiveUserId, effectiveConversationId, userState);
 
     const normalizedMessage = message.trim();
+    // 前端 use-agent.ts 给快捷回复加了前缀 `用户选择了快捷回复选项：` 用于让模型理解意图，
+    // 这里要把原始选项文本剥出来匹配，否则严格 === 会永远 miss。
+    const quickReplyText = normalizedMessage.replace(/^用户选择了快捷回复选项[：:]\s*/, "");
 
     // 任务确认属于"执行动作"而不是"再次让模型生成文案"。
     // 这里直接读取上一轮 state 中沉淀好的 pendingTaskPlan，创建真实任务，
     // 避免前端把结构化计划再传回来，也避免模型二次解释造成计划漂移。
-    if (normalizedMessage === "确认计划" && userState.pendingTaskPlan) {
+    if (quickReplyText === "确认计划" && userState.pendingTaskPlan) {
       const turnId = generateTurnId();
       const taskService = getTaskService();
       const plan = userState.pendingTaskPlan;
@@ -524,7 +527,7 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    if (normalizedMessage === "取消" && userState.pendingTaskPlan) {
+    if (quickReplyText === "取消" && userState.pendingTaskPlan) {
       const turnId = generateTurnId();
       const userMessage = {
         id: generateId(),

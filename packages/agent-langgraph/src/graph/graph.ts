@@ -22,7 +22,14 @@ import {
   generalQANodeStream,
   StreamChunk,
   streamDashscopeAPIWithThinking,
+  shouldClarifyTaskPlan,
+  buildClarificationMessage,
+  createQuickReplies,
 } from "./nodes";
+import { AIMessage } from "@langchain/core/messages";
+import { parseTaskPlanFromText } from "./task-plan";
+import { SYSTEM_PROMPTS } from "../prompts/system-prompts";
+import { TASK_PROMPTS } from "../prompts/task-prompts";
 import { routeByIntent } from "./edges";
 import { getAgentConfig, validateAgentConfig } from "../config/agent.config";
 import { logAgentEvent } from "../utils/event-logger";
@@ -252,7 +259,7 @@ export function createAgentGraph() {
       const nodeT0 = Date.now();
       try {
         if (intent === "create_task") {
-          // === Step: 需求确认 / 信息收集 ===
+          // === Step 1: 需求确认（纯本地判断，不调 LLM）===
           const checkT0 = Date.now();
           yield {
             type: "step",
@@ -263,12 +270,11 @@ export function createAgentGraph() {
             stepStatus: "running",
           };
 
-          const result = await taskGenerationNode(currentState);
-          const lastMessage = result.messages?.[result.messages.length - 1];
-          const planContent = typeof lastMessage?.content === "string" ? lastMessage.content : "";
+          const { needClarify } = shouldClarifyTaskPlan(currentState);
 
-          // 分支 1：需要追问，不进入"生成计划"step，直接 yield 反问内容
-          if (result.clarificationNeeded) {
+          // 分支 1：信息不足 → 直接追问（不走 LLM，毫秒级）
+          if (needClarify) {
+            const clarifyContent = buildClarificationMessage();
             yield {
               type: "step",
               text: "",
@@ -278,12 +284,24 @@ export function createAgentGraph() {
               stepStatus: "done",
               stepDetail: `信息不充足，发起追问 · ${Date.now() - checkT0}ms`,
             };
-            // 反问消息不包 markdown 表格，直接原文输出（剥掉【需求确认】内部标记前面的换行即可）
-            yield { type: "content", text: planContent };
-            return { ...currentState, ...result } as GraphStateType;
+            yield { type: "content", text: clarifyContent };
+            return {
+              ...currentState,
+              messages: [...currentState.messages, new AIMessage(clarifyContent)],
+              quickReplyOptions: createQuickReplies([
+                "React 开发",
+                "Vue 开发",
+                "TypeScript 进阶",
+                "前端面试",
+                "AI 应用开发",
+                "刷算法",
+              ]),
+              waitingForUserInput: true,
+              clarificationNeeded: true,
+            } as GraphStateType;
           }
 
-          // 分支 2：信息充足，进入完整生成链路
+          // 分支 2：信息充足 → 流式生成完整计划
           yield {
             type: "step",
             text: "",
@@ -294,23 +312,69 @@ export function createAgentGraph() {
             stepDetail: `需求明确 · ${Date.now() - checkT0}ms`,
           };
 
-          // 上一份计划检测（用于区分是"调整"还是"新建"）
+          // 检测"调整 vs 新建"
           const isAdjustment = currentState.messages.some((m: any) => {
             const role = m.role || (m._getType ? m._getType() : "");
             const c = typeof m.content === "string" ? m.content : "";
             return (role === "assistant" || role === "ai") && (c.includes("📋") || c.includes("学习计划"));
           });
 
-          // 检索 + 生成两个 step 在 taskGenerationNode 内部已完成，这里 yield 收尾状态
+          // 提取上一份计划（调整场景）
+          let previousPlan: string | null = null;
+          for (let i = currentState.messages.length - 2; i >= 0; i--) {
+            const msg: any = currentState.messages[i];
+            const role = msg.role || (msg._getType ? msg._getType() : "");
+            const c = typeof msg.content === "string" ? msg.content : "";
+            if ((role === "assistant" || role === "ai") && (c.includes("学习计划") || c.includes("📋"))) {
+              previousPlan = c;
+              break;
+            }
+          }
+
+          // 用户当前需求
+          const lastUserMessage = [...currentState.messages].reverse().find((m: any) => {
+            const r = m.role || (m._getType ? m._getType() : "");
+            return r === "user" || r === "human";
+          });
+          const userRequest = typeof lastUserMessage?.content === "string"
+            ? lastUserMessage.content
+            : "用户想学习技术";
+
+          // === Step 2: 流式生成（边出字边收集 + 解析）===
+          const genT0 = Date.now();
           yield {
             type: "step",
             text: "",
-            stepId: "rag",
-            stepLabel: "检索学习历史",
-            stepIcon: "📚",
-            stepStatus: "done",
-            stepDetail: "已注入用户进度上下文",
+            stepId: "generate",
+            stepLabel: "生成学习计划",
+            stepIcon: "🎯",
+            stepStatus: "running",
+            stepDetail: isAdjustment ? "基于上一份计划调整中..." : "正在为你定制...",
           };
+
+          const systemPrompt = SYSTEM_PROMPTS.TASK_GENERATION;
+          // 用 markdown 版 prompt：LLM 直接输出表格，跳过 JSON 中间形态
+          // 配合下游 parseTaskPlanFromText 已经识别 markdown 表格
+          const promptBase = TASK_PROMPTS.GENERATE_TASK_PLAN_MARKDOWN
+            .replace("{userId}", currentState.userId)
+            .replace("{progress}", "暂无进度数据")
+            .replace("{weakModules}", "待分析")
+            .replace("{studyHabits}", "待分析");
+          const adjustmentContext = previousPlan
+            ? `\n上一份计划：\n${previousPlan}\n\n请基于上一份计划做有针对性的调整（不要重复输出一遍）。\n`
+            : "";
+          const fullUserPrompt = `用户具体需求：${userRequest}${adjustmentContext}\n\n${promptBase}`;
+
+          let fullContent = "";
+          for await (const chunk of streamDashscopeAPIWithThinking(systemPrompt, fullUserPrompt)) {
+            if (chunk.type === "content") {
+              fullContent += chunk.text;
+              yield chunk;
+            } else if (chunk.type === "thought") {
+              yield chunk;
+            }
+          }
+
           yield {
             type: "step",
             text: "",
@@ -318,23 +382,33 @@ export function createAgentGraph() {
             stepLabel: "生成学习计划",
             stepIcon: "🎯",
             stepStatus: "done",
-            stepDetail: isAdjustment ? "基于上一份计划调整" : "结构化新计划已就绪",
+            stepDetail: `${fullContent.length} 字 · ${Date.now() - genT0}ms`,
           };
 
-          if (planContent) {
-            const markdownPlan = formatTaskPlanAsMarkdown(planContent);
-            yield { type: "content", text: markdownPlan };
-          }
+          // 解析 + 写入 pendingTaskPlan（任务页联动的关键）
+          const parsedPlan = parseTaskPlanFromText(fullContent);
 
           logAgentEvent({
             userId: state.userId,
             eventType: "node",
             eventName: "task_generation",
-            payload: { isAdjustment, planLength: planContent.length },
+            payload: {
+              isAdjustment,
+              planLength: fullContent.length,
+              parsed: !!parsedPlan,
+              periodDays: parsedPlan?.periodDays,
+              module: parsedPlan?.module,
+            },
             durationMs: Date.now() - nodeT0,
           });
 
-          return { ...currentState, ...result } as GraphStateType;
+          return {
+            ...currentState,
+            messages: [...currentState.messages, new AIMessage(fullContent)],
+            quickReplyOptions: createQuickReplies(["确认计划", "调整任务", "取消"]),
+            waitingForUserInput: true,
+            pendingTaskPlan: parsedPlan ?? undefined,
+          } as GraphStateType;
         } else if (intent === "progress_tracking") {
           const result = await progressQueryNode(currentState);
           if (result.messages?.length) {

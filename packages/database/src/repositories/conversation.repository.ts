@@ -16,7 +16,7 @@ export class ConversationRepository extends BaseRepository<Conversation> {
     super(prisma, 'conversation');
   }
 
-  async findByUserId(userId: string, limit: number = 10): Promise<Conversation[]> {
+  async findByUserId(userId: string, limit: number = 200): Promise<Conversation[]> {
     return this.prisma.conversation.findMany({
       where: { userId },
       orderBy: { updatedAt: 'desc' },

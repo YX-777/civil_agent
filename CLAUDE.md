@@ -53,6 +53,7 @@ chroma-web-ui/           # ChromaDB 可视化界面
 | RAG 混合检索 | `packages/rag-engine/src/retrievers/hybrid-retriever.ts` |
 | 向量检索 | `packages/rag-engine/src/retrievers/vector-retriever.ts` |
 | 知识库初始化 | `init_knowledge_base.py` |
+| **多源内容采集** | `packages/content-ingestion/` |
 | ChromaDB Server | `start_chroma_server.py` |
 | 服务启动脚本 | `start-all.sh` |
 
@@ -91,16 +92,21 @@ chroma-web-ui/           # ChromaDB 可视化界面
 | Phase 5: 腾讯云部署 | ✅ 完成 |
 | **Phase 6: 三大功能补全（Profile 个人记忆 / Agent Dashboard / UI 统一）** | ✅ 完成（2026-05-11） |
 | **Phase 7: 长期记忆快通道 + Dashboard webCount 真实化 + Markdown 强力 normalize** | ✅ 完成（2026-05-11） |
+| **Phase 8: 任务页 Agent 联动（拆子任务+跳转链接+完成回写 Memory）+ 紫色主题统一** | ✅ 完成（2026-05-12） |
+| **Phase 9: content-ingestion 多源知识库采集（dev.to + ruanyf-weekly + awesome + atom）** | ✅ 完成（2026-05-12，知识库 40→750 条） |
+| **Phase 10: 性能优化（task 流式 + memory/RAG 并行）+ UI 三件套修复 + kb 链接透传** | ✅ 完成（2026-05-12） |
 | Phase 1-3: GuardRail 三层防护 | 🔜 待开始（用户暂缓） |
 
 ---
 
-## 面试要点速查（2026-05-11 更新）
+## 面试要点速查（2026-05-12 更新）
 
 > **现场可演示链路**（`http://localhost:3000`）：
-> 1. Chat 发"记住我叫 X" → 2-3 秒后 Profile 页"🧠 个人记忆"立即看到
-> 2. Chat 提问本地知识库没有的（如"今天 GitHub 趋势"）→ Dashboard webCount > 0
-> 3. Chat 答复含表格/代码/标题 → markdown 正确渲染（LLM 残缺输出有兜底）
+> 1. Chat 发"帮我规划 React 学习计划，3 天周期" → markdown 表格**流式打字**出来（首字节 ~1s）
+> 2. 点 "确认计划" → 任务页**自动出现 3 条 Day1/2/3 子任务**，Chat 回复带 `👉 [前往任务页查看](/tasks)` 链接
+> 3. 任务页点"完成"→ Profile 页"🧠 个人记忆"几秒后看到"用户已完成学习任务..."
+> 4. Chat 问"LangChain Agent 类型" → 答案下方"📎 参考来源"展开后**每条 kb 都可点击外链跳原文**
+> 5. Dashboard 显示**知识库 750 条**（多源 ingestion）+ webCount/RAG 命中数等真实指标
 
 ### 关键改动点（按面试讲故事用）
 
@@ -114,6 +120,20 @@ chroma-web-ui/           # ChromaDB 可视化界面
 | **Dashboard 真实化** | `web/src/app/dashboard/AgentDashboardClient.tsx` + `api/dashboard/agent/route.ts` | "4 panel 聚合 SQLite+ChromaDB，所有数字都是真实跑出来的" |
 | **Markdown normalize** | `web/src/components/chat/MessageBubble.tsx::normalizeMarkdown` | "抓 SSE 实测发现 LLM 输出残缺 markdown，写 5 个 Phase、20+ 条正则兜底" |
 | OTel trace/span | `agent-langgraph/src/otel/` | "结构化日志输出，可对接 Jaeger/Tempo" |
+| **任务页 Agent 联动** | `web/src/app/api/agent/chat/route.ts` confirmTaskPlan + `tasks/[id]/complete/route.ts` | "Chat 确认计划→按 periodDays 拆 N 条子任务+跳转链接；完成任务 fire-and-forget 写长期记忆形成闭环" |
+| **多源 content-ingestion** | `packages/content-ingestion/` | "Adapter 模式抽象 4 类异构源（dev.to API / ruanyf weekly Git / awesome README / atom feed），Pipeline 三道过滤（长度+关键词+去重）+ chunker；知识库 40→750 条" |
+| **task 流式 + memory/RAG 并行** | `graph.ts` create_task 分支重构 + `fusion.ts` Promise.all + `nodes.ts` 并行检索 | "原非流式 await llm.invoke() 阻塞 5-15s 改成流式 yield，首字节降到 1s；memory 4 retriever 并行 + memory/RAG 整体并行，等待时间 -40%" |
+| **kb source_url 透传 + 100% 覆盖** | `nodes.ts:1290` + Python 一次性补 40 条 metadata | "metadata.source_url 透传到前端 UsedSource.url，参考来源卡片可点击外链跳原文，750/750 条 100% 可追溯" |
+| **侧栏滚动 + 流式抖动修复** | `ChatSidebar.tsx` + `globals.css` `.chat-sidebar > .ant-layout-sider-children` | "antd Sider 内部多一层 .ant-layout-sider-children wrapper，flex 必须设在那一层；流式时按钮 disabled 不卸载，Layout 稳定" |
+
+### content-ingestion 数据源选型故事（面试讲）
+- **最初方案**：抓掘金 / InfoQ / SegmentFault RSS
+- **Spike 暴露的问题**：
+  - 掘金 RSSHub 3 个公网镜像全跪（502 / timeout）→ 国内代理普遍不稳
+  - InfoQ RSS 只有摘要无正文 → 不适合 RAG
+  - SegmentFault articles 403、questions feed 是用户提问无法做知识库
+- **调整方案**：dev.to 官方 API（两阶段拉详情）+ ruanyf/weekly GitHub 仓库（jsdelivr CDN 兜底 raw.gh 抽风）+ awesome READMEs（按 H2 切）+ 阮一峰 atom feed
+- **关键工程决策**：用 jsdelivr CDN 替代 raw.githubusercontent.com，国内 100% 命中
 
 ### Markdown normalize 踩坑可讲故事
 - **诊断**：抓 SSE 实测，qwen3.6-plus 输出会出现 `###标题|表格|`、`||` 双竖线连接表格行、`\`\`\`---` 等 6 类残缺

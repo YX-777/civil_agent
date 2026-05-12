@@ -49,26 +49,26 @@ export class MemoryFusionRetriever {
     console.log(`[Memory] 查询: "${query.slice(0, 50)}..."`);
     console.log("=".repeat(60));
 
-    // 1. 瞬时记忆：当前对话最近的 N 条
-    const instantMemory = await this.getInstantMemory(messages);
+    // 1-4: 四个 retriever 独立、无依赖，全部并行检索
+    // instant 是内存操作几乎瞬时；short/meta 走 SQLite；long 走 ChromaDB 向量检索
+    // 串行总耗时 ≈ 各项相加；并行后 ≈ max(各项) ≈ 长期记忆耗时
+    const t0 = Date.now();
+    const [instantMemory, shortMemory, longMemory, metaMemory] = await Promise.all([
+      this.getInstantMemory(messages),
+      this.getShortMemory(userId, query),
+      this.getLongMemory(userId, query),
+      this.getMetaMemory(userId),
+    ]);
+    console.log(`[Memory] 4 路并行检索完成 ${Date.now() - t0}ms`);
     console.log(`[Memory] 瞬时记忆: ${instantMemory.messages.length} 条消息`);
-
-    // 2. 短期记忆：按新鲜度排序的近期话题
-    const shortMemory = await this.getShortMemory(userId, query);
     console.log(`[Memory] 短期记忆: ${shortMemory.length} 条相关记忆`);
     shortMemory.slice(0, 3).forEach((m: any) => {
       console.log(`  - ${m.topicTags || "无话题"}: 新鲜度=${(m.freshnessScore || 0).toFixed(2)}`);
     });
-
-    // 3. 长期记忆：向量相似检索（权重加权）
-    const longMemory = await this.getLongMemory(userId, query);
     console.log(`[Memory] 长期记忆: ${longMemory.length} 条相关经验`);
     longMemory.slice(0, 3).forEach((m: any) => {
       console.log(`  - 权重=${(m.metadata?.weight || 0).toFixed(2)}, 分数=${m.score.toFixed(2)}`);
     });
-
-    // 4. 元记忆：用户画像和能力图谱
-    const metaMemory = await this.getMetaMemory(userId);
     console.log(`[Memory] 元记忆: 强项=${metaMemory.strongAreas?.join(",") || "暂无"}, 弱项=${metaMemory.weakAreas?.join(",") || "暂无"}`);
     console.log(`[Memory] 元记忆: 学习风格=${metaMemory.learningStyle || "未知"}, 连续学习=${metaMemory.consecutiveDays || 0}天`);
 
