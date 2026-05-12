@@ -47,17 +47,39 @@ pkill -f "chromadb.cli" 2>/dev/null || true
 sleep 2
 free -h 2>/dev/null | head -3 || true
 
-# 3. 清理旧依赖
+# 3. 清理旧依赖（保留 pnpm-lock.yaml 以保证 workspace symlink 一致性）
 echo ""
 echo "3️⃣  清理旧依赖..."
-rm -rf node_modules packages/*/node_modules pnpm-lock.yaml 2>/dev/null || true
+rm -rf node_modules packages/*/node_modules 2>/dev/null || true
 rm -rf packages/web/.next 2>/dev/null || true
 rm -rf packages/*/dist 2>/dev/null || true   # 强制重建，避免旧 dist 残留导致新导出丢失
 
-# 4. 安装依赖
+# 4. 安装依赖（用 lockfile 还原确定依赖树）
 echo ""
 echo "4️⃣  安装依赖..."
 pnpm install
+
+# 4.1 兜底校验 workspace symlink（Next.js transpilePackages 需要直接读源码）
+echo ""
+echo "   🔍 校验 workspace symlink..."
+for pkg in scheduler agent-langgraph rag-engine database; do
+  link="packages/$pkg/node_modules/@tech-mate/core"
+  if [ ! -e "$link" ]; then
+    echo "   ⚠️  $link 缺失，手动补建"
+    mkdir -p "packages/$pkg/node_modules/@tech-mate"
+    ln -sfn "../../../core" "$link"
+  fi
+done
+# scheduler 还需要 database / agent-langgraph
+for dep in database agent-langgraph mcp-xiaohongshu; do
+  link="packages/scheduler/node_modules/@tech-mate/$dep"
+  if [ ! -e "$link" ]; then
+    echo "   ⚠️  $link 缺失，手动补建"
+    mkdir -p "packages/scheduler/node_modules/@tech-mate"
+    ln -sfn "../../../$dep" "$link"
+  fi
+done
+echo "   ✅ workspace symlink 校验完成"
 
 # 5. 生成 Prisma Client
 echo ""
