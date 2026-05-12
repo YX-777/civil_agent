@@ -81,18 +81,18 @@ for dep in database agent-langgraph mcp-xiaohongshu; do
 done
 echo "   ✅ workspace symlink 校验完成"
 
-# 5. 生成 Prisma Client
+# 5. 生成 Prisma Client（用 pnpm --filter 避免 cd 出错）
 echo ""
 echo "5️⃣  生成 Prisma Client..."
-cd packages/database && npx prisma generate && cd ..
+pnpm --filter @tech-mate/database exec npx prisma generate
 
 # 6. 编译 TypeScript 包（按依赖顺序：core → database → rag-engine → agent-langgraph）
 echo ""
 echo "6️⃣  编译 TypeScript 包..."
-cd packages/core && pnpm build && cd ../..
-cd packages/database && pnpm build && cd ../..
-cd packages/rag-engine && pnpm build && cd ../..
-cd packages/agent-langgraph && pnpm build && cd ../..
+pnpm --filter @tech-mate/core build
+pnpm --filter @tech-mate/database build
+pnpm --filter @tech-mate/rag-engine build
+pnpm --filter @tech-mate/agent-langgraph build
 
 # 7. 构建项目（内存限制）
 echo ""
