@@ -4,6 +4,192 @@
 
 ---
 
+## 负二、Phase 11 收尾：AsyncLocalStorage Generator Bug + 演示链路打通（2026-05-12 深夜）
+
+经过反复调试，把 GuardRail 三层在前端**全部**显示出来了。过程中踩到一个深坑：
+
+### 🐛 关键 Bug：AsyncLocalStorage 跨 async generator yield 丢失 store
+
+**症状**：后端 console 看到 `[RAG] GuardRail 拦截: 疑似 SSRF`，但前端徽章显示 "L2 ✅ 通过"。
+
+**Root cause**：
+```ts
+// ❌ 错误用法（旧代码）
+const gen = als.run(trace, () => agentGraph.processStateStream(state));
+// als.run 只在创建 generator 对象时存在 store；
+// 后续外部 gen.next() 时，generator body 执行的 async 上下文
+// 已脱离 als.run 范围，store = undefined
+
+// ✅ 正确用法（修复后）
+const innerGen = agentGraph.processStateStream(state);
+const wrapped = {
+  next: () => als.run(trace, () => innerGen.next()),
+  return: ...,
+  throw: ...,
+};
+```
+
+后果是 `tool-guard.ts::getCurrentTrace()` 返回 undefined → `guardrail.tool` span 根本没创建到 trace.allSpans 里 → chat/route.ts done 事件聚合 `l2Blocks` 拿不到任何拦截数据 → 前端徽章显示通过。
+
+**验证**：Node 独立脚本能复现该行为：
+```
+用法 A: gen iter 1, store = undefined  ← 旧代码
+用法 B: gen iter 1, store = TRACE      ← 新代码
+```
+
+### 🐛 次要 Bug：RAG 白名单是 L2 触发的前置条件
+
+**症状**：用户发 `file:///etc/passwd 是什么` 期望 L2 拦截，但 trace 里完全没有 `guardrail.tool` span。
+
+**Root cause**：`shouldRouteToXiaohongshuRag(content)` 是个白名单（消息必须含 `Agent / LangChain / RAG / LLM / 前端面试` 等关键词），白名单不命中 → RAG 不启动 → `retrieveWithFallback` 不调 → L2 自然不跑。
+
+**演示用例必须形如**：`Agent 工具里 file:///etc/passwd 是什么文件`（白名单关键词 + 攻击 pattern 组合）
+
+### 🐛 第三个坑：Next.js dev 持久化 cache 缓存旧版 dist
+
+**症状**：改了 agent-langgraph dist 重启 web 不生效。
+
+**Root cause**：`packages/web/.next/cache/webpack/` 会缓存 workspace 包的编译产物。重启 next dev 不清缓存就用旧版。
+
+**正解**：
+```bash
+rm -rf packages/web/.next
+cd packages/web && pnpm dev
+```
+
+### 🐛 第四个坑：L1 注入规则正则三段直连漏匹配
+
+**症状**：`忽略以上所有指令` 没拦截。
+
+**Root cause**：`/(忽略)(以上)(指令)/` 要求三段直连，但实际有"所有"夹中间。
+
+**正解**：`/(忽略)[\s\S]{0,5}?(以上)[\s\S]{0,8}?(指令)/` 显式允许间隔。
+
+### 🐛 第五个坑：SSRF 规则锚定 `^` 漏匹配
+
+**症状**：`http://169.254.169.254` 这种常见云元数据 URL 没拦。
+
+**Root cause**：`/^(file:|169\.254...)/` 要求整个 query 以 file:// 开头，但用户消息前面通常有 `http://`。
+
+**正解**：去掉 `^` 锚定 + 增加 `metadata.google.internal` / `[:\/]` 边界条件。
+
+### UI 完善（一系列细节）
+
+| 改动 | 文件 | 说明 |
+|---|---|---|
+| Trace Viewer 顶部「调用链上的每一步代表什么？」折叠面板 | `dashboard/trace/page.tsx` | 11 个 span 中英对照 + 大白话解释，面试展示用 |
+| 每条 trace 顶部「📊 自动诊断」卡片 | 同上 | 自动归纳总耗时评级、LLM 首字节、GuardRail 命中、耗时大户、错误数、RAG 模式 6 项关注点 |
+| 慢/错误 span 高亮 | 同上 | 慢=橙边框⚠️ / 错误=红边框❌，按 category 设不同阈值 |
+| 整个 trace 卡片**宽度溢出**修复 | 同上 | Card overflow:hidden + 每行 minWidth:0 + bar fill 用 Math.min 限制 |
+| 初始加载 + 查询期间 Skeleton 骨架屏 | 同上 | initialLoading / loading 两个状态分别 Skeleton |
+| 会话列表合并 conversations API + trace list | 同上 | 🟣 有 trace / ⚪️ 暂无 trace，点击直接查 |
+| GuardRail 红色拦截卡片宽度占满 + 左边 4px 重边 | `MessageBubble.tsx` | 从 maxWidth:80% center 改成 width:100% + gradient bg + boxShadow |
+| 徽章里展示 L2 工具拦截详情 | 同上 | 从 trace.allSpans 聚合 `guardrail.tool` status=error 的 spans |
+| 徽章 traceId 旁边加 🔍 跳转链接 | 同上 | URL 带 conversationId + traceId 双参数 |
+| Trace Viewer 接 URL 参数自动加载 + 滚动到高亮 trace | `dashboard/trace/page.tsx` | useSearchParams + scrollIntoView + 紫色边框 + 📍 来自 Chat 跳转 标签 |
+| traceId / guardrail 完整持久化到 message.metadata | `chat/route.ts` + `app/page.tsx` | 刷新页面后历史消息卡片仍带徽章 + Trace 链接 |
+| L3 移到 commit 之前 | `chat/route.ts` | 保证 traceId + guardrail 一起入库 |
+| System prompt 加「系统能力边界」段 | `system-prompts.ts` | 明确告知 AI 没有清空对话/删任务/改账户等能力，严禁假装"已为你清空" |
+
+### 演示文档
+
+新增 `docs/guardrail-demo-cases.md`：
+- L1/L2/L3 完整测试用例清单（含已验证 ✅ 和陷阱 case ❌）
+- RAG 白名单关键词清单
+- Dashboard 累计统计 + Trace Viewer 联动动线
+- 面试故事线 + 已知限制（主动讲）
+
+### 远程部署兼容性 ✅
+
+- zod 依赖：`update-server.sh` 第 27 行 `pnpm install` 自动装
+- `logs/traces/` JSONL 文件：已加入 `.gitignore`，runtime 写到 `packages/web/logs/traces/`
+- 新增 API 路由 / Dashboard 子页面：Next.js build 自动打包
+- 新代码体积：guardrail 112K + otel/exporters 16K，对 2G 内存无影响
+- **update-server.sh 不需要任何修改**
+
+### 代码清理
+
+- 移除全部 `console.log("=".repeat(60))` 装饰行（memory/* + nodes.ts）
+- 移除本次会话的临时诊断日志：`[rag-fallback.js] loaded` / `🔍 [RAG Routing]` / `⚠️ [RAG Skipped]`
+- 删除 `[RAG TEST]` 系列冗余日志（6 行），保留信息量大的一行 `[RAG] source=X tier=Y hits=N`
+- 简化 DashScope SSE 日志：从 6 种 verbose 输出（Stream ended / SSE #N delta / Non-data line / Received [DONE] / Parse error）改为静默处理，仅保留致命错误
+
+---
+
+## 负一、GuardRail 三层防护 + OTel 全链路（Phase 11，2026-05-12 晚）
+
+简历声明的"harness-engineering 全链路可控"终于有代码支撑。两件事一起做：**GuardRail 三层防护** 和 **OpenTelemetry 节点跳转/工具调用按 conversationId 回溯**。
+
+### 设计哲学
+不是另起炉灶，而是**填空已有骨架** —— `event-logger` 早就预留 `guardrail` 事件类型从未发出，`otel/` 目录早就有 Span/TraceContext 完整框架但没导出器、没接节点。所以重点是**把骨架接通+做齐**。
+
+### GuardRail 三层（按数据流向，每层 ≠ 一次 LLM 调用）
+
+| 层 | 位置 | 实现 | 决策 |
+|---|---|---|---|
+| **L1 Input** | `chat/route.ts` 入口 | `policies.ts` 8 条规则（中英文注入 + DAN/角色扮演 + Markdown 注入 + 伪 system 头） | HIGH=block / MEDIUM=sanitize / LOW=log |
+| **L2 Tool** | `web-search.ts` + `rag-fallback.ts` 调用前 | Zod schema 校验 + SQL/Shell/SSRF 黑名单 + 长度限制 | FAIL=阻断+兜底返回（不阻塞主流程） |
+| **L3 Output** | `chat/route.ts` done 事件前 | Jaccard sim 算问答相关性 + 启发式抽取事实陈述 vs RAG 字符串覆盖 | 永远 allow，仅 mark+log+UI 徽章 |
+
+**关键决策**：L3 不调 embedding API（避免 +200ms 延迟），用 Jaccard 退化版做相关性；事实抽取靠正则 `(\d+%?|v?\d+\.\d+|20\d{2}|[A-Z][a-zA-Z0-9]{2,}|[一-龥]{2,})` 抓数字/版本号/大写词/中文 token，与 RAG 检索结果 corpus 做字符串覆盖判断。
+
+**踩坑记录**：第一版 `inj-ignore-prev` 正则 `/(忽略)(以上)(指令)/` 三段直连，碰到 "忽略以上**所有**指令" 不匹配（中间隔了"所有"）。改成 `/(忽略|...)[\s\S]{0,5}?(以上|...)[\s\S]{0,8}?(指令|...)/` 允许中间有连接词后通过。**教训**：写自然语言规则要假设用户的语序千变万化，三段直连会漏。
+
+### OpenTelemetry 改造（5 个新文件 + 2 个改造点）
+
+```
+packages/agent-langgraph/src/otel/
+├── async-context.ts          ← NEW: AsyncLocalStorage 隐式上下文
+├── instrumentation.ts        ← NEW: withSpan / withSpanGen 高阶函数
+├── exporters/jsonl-exporter.ts ← NEW: 落盘 logs/traces/{convId}.jsonl
+├── context.ts / span.ts       (已有，不动)
+└── index.ts                  ← 改：endTrace 时自动 flush 到 JSONL
+```
+
+**链路串联**：`chat/route.ts` 入口 `runInTrace(trace, () => agentGraph.processStateStream(...))` 包住整个生成器，AsyncLocalStorage 在 await 之间自动恢复 trace 上下文 → `withSpan("tool.web_search", ...)` / `withSpan("tool.rag_retrieve", ...)` / `withSpan("llm.stream", ...)` 都能零参数透传地取到当前 trace，每个 span 自动计时+记录属性，trace 结束时一次性写 JSONL。
+
+**Dashboard Trace Viewer**：
+- 新页面 `/dashboard/trace`（`packages/web/src/app/dashboard/trace/page.tsx`）
+- 输入 conversationId → 拉 `/api/observability/trace?conversationId=xxx`
+- 渲染**瀑布图**：每个 span 一行，根据 `startTime/durationMs` 算偏移和宽度，按 `name` 上色（guardrail→绿 / tool→黄 / llm→紫）
+- 悬停 tooltip 显示所有 attributes（model/firstByteMs/chunkCount/hits/...）
+
+### UI 改动
+- `MessageBubble.tsx` 新增 `GuardRailBadge` 组件：sources 下方折叠徽章 `🛡️ 已通过 3 层 GuardRail 防护`，展开看每层详情 + traceId
+- `AgentDashboardClient.tsx` 新增 GuardRail Stats Panel（3 卡片：L1 通过/拦截/脱敏 · L2 通过/拦截 · L3 通过+平均相关性+事实覆盖率）+ 最近告警列表
+- Dashboard 右上加 `🔍 Trace Viewer` 跳转按钮
+
+### 关键文件清单
+
+| 文件 | 说明 |
+|---|---|
+| `agent-langgraph/src/guardrail/{types,policies,input-guard,tool-guard,output-guard,index}.ts` | 三层防护实现 + 规则配置中心 |
+| `agent-langgraph/src/otel/{async-context,instrumentation,exporters/jsonl-exporter}.ts` | OTel 三件套（隐式上下文 + 高阶 span 包装 + JSONL 落盘） |
+| `web/src/app/api/agent/chat/route.ts` | `runInTrace` 包 streamGenerator + L1 入口拦截 + L3 done 前验证 + done 事件附带 guardrail/traceId |
+| `web/src/app/api/observability/trace/route.ts` | GET 拉 JSONL，支持 `?list=1` 列会话 ID |
+| `web/src/app/dashboard/trace/page.tsx` | Trace Viewer 瀑布图页面 |
+| `web/src/components/chat/MessageBubble.tsx` | + GuardRailBadge 组件 |
+| `web/src/types/index.ts` | Message 接口扩 `guardrail?` 和 `traceId?` |
+| `web/next.config.js` | 修复 `transpilePackages` 旧名 `@civil-agent/*` → `@tech-mate/*`（顺手） |
+| `agent-langgraph/package.json` | + `zod@^3.25.0` 依赖（L2 schema 校验） |
+
+### 重要教训
+
+1. **L1 注入规则正则要松散** —— 三段直连漏掉"中间夹连接词"的注入（"忽略**以上**所有指令"），用 `[\s\S]{0,N}?` 显式允许间隔
+2. **AsyncLocalStorage 是 Node 中实现 OTel context propagation 的标准方式** —— 跨 `await` 自动恢复，比手动透传 trace 参数干净 100%
+3. **L3 不能阻塞流式** —— 流式回答已经回给用户了，L3 异步算 +写 log/UI 徽章，不能让用户等"我们正在验证答案"
+4. **next.config.js `transpilePackages` 错配会让 web 加载 dist 而非源码** —— 项目改名 `civil-agent → tech-mate` 时漏改这里，这次顺手修了
+
+### 联调验证
+- `node -e "..."` 直跑 L1 单元测：注入/正常/英文/角色扮演/清空 5 个 case 全部正确分级
+- `pnpm --filter @tech-mate/agent-langgraph type-check` ✅
+- `pnpm --filter @tech-mate/web type-check` ✅
+- `pnpm --filter @tech-mate/agent-langgraph build` ✅ 生成 dist/guardrail + dist/otel/exporters
+
+**端到端 curl 测试需要重启 web dev server**（next.config.js 改动 + agent-langgraph dist 更新都要重启生效）
+
+---
+
 ## 零、本次会话总结（2026-05-12）
 
 围绕"让面试演示真的能跑通"做了一整天密集修复 + 性能优化 + 知识库扩容。

@@ -14,6 +14,8 @@ import { MetadataMode } from "llamaindex";
 import { getMCPToolClient } from "../tools/mcp-tools";
 import { getAgentConfig } from "../config/agent.config";
 import { logAgentEvent } from "./event-logger";
+import { checkToolInvocation } from "../guardrail";
+import { withSpan } from "../otel/instrumentation";
 
 export interface RAGFallbackResult {
   context: string;                         // 构建给 LLM 的 prompt
@@ -109,6 +111,45 @@ export async function retrieveWithFallback(
     fallbackToMCP: options?.fallbackToMCP ?? true,
   };
   const ragT0 = Date.now();
+
+  // ========== GuardRail L2：工具参数校验 ==========
+  const guard = checkToolInvocation("rag_retrieve", {
+    query,
+    topK: effectiveOptions.topK,
+    category: effectiveOptions.category,
+  }, { userId: options?.userId });
+  if (!guard.passed) {
+    console.warn(`[RAG] GuardRail 拦截: ${guard.hits.map(h => h.reason).join("；")}`);
+    return {
+      context: `用户问题：${query}\n[GuardRail 拦截：${guard.hits[0]?.reason || "参数不合法"}]`,
+      results: [],
+      source: "none",
+      tier: "fallback",
+    };
+  }
+
+  // OTel: 整段检索流程包到一个 span 里，方便回放
+  return withSpan("tool.rag_retrieve", async (span) => {
+    span?.setAttributes({
+      category: effectiveOptions.category || "(none)",
+      topK: effectiveOptions.topK,
+      preferHybrid: effectiveOptions.preferHybrid,
+    });
+    return retrieveWithFallbackInner(query, effectiveOptions, ragT0, options);
+  });
+}
+
+async function retrieveWithFallbackInner(
+  query: string,
+  effectiveOptions: {
+    category?: string;
+    topK: number;
+    preferHybrid: boolean;
+    fallbackToMCP: boolean;
+  },
+  ragT0: number,
+  options?: { userId?: string },
+): Promise<RAGFallbackResult> {
   const emit = (source: string, payload: Record<string, any>) => {
     if (!options?.userId) return;
     logAgentEvent({

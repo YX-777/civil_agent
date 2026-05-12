@@ -61,5 +61,9 @@ data/
 # SQLite 数据库文件
 *.db
 
+# OpenTelemetry Trace 落盘文件（按 conversationId 切分的 jsonl 日志，仅本地观测用）
+logs/
+logs/traces/
+
 # Interview docs (private)
 /interview/

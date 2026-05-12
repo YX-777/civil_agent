@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAgentGraph, createInitialState, startTrace, endTrace, TraceContext, extractAndPersistFacts } from "@tech-mate/agent-langgraph";
+import {
+  createAgentGraph,
+  createInitialState,
+  startTrace,
+  endTrace,
+  TraceContext,
+  extractAndPersistFacts,
+  runInTrace,
+  checkInput,
+  checkOutput,
+} from "@tech-mate/agent-langgraph";
 import { getDatabase } from "@/lib/database";
 import { getAgentStateRepository, getPrismaClient, getTaskService } from "@tech-mate/database";
 import {
@@ -82,6 +92,8 @@ async function commitConversationTurn(params: {
   persistedState: any;
   fallbackTitleSource: string;
   assistantSteps?: Array<{ id: string; label: string; icon: string; status: string; detail?: string }>;
+  traceId?: string;
+  guardrail?: any;
 }) {
   const {
     prisma,
@@ -103,14 +115,20 @@ async function commitConversationTurn(params: {
         timestamp: userMessage.timestamp,
       },
     });
-    // 助手消息持久化时把 sources / steps 写入 metadata 字段，
-    // 这样刷新页面或恢复会话时前端能拿回参考来源 + 执行轨迹
+    // 助手消息持久化时把 sources / steps / traceId / guardrail 写入 metadata 字段，
+    // 这样刷新页面或恢复会话时前端能拿回参考来源 + 执行轨迹 + OTel 链接 + 三层防护结果
     const messageMetadata: Record<string, any> = {};
     if (Array.isArray(persistedState?.usedSources) && persistedState.usedSources.length > 0) {
       messageMetadata.sources = persistedState.usedSources;
     }
     if (Array.isArray(params.assistantSteps) && params.assistantSteps.length > 0) {
       messageMetadata.steps = params.assistantSteps;
+    }
+    if (params.traceId) {
+      messageMetadata.traceId = params.traceId;
+    }
+    if (params.guardrail) {
+      messageMetadata.guardrail = params.guardrail;
     }
 
     await tx.message.create({
@@ -381,6 +399,32 @@ export async function POST(request: NextRequest) {
       return jsonError(payloadCheck.code!, payloadCheck.error!, 400);
     }
 
+    // ========== GuardRail L1：输入端注入检测 ==========
+    // 必须在 trace 上下文外执行（这里还没进 runInTrace），手动 wrap span
+    const l1 = runInTrace(trace, () => checkInput(message!, {
+      userId: userId?.trim(),
+      conversationId: conversationId?.trim(),
+    }));
+    if (l1.action === "block") {
+      // HIGH/CRITICAL 风险，直接拒绝
+      trace.endTrace();
+      endTrace(trace);
+      const reasons = l1.hits.map(h => h.reason).join("；");
+      return NextResponse.json({
+        code: "GUARDRAIL_BLOCKED",
+        error: `输入被安全策略拦截：${reasons}`,
+        guardrail: {
+          layer: "input",
+          maxRisk: l1.maxRisk,
+          hits: l1.hits,
+        },
+      }, { status: 400 });
+    }
+    if (l1.action === "sanitize" && l1.sanitizedInput) {
+      // MEDIUM 风险：用脱敏后的输入继续，原始 message 保留为审计
+      message = l1.sanitizedInput;
+    }
+
     if (!agentGraph) {
       return NextResponse.json(
         { error: "AI service unavailable" },
@@ -609,7 +653,15 @@ export async function POST(request: NextRequest) {
     const stream = new ReadableStream({
       async start(controller) {
         try {
-          const streamGenerator = agentGraph.processStateStream(updatedState);
+          // runInTrace：让 graph / nodes / tools 内部的 withSpan 能自动取到当前 trace
+          // 关键 bug 修复：AsyncGenerator 跨 yield 边界会丢失 AsyncLocalStorage store，
+          // 所以每次 .next() 都必须重新 enter trace context，不能只在 generator 创建时包一次
+          const innerGenerator = agentGraph.processStateStream(updatedState);
+          const streamGenerator = {
+            next: () => runInTrace(trace, () => innerGenerator.next()),
+            return: (v: any) => innerGenerator.return?.(v) ?? Promise.resolve({ value: undefined, done: true }),
+            throw: (e: any) => innerGenerator.throw?.(e) ?? Promise.reject(e),
+          };
           let fullAssistantContent = "";
           let fullThoughtContent = "";
           let finalState: any = updatedState;
@@ -677,6 +729,43 @@ export async function POST(request: NextRequest) {
             };
             setCachedState(effectiveUserId, effectiveConversationId, persistedState);
 
+            // 发送完成事件（包含思考过程 + 来源）
+            const quickReplies = persistedState.quickReplyOptions || [];
+            const sources = persistedState.usedSources || [];
+
+            // ========== GuardRail L3：输出验证（先跑，再持久化，保证 traceId 和 guardrail 一起入库）==========
+            const ragSnippets = (sources || [])
+              .filter((s: any) => s?.type === "kb" || s?.type === "rag")
+              .map((s: any) => ({ content: s.title || "", title: s.title, url: s.url }));
+            const l3 = await runInTrace(trace, () => checkOutput({
+              question: message!,
+              answer: fullAssistantContent,
+              ragSources: ragSnippets,
+              userId: effectiveUserId,
+              conversationId: effectiveConversationId,
+            }));
+
+            // 从 trace 里聚合 L2 工具拦截事件（tool-guard 写到 span attributes）
+            const l2Blocks = trace.allSpans
+              .filter((s: any) => s.name === "guardrail.tool" && s.status === "error")
+              .map((s: any) => ({
+                tool: s.attributes?.tool,
+                maxRisk: s.attributes?.maxRisk,
+                hits: Array.isArray(s.attributes?.hitsDetail) ? s.attributes.hitsDetail : [],
+              }));
+
+            // GuardRail 三层结果摘要 —— 同步写 message.metadata（刷新页面也能看到徽章+跳转 trace）
+            const guardrailSummary = {
+              input: { passed: l1.passed, hits: l1.hits.length, maxRisk: l1.maxRisk },
+              tool: { blocks: l2Blocks, count: l2Blocks.length },
+              output: {
+                passed: l3.passed,
+                hits: l3.hits.length,
+                similarity: l3.metadata?.similarity,
+                factCoverage: l3.metadata?.factCoverage,
+              },
+            };
+
             // ========== Span: 消息存储 ==========
             const storageSpan = trace.startSpan("message_storage");
 
@@ -690,6 +779,8 @@ export async function POST(request: NextRequest) {
               persistedState,
               assistantSteps: collectedSteps,
               fallbackTitleSource: message,
+              traceId: trace.traceId,
+              guardrail: guardrailSummary,
             });
 
             trace.endSpan(storageSpan, "success");
@@ -699,7 +790,6 @@ export async function POST(request: NextRequest) {
             );
 
             // ========== 异步同步短期记忆到 ChromaDB ==========
-            // ChromaDB 同频失败不影响主流程，但会记录错误日志
             const shortMemoryId = persistedState._shortMemoryId;
             if (shortMemoryId) {
               syncShortMemoryToChroma(
@@ -709,23 +799,21 @@ export async function POST(request: NextRequest) {
                 JSON.stringify(extractTopicTags(message))
               ).catch(err => {
                 console.error("[Memory] ChromaDB同步失败（不影响主流程）:", err);
-                // 提示用户检查 ChromaDB Server 是否启动
                 if (err.message?.includes('ECONNREFUSED') || err.message?.includes('connect')) {
                   console.error("[Memory] 请确保 ChromaDB Server 已启动: chroma run --host 127.0.0.1 --port 8000 --path ./data/chroma");
                 }
               });
             }
 
-            // 发送完成事件（包含思考过程 + 来源）
-            const quickReplies = persistedState.quickReplyOptions || [];
-            const sources = persistedState.usedSources || [];
             controller.enqueue(encoder.encode(`data: ${JSON.stringify({
               type: "done",
               quickReplies,
               conversationId: effectiveConversationId,
               turnId,
               thoughts: fullThoughtContent || undefined,
-              sources,  // 新增：本次回答引用的来源（记忆/知识库/联网）
+              sources,
+              guardrail: guardrailSummary,
+              traceId: trace.traceId,
             })}\n\n`));
           }
 

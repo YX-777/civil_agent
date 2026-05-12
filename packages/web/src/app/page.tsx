@@ -79,13 +79,15 @@ export default function ChatPage() {
       .then(data => {
         if (data.messages?.length) {
           setAgentMessages(data.messages.map((m: any) => {
-            // 恢复持久化的 sources / steps（保存在 Message.metadata JSON 字段）
-            let sources, steps;
+            // 恢复持久化的 sources / steps / traceId / guardrail（保存在 Message.metadata JSON 字段）
+            let sources, steps, traceId, guardrail;
             if (m.metadata) {
               try {
                 const meta = typeof m.metadata === "string" ? JSON.parse(m.metadata) : m.metadata;
                 sources = meta?.sources;
                 steps = meta?.steps;
+                traceId = meta?.traceId;
+                guardrail = meta?.guardrail;
               } catch (e) { /* 容忍 metadata 格式异常 */ }
             }
             return {
@@ -95,6 +97,8 @@ export default function ChatPage() {
               timestamp: new Date(m.timestamp),
               ...(sources ? { sources } : {}),
               ...(steps ? { steps } : {}),
+              ...(traceId ? { traceId } : {}),
+              ...(guardrail ? { guardrail } : {}),
             };
           }));
         }
@@ -182,6 +186,7 @@ export default function ChatPage() {
                     key={m.id}
                     message={m}
                     isStreaming={isLoading && m.role === "assistant" && i === messages.length - 1 && !m.content}
+                    conversationId={currentConversationId || undefined}
                   />
                 ))}
                 {/* 快捷回复紧跟最后一条消息，避免与答案之间留大块空白 */}

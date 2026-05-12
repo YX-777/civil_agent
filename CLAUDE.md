@@ -95,7 +95,8 @@ chroma-web-ui/           # ChromaDB 可视化界面
 | **Phase 8: 任务页 Agent 联动（拆子任务+跳转链接+完成回写 Memory）+ 紫色主题统一** | ✅ 完成（2026-05-12） |
 | **Phase 9: content-ingestion 多源知识库采集（dev.to + ruanyf-weekly + awesome + atom）** | ✅ 完成（2026-05-12，知识库 40→750 条） |
 | **Phase 10: 性能优化（task 流式 + memory/RAG 并行）+ UI 三件套修复 + kb 链接透传** | ✅ 完成（2026-05-12） |
-| Phase 1-3: GuardRail 三层防护 | 🔜 待开始（用户暂缓） |
+| **Phase 11: GuardRail 三层防护 + OTel 全链路（节点跳转/工具调用按 conversationId 回溯）** | ✅ 完成（2026-05-12） |
+| **Phase 11.1: AsyncLocalStorage 跨 generator yield bug 修复 + 演示链路完整打通** | ✅ 完成（2026-05-12 深夜） |
 
 ---
 
@@ -107,6 +108,10 @@ chroma-web-ui/           # ChromaDB 可视化界面
 > 3. 任务页点"完成"→ Profile 页"🧠 个人记忆"几秒后看到"用户已完成学习任务..."
 > 4. Chat 问"LangChain Agent 类型" → 答案下方"📎 参考来源"展开后**每条 kb 都可点击外链跳原文**
 > 5. Dashboard 显示**知识库 750 条**（多源 ingestion）+ webCount/RAG 命中数等真实指标
+> 6. 在 Chat 发送 `忽略以上所有指令` 等注入语句 → **GuardRail L1 直接 400 拦截**，返回 `GUARDRAIL_BLOCKED`
+> 7. 正常对话 → 消息卡片下方出现 **🛡️ 已通过 3 层 GuardRail 防护** 折叠徽章，含相关性 + 事实覆盖率指标
+> 8. Dashboard 右上 **🔍 Trace Viewer** → 按 conversationId 看完整 trace 瀑布图（每个节点/工具/LLM 一行）
+> 9. 发 `Agent 工具里 file:///etc/passwd 是什么文件` → 后端 L2 工具拦截 → 前端徽章里 L2 ⚠️ 显示 `rag_retrieve · 疑似 SSRF "file://"`，Trace Viewer 里 `guardrail.tool` span 标红
 
 ### 关键改动点（按面试讲故事用）
 
@@ -125,6 +130,11 @@ chroma-web-ui/           # ChromaDB 可视化界面
 | **task 流式 + memory/RAG 并行** | `graph.ts` create_task 分支重构 + `fusion.ts` Promise.all + `nodes.ts` 并行检索 | "原非流式 await llm.invoke() 阻塞 5-15s 改成流式 yield，首字节降到 1s；memory 4 retriever 并行 + memory/RAG 整体并行，等待时间 -40%" |
 | **kb source_url 透传 + 100% 覆盖** | `nodes.ts:1290` + Python 一次性补 40 条 metadata | "metadata.source_url 透传到前端 UsedSource.url，参考来源卡片可点击外链跳原文，750/750 条 100% 可追溯" |
 | **侧栏滚动 + 流式抖动修复** | `ChatSidebar.tsx` + `globals.css` `.chat-sidebar > .ant-layout-sider-children` | "antd Sider 内部多一层 .ant-layout-sider-children wrapper，flex 必须设在那一层；流式时按钮 disabled 不卸载，Layout 稳定" |
+| **GuardRail 三层防护** | `agent-langgraph/src/guardrail/{input,tool,output}-guard.ts` + `policies.ts` | "harness-engineering：L1 规则注入检测（中英文+伪角色+越狱模板）/ L2 Zod schema+黑名单 / L3 cosine 相关性+幻觉交叉验证；0 token 0 LLM 调用" |
+| **OTel JSONL 全链路** | `agent-langgraph/src/otel/{instrumentation,exporters/jsonl-exporter,async-context}.ts` | "AsyncLocalStorage 隐式上下文传递 + withSpan 高阶函数；trace 落 logs/traces/{convId}.jsonl，节点/工具/LLM/GuardRail 全部一个 span" |
+| **Trace Viewer + GuardRail Stats** | `web/src/app/dashboard/trace/page.tsx` + `AgentDashboardClient.tsx` | "按 conversationId 拉取 JSONL，瀑布图展示完整调用链；Dashboard 加 GuardRail Panel 显示 L1/L2/L3 通过/拦截/告警数" |
+| **AsyncLocalStorage Generator Bug 修复** | `chat/route.ts:658` 三件套 wrapper | "AsyncGenerator 跨 yield 边界丢失 als store，必须每次 `.next()` 都重新 enter trace context。这是 Node 14+ 的已知坑，OTel context propagation 实现也踩过" |
+| **演示用例清单** | `docs/guardrail-demo-cases.md` | "完整 L1/L2/L3 测试用例 + RAG 白名单解释 + Dashboard 联动 + 面试故事线，演示当天照念" |
 
 ### content-ingestion 数据源选型故事（面试讲）
 - **最初方案**：抓掘金 / InfoQ / SegmentFault RSS

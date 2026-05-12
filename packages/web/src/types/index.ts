@@ -18,14 +18,42 @@ export interface ExecutionStep {
   detail?: string;
 }
 
+export interface GuardRailSummary {
+  input: { passed: boolean; hits: number; maxRisk: string };
+  tool?: {
+    count: number;
+    blocks: Array<{
+      tool: string;
+      maxRisk: string;
+      hits: Array<{ ruleId: string; reason: string; risk: string; matchedText?: string }>;
+    }>;
+  };
+  output: { passed: boolean; hits: number; similarity?: number; factCoverage?: number };
+}
+
+export interface GuardRailBlockInfo {
+  layer: string;             // "input" | "tool" | "output"
+  maxRisk: string;           // "high" / "medium" / ...
+  hits: Array<{
+    ruleId: string;
+    ruleName: string;
+    risk: string;
+    reason: string;
+    matchedText?: string;
+  }>;
+}
+
 export interface Message {
   id: string;
-  role: "user" | "assistant";
+  role: "user" | "assistant" | "system";
   content: string;
   timestamp: Date;
   thoughts?: string;          // AI 思考过程（已弃用，保留兼容）
   steps?: ExecutionStep[];    // 执行轨迹
   sources?: UsedSource[];     // 本次回答引用的来源
+  guardrail?: GuardRailSummary;     // 🛡️ 三层防护结果
+  traceId?: string;                 // OTel TraceId（可在 Trace Viewer 回溯）
+  guardrailBlock?: GuardRailBlockInfo; // 🚫 该消息被 GuardRail 拦截，渲染告警卡片
 }
 
 export interface Conversation {

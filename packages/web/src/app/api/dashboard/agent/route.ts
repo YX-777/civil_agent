@@ -140,7 +140,62 @@ export async function GET(request: NextRequest) {
     // 节点调用统计
     const nodeStatsMap = new Map<string, number>();
 
+    // ============ GuardRail 三层防护统计 ============
+    const guardRailStats = {
+      total: 0,
+      input: { passed: 0, blocked: 0, sanitized: 0 },
+      tool: { passed: 0, blocked: 0 },
+      output: { passed: 0, hits: 0, avgSimilarity: 0, avgFactCoverage: 0 },
+      recentHits: [] as Array<{ layer: string; risk: string; reason: string; time: string }>,
+    };
+    let outSimSum = 0;
+    let outSimCount = 0;
+    let outFactSum = 0;
+    let outFactCount = 0;
+
     for (const e of events) {
+      if (e.eventType === "guardrail") {
+        guardRailStats.total++;
+        try {
+          const p = e.payloadJson ? JSON.parse(e.payloadJson) : {};
+          const layer = p.layer || "input";
+          const action = p.action;
+
+          if (layer === "input") {
+            if (action === "block") guardRailStats.input.blocked++;
+            else if (action === "sanitize") guardRailStats.input.sanitized++;
+            else guardRailStats.input.passed++;
+          } else if (layer === "tool") {
+            if (action === "block") guardRailStats.tool.blocked++;
+            else guardRailStats.tool.passed++;
+          } else if (layer === "output") {
+            if (Array.isArray(p.hits) && p.hits.length === 0) guardRailStats.output.passed++;
+            else guardRailStats.output.hits += (p.hits?.length || 0);
+            if (typeof p.similarity === "number") {
+              outSimSum += p.similarity;
+              outSimCount++;
+            }
+            if (typeof p.factCoverage === "number") {
+              outFactSum += p.factCoverage;
+              outFactCount++;
+            }
+          }
+
+          // 收集风险事件用于"最近告警"
+          if (Array.isArray(p.hits) && p.hits.length > 0) {
+            for (const h of p.hits) {
+              guardRailStats.recentHits.push({
+                layer,
+                risk: h.risk || "low",
+                reason: h.reason || "",
+                time: e.createdAt instanceof Date ? e.createdAt.toISOString() : String(e.createdAt),
+              });
+            }
+          }
+        } catch {
+          /* ignore parse */
+        }
+      }
       if (e.eventType === "rag") {
         ragStats.total++;
         try {
@@ -160,6 +215,9 @@ export async function GET(request: NextRequest) {
     }
 
     if (scoreCount > 0) ragStats.avgScore = Number((scoreSum / scoreCount).toFixed(3));
+    if (outSimCount > 0) guardRailStats.output.avgSimilarity = Number((outSimSum / outSimCount).toFixed(3));
+    if (outFactCount > 0) guardRailStats.output.avgFactCoverage = Number((outFactSum / outFactCount).toFixed(3));
+    guardRailStats.recentHits = guardRailStats.recentHits.slice(0, 10);
 
     const nodeStats = Array.from(nodeStatsMap.entries())
       .map(([name, count]) => ({ name, count }))
@@ -191,6 +249,7 @@ export async function GET(request: NextRequest) {
       },
       memoryLayers,
       ragStats,
+      guardRailStats,
       nodeStats,
       recentEvents,
       _meta: {

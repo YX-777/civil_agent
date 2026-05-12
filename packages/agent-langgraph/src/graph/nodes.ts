@@ -18,6 +18,7 @@ import type { GraphStateType } from "./state";
 import { retrieveWithFallback } from "../utils/rag-fallback";
 import { shouldUseWebSearch, webSearch, type WebSearchResult } from "../tools/web-search";
 import { logAgentEvent } from "../utils/event-logger";
+import { getCurrentTrace } from "../otel/async-context";
 import {
   buildGeneralAnswerPrompt,
   resolveXiaohongshuKnowledge,
@@ -268,6 +269,19 @@ export async function* streamDashscopeAPIWithThinking(
   const config = getAgentConfig();
   const apiKey = config.llm.apiKey;
 
+  // ========== OTel：LLM 调用 span（包含 first-byte/total token 计数）==========
+  const trace = getCurrentTrace();
+  const span = trace?.startSpan("llm.stream");
+  span?.setAttributes({
+    model: "qwen3.6-plus",
+    systemPromptLen: systemPrompt.length,
+    userPromptLen: userPrompt.length,
+    historyLen: options?.history?.length ?? 0,
+  });
+  const llmStartedAt = Date.now();
+  let firstByteAt: number | null = null;
+  let spanChunkCount = 0;
+
   // 组装 messages：system + 历史对话 + 当前用户消息
   // 历史对话可让模型保持多轮上下文连贯（用户名字、上文提及的话题等）
   const messages: Array<{ role: string; content: string }> = [
@@ -302,7 +316,7 @@ export async function* streamDashscopeAPIWithThinking(
 
   const reader = response.body?.getReader();
   if (!reader) {
-    console.error('[DashScope] No reader available');
+    logger.error('[DashScope] No reader available');
     return;
   }
 
@@ -312,10 +326,7 @@ export async function* streamDashscopeAPIWithThinking(
 
   while (true) {
     const { done, value } = await reader.read();
-    if (done) {
-      console.log(`[DashScope] Stream ended, total chunks: ${chunkCount}`);
-      break;
-    }
+    if (done) break;
 
     buffer += decoder.decode(value, { stream: true });
     const lines = buffer.split("\n");
@@ -323,16 +334,10 @@ export async function* streamDashscopeAPIWithThinking(
 
     for (const line of lines) {
       if (!line.trim()) continue;
-      if (!line.startsWith("data: ")) {
-        console.log('[DashScope] Non-data line:', line);
-        continue;
-      }
+      if (!line.startsWith("data: ")) continue;
 
       const dataStr = line.slice(6).trim();
-      if (dataStr === "[DONE]") {
-        console.log('[DashScope] Received [DONE]');
-        continue;
-      }
+      if (dataStr === "[DONE]") continue;
 
       try {
         const parsed = JSON.parse(dataStr) as any;
@@ -341,30 +346,35 @@ export async function* streamDashscopeAPIWithThinking(
 
         chunkCount++;
 
-        // 输出调试日志（前3个chunk输出完整信息，后续只输出 keys）
-        if (chunkCount <= 3) {
-          console.log(`[DashScope SSE #${chunkCount}] delta:`, JSON.stringify(delta));
-        } else if (chunkCount % 10 === 0) {
-          console.log(`[DashScope SSE #${chunkCount}] delta keys:`, Object.keys(delta));
-        }
-
-        // 兼容多种可能的字段名
         const thoughtText = delta?.reasoning_content || delta?.reasoning || "";
         let contentText = delta?.content || delta?.text || "";
 
-        // 过滤思考标签：content 可能包含思考过程标签
         contentText = filterThinkingTags(contentText);
 
         if (thoughtText) {
+          spanChunkCount++;
+          if (firstByteAt === null) firstByteAt = Date.now();
           yield { type: "thought", text: thoughtText };
         }
         if (contentText) {
+          spanChunkCount++;
+          if (firstByteAt === null) firstByteAt = Date.now();
           yield { type: "content", text: contentText };
         }
-      } catch (parseError) {
-        console.error('[DashScope SSE] Parse error:', parseError, 'Raw:', dataStr.substring(0, 100));
+      } catch {
+        // 单条 SSE chunk 解析失败不影响整体流，忽略
       }
     }
+  }
+
+  // 结束 span 并记录关键性能指标（first byte / total ms / chunk 数）
+  if (trace && span) {
+    span.setAttributes({
+      chunkCount: spanChunkCount,
+      firstByteMs: firstByteAt ? firstByteAt - llmStartedAt : null,
+      totalMs: Date.now() - llmStartedAt,
+    });
+    trace.endSpan(span, "success");
   }
 }
 
@@ -979,9 +989,7 @@ export async function generalQANode(
 
     // ========== 四层记忆融合检索（面试核心亮点）==========
     console.log("\n");
-    console.log("=".repeat(60));
     console.log("🧠 [Memory] 开始四层记忆融合检索");
-    console.log("=".repeat(60));
 
     // 转换消息格式为 Memory Message
     const memoryMessages: Message[] = state.messages.map((msg: any) => ({
@@ -1001,40 +1009,15 @@ export async function generalQANode(
     const memoryContextPrompt = fusedMemory.fusedContext;
     console.log(`🧠 [Memory] 融合上下文已生成，长度: ${memoryContextPrompt.length} 字符`);
 
-    // ========== RAG Engine 集成测试日志 ==========
-    console.log("\n");
-    console.log("=".repeat(60));
-    console.log("🔍 [RAG TEST] 用户问题:", content);
-    console.log("🔍 [RAG TEST] 白名单命中:", shouldRouteToXiaohongshuRag(content));
-    console.log("=".repeat(60));
-
-    // 使用 HybridRetriever + MCP 降级的 RAG 检索
+    // 使用 LlamaIndex HybridFusion + BGE-M3 重排 + 三级策略的 RAG 检索
     let ragContext = "";
     let ragResults: any[] = [];
 
     if (config.features.ragEnabled && shouldRouteToXiaohongshuRag(content)) {
-      console.log("🔍 [RAG TEST] 正在调用 LlamaIndex QueryEngine（HybridFusion + BGE-M3 重排 + 三级策略）...");
-
       const ragFallbackResult = await retrieveWithFallback(content, { topK: 5, userId: state.userId });
       ragContext = ragFallbackResult.context;
       ragResults = ragFallbackResult.results;
-
-      // ========== RAG 检索结果日志 ==========
-      console.log("=".repeat(60));
-      console.log("✅ [RAG TEST] 检索来源:", ragFallbackResult.source);
-      console.log("✅ [RAG TEST] 三级策略:", ragFallbackResult.tier);
-      console.log("✅ [RAG TEST] 检索到文档数:", ragResults.length);
-      if (ragResults.length > 0) {
-        console.log("✅ [RAG TEST] 第一条文档标题:", ragResults[0]?.metadata?.title || "无标题");
-        console.log("✅ [RAG TEST] 第一条文档分类:", ragResults[0]?.metadata?.category || "无分类");
-        console.log("✅ [RAG TEST] 第一条文档分数:", ragResults[0]?.score || "无分数");
-      }
-      console.log("=".repeat(60));
-      console.log("\n");
-    } else {
-      console.log("🔍 [RAG TEST] 白名单未命中，跳过 RAG 检索");
-      console.log("=".repeat(60));
-      console.log("\n");
+      console.log(`[RAG] source=${ragFallbackResult.source} tier=${ragFallbackResult.tier} hits=${ragResults.length}`);
     }
 
     // 构建 prompt：优先使用 RAG context，否则使用原始消息
@@ -1212,10 +1195,7 @@ export async function* generalQANodeStream(
       };
     }
 
-    console.log("=".repeat(60));
-    console.log("🔍 [RAG TEST] 用户问题:", content);
-    console.log("🔍 [RAG TEST] 命中:", ragResults.length, "条");
-    console.log("=".repeat(60));
+    console.log(`[RAG] hits=${ragResults.length}`);
 
     // ========== 联网搜索智能路由 ==========
     // 触发条件：RAG tier=fallback/expand 或问题命中时效/显式联网关键词

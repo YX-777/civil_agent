@@ -37,7 +37,8 @@
     "@langchain/openai": "^1.2.3",
     "axios": "^1.6.5",
     "dotenv": "^17.2.3",
-    "undici": "^6.21.0"
+    "undici": "^6.21.0",
+    "zod": "^3.25.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

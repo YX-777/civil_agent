@@ -132,6 +132,29 @@ export function useAgent(
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({ error: "请求失败" }));
+
+        // ========== GuardRail 拦截：转成消息流里的告警卡片，不弹 Alert ==========
+        if (errorData?.code === "GUARDRAIL_BLOCKED" && errorData?.guardrail) {
+          // 移除占位的空 assistant 消息，插入一条 system 拦截消息
+          setMessages(prev => {
+            const withoutPlaceholder = prev.filter(m => m.id !== assistantId);
+            return [
+              ...withoutPlaceholder,
+              {
+                id: `guardrail-${Date.now()}`,
+                role: "system" as const,
+                content: errorData.error || "输入被 GuardRail 拦截",
+                timestamp: new Date(),
+                guardrailBlock: {
+                  layer: errorData.guardrail.layer || "input",
+                  maxRisk: errorData.guardrail.maxRisk || "high",
+                  hits: errorData.guardrail.hits || [],
+                },
+              },
+            ];
+          });
+          return; // 静默退出，不进 catch
+        }
         throw new Error(errorData.error || `HTTP ${response.status}`);
       }
 
@@ -206,13 +229,15 @@ export function useAgent(
               if (data.conversationId) {
                 void onTurnDone?.(data.conversationId);
               }
-              // 更新 thoughts + sources（如果服务端返回了）
+              // 更新 thoughts + sources + guardrail（如果服务端返回了）
               setMessages(prev => prev.map(msg =>
                 msg.id === assistantId
                   ? {
                       ...msg,
                       ...(data.thoughts ? { thoughts: data.thoughts } : {}),
                       ...(Array.isArray(data.sources) ? { sources: data.sources } : {}),
+                      ...(data.guardrail ? { guardrail: data.guardrail } : {}),
+                      ...(data.traceId ? { traceId: data.traceId } : {}),
                     }
                   : msg
               ));

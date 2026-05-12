@@ -11,6 +11,27 @@ export { getContextEnhancer } from "./middleware/context-enhancer";
 export { retrieveWithFallback, inferCategoryFromQuery } from "./utils/rag-fallback";
 export { extractAndPersistFacts, matchExplicitFacts, persistTaskCompletionFact } from "./memory/fact-extractor";
 
+// GuardRail 三层防护
+export {
+  checkInput,
+  checkToolInvocation,
+  checkOutput,
+  listGuardedTools,
+  extractFactualClaims,
+  computeFactCoverage,
+  DEFAULT_POLICIES,
+} from "./guardrail";
+export type {
+  GuardLayer,
+  GuardResult,
+  GuardHit,
+  RiskLevel,
+  InputGuardOptions,
+  ToolGuardOptions,
+  OutputGuardInput,
+  RAGSourceSnippet,
+} from "./guardrail";
+
 // OpenTelemetry 可观测模块
 export {
   TraceContext,
@@ -19,6 +40,12 @@ export {
   endTrace,
   createTraceContext,
   getLogger,
+  runInTrace,
+  getCurrentTrace,
+  withSpan,
+  withSpanGen,
+  readTraceForConversation,
+  listTracedConversations,
 } from "./otel";
 
 export type { GraphStateType, EmotionContext, PendingTaskPlan } from "./graph/state";

@@ -43,11 +43,9 @@ export class MemoryFusionRetriever {
    * 5. 融合：按权重拼接上下文，提供给 Agent
    */
   async retrieve(userId: string, query: string, messages: Message[]): Promise<FusedMemoryContext> {
-    console.log("=".repeat(60));
     console.log("[Memory] 开始四层记忆融合检索");
     console.log(`[Memory] 用户: ${userId}`);
     console.log(`[Memory] 查询: "${query.slice(0, 50)}..."`);
-    console.log("=".repeat(60));
 
     // 1-4: 四个 retriever 独立、无依赖，全部并行检索
     // instant 是内存操作几乎瞬时；short/meta 走 SQLite；long 走 ChromaDB 向量检索
@@ -75,7 +73,6 @@ export class MemoryFusionRetriever {
     // 5. 融合：按权重拼接上下文
     const fusedContext = this.fuseContexts(instantMemory, shortMemory, longMemory, metaMemory);
     console.log(`[Memory] 融合后上下文长度: ${fusedContext.length} 字符`);
-    console.log("=".repeat(60));
 
     return {
       instant: instantMemory,

@@ -46,7 +46,6 @@ export class MetaMemoryAggregator {
    * 6. 存储到 MetaMemory 表
    */
   async aggregate(userId: string): Promise<MetaMemoryData> {
-    console.log("=".repeat(60));
     console.log(`[MetaMemory] 开始聚合用户元记忆，用户: ${userId}`);
 
     const userRepo = getUserRepository();
@@ -116,7 +115,6 @@ export class MetaMemoryAggregator {
     });
 
     console.log(`[MetaMemory] 元记忆已保存`);
-    console.log("=".repeat(60));
 
     return metaMemoryData;
   }

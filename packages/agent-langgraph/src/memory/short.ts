@@ -93,14 +93,12 @@ export class ShortMemoryDecayCalculator {
    * 批量计算衰减
    */
   calculateBatch(memories: ShortMemory[]): DecayResult[] {
-    console.log("=".repeat(60));
     console.log(`[ShortMemory] 批量衰减计算，共 ${memories.length} 条记忆`);
 
     const results = memories.map((m) => this.calculateFreshness(m));
 
     const toArchive = results.filter((r) => r.shouldArchive).length;
     console.log(`[ShortMemory] 需归档: ${toArchive} 条`);
-    console.log("=".repeat(60));
 
     return results;
   }

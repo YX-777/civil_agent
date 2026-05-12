@@ -46,7 +46,6 @@ export class LongMemoryArchiver {
    * 6. 标记短期记忆为已归档
    */
   async archiveFromShortTerm(userId: string): Promise<ArchiveResult[]> {
-    console.log("=".repeat(60));
     console.log(`[LongMemory] 开始归档短期记忆，用户: ${userId}`);
 
     const shortRepo = getShortTermMemoryRepository();
@@ -59,7 +58,6 @@ export class LongMemoryArchiver {
 
     if (toArchive.length === 0) {
       console.log("[LongMemory] 无需归档的记忆");
-      console.log("=".repeat(60));
       return [];
     }
 
@@ -114,7 +112,6 @@ export class LongMemoryArchiver {
     }
 
     console.log(`[LongMemory] 归档完成，成功: ${results.length} 条`);
-    console.log("=".repeat(60));
 
     return results;
   }

@@ -41,6 +41,13 @@ interface AgentDashboardData {
     web: number;
     avgScore: number;
   };
+  guardRailStats?: {
+    total: number;
+    input: { passed: number; blocked: number; sanitized: number };
+    tool: { passed: number; blocked: number };
+    output: { passed: number; hits: number; avgSimilarity: number; avgFactCoverage: number };
+    recentHits: Array<{ layer: string; risk: string; reason: string; time: string }>;
+  };
   nodeStats: { name: string; count: number }[];
   recentEvents: {
     id: string;
@@ -119,15 +126,24 @@ export default function AgentDashboardClient() {
           {/* ===== 标题 + 总览 ===== */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <Title level={2} style={{ margin: 0, color: "#1f2937" }}>Agent 系统看板</Title>
-            <Button
-              type="text"
-              icon={<ReloadOutlined />}
-              onClick={fetchData}
-              loading={loading}
-              style={{ color: PURPLE }}
-            >
-              刷新
-            </Button>
+            <Space>
+              <Button
+                type="default"
+                href="/dashboard/trace"
+                style={{ color: PURPLE, borderColor: PURPLE }}
+              >
+                🔍 Trace Viewer
+              </Button>
+              <Button
+                type="text"
+                icon={<ReloadOutlined />}
+                onClick={fetchData}
+                loading={loading}
+                style={{ color: PURPLE }}
+              >
+                刷新
+              </Button>
+            </Space>
           </div>
           <Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 24 }}>
             观察 LangGraph + 四阶记忆 + 混合 RAG 的真实运行状态
@@ -221,6 +237,67 @@ export default function AgentDashboardClient() {
               </Row>
             )}
           </Section>
+
+          {/* ===== Panel: GuardRail 三层防护 ===== */}
+          {data.guardRailStats && (
+            <Section title="🛡️ GuardRail 三层防护" subtitle="L1 输入注入检测 · L2 工具参数校验 · L3 输出相关性+幻觉验证">
+              <Row gutter={[12, 12]}>
+                <Col xs={24} md={8}>
+                  <Card bordered={false} style={{ border: "1px solid #f0f0f0", borderRadius: 10 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>L1 输入注入检测</Text>
+                    <div style={{ fontSize: 24, fontWeight: 600, color: "#16a34a", lineHeight: 1.3, marginTop: 4 }}>
+                      ✅ {data.guardRailStats.input.passed}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                      <span style={{ color: "#dc2626" }}>拦截 {data.guardRailStats.input.blocked}</span>
+                      {" · "}
+                      <span style={{ color: "#d97706" }}>脱敏 {data.guardRailStats.input.sanitized}</span>
+                    </div>
+                  </Card>
+                </Col>
+                <Col xs={24} md={8}>
+                  <Card bordered={false} style={{ border: "1px solid #f0f0f0", borderRadius: 10 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>L2 工具参数校验</Text>
+                    <div style={{ fontSize: 24, fontWeight: 600, color: "#0891b2", lineHeight: 1.3, marginTop: 4 }}>
+                      ✅ {data.guardRailStats.tool.passed}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                      Zod schema · 黑名单 ·
+                      <span style={{ color: "#dc2626" }}> 拦截 {data.guardRailStats.tool.blocked}</span>
+                    </div>
+                  </Card>
+                </Col>
+                <Col xs={24} md={8}>
+                  <Card bordered={false} style={{ border: "1px solid #f0f0f0", borderRadius: 10 }}>
+                    <Text type="secondary" style={{ fontSize: 12 }}>L3 输出验证</Text>
+                    <div style={{ fontSize: 24, fontWeight: 600, color: PURPLE, lineHeight: 1.3, marginTop: 4 }}>
+                      ✅ {data.guardRailStats.output.passed}
+                    </div>
+                    <div style={{ fontSize: 12, color: "#6b7280", marginTop: 4 }}>
+                      相关性 {(data.guardRailStats.output.avgSimilarity * 100).toFixed(0)}%
+                      {" · "}
+                      事实覆盖 {(data.guardRailStats.output.avgFactCoverage * 100).toFixed(0)}%
+                    </div>
+                  </Card>
+                </Col>
+              </Row>
+              {data.guardRailStats.recentHits.length > 0 && (
+                <Card bordered={false} style={{ marginTop: 12, border: "1px solid #fed7aa", background: "#fffbeb", borderRadius: 10 }}>
+                  <Text style={{ fontSize: 13, fontWeight: 500, color: "#d97706" }}>⚠️ 最近告警 ({data.guardRailStats.recentHits.length})</Text>
+                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
+                    {data.guardRailStats.recentHits.slice(0, 5).map((h, i) => (
+                      <div key={i} style={{ fontSize: 12, color: "#4b5563", display: "flex", gap: 6 }}>
+                        <Tag color={h.risk === "high" || h.risk === "critical" ? "red" : "orange"} style={{ marginRight: 0, fontSize: 11 }}>
+                          {h.layer} · {h.risk}
+                        </Tag>
+                        <span>{h.reason}</span>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </Section>
+          )}
 
           {/* ===== Panel 3: LangGraph 节点调用 ===== */}
           <Section title="LangGraph 节点调用" subtitle="各意图路由的调用次数（热力越高出现越频繁）">

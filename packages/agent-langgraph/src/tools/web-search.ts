@@ -16,6 +16,8 @@
  */
 
 import { logger } from "@tech-mate/core";
+import { checkToolInvocation } from "../guardrail";
+import { withSpan } from "../otel/instrumentation";
 
 export interface WebSearchCitation {
   url: string;
@@ -66,53 +68,64 @@ export async function webSearch(query: string): Promise<WebSearchResult | null> 
     return null;
   }
 
-  const startedAt = Date.now();
+  // ========== GuardRail L2：工具参数校验 ==========
+  const guard = checkToolInvocation("web_search", { query });
+  if (!guard.passed) {
+    logger.warn(`[WebSearch] GuardRail 拦截: ${guard.hits.map(h => h.reason).join("；")}`);
+    return null; // 静默降级，主流程仍可基于本地知识库回答
+  }
 
-  try {
-    console.log(`🌐 [WebSearch] 调用 Tavily: "${query}"`);
+  return withSpan("tool.web_search", async (span) => {
+    span?.setAttributes({ queryLength: query.length });
+    const startedAt = Date.now();
+    try {
+      console.log(`🌐 [WebSearch] 调用 Tavily: "${query}"`);
 
-    const response = await fetch("https://api.tavily.com/search", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        api_key: apiKey,
-        query,
-        max_results: 5,
-        search_depth: "basic",      // basic 速度快，advanced 更精确（贵 2x）
-        include_answer: true,        // Tavily 会综合一段答案，省一次 LLM 调用
-        include_raw_content: false,
-      }),
-      // 5s 上限：Tavily 偶尔抽到 8-10s，会把整条 Chat 链路拖死
-      // 失败/超时 → null，调用方有兜底（LLM 仍然能基于本地知识库回答）
-      signal: AbortSignal.timeout(5_000),
-    });
+      const response = await fetch("https://api.tavily.com/search", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          api_key: apiKey,
+          query,
+          max_results: 5,
+          search_depth: "basic",      // basic 速度快，advanced 更精确（贵 2x）
+          include_answer: true,        // Tavily 会综合一段答案，省一次 LLM 调用
+          include_raw_content: false,
+        }),
+        // 5s 上限：Tavily 偶尔抽到 8-10s，会把整条 Chat 链路拖死
+        // 失败/超时 → null，调用方有兜底（LLM 仍然能基于本地知识库回答）
+        signal: AbortSignal.timeout(5_000),
+      });
 
-    if (!response.ok) {
-      const errBody = await response.text().catch(() => "");
-      logger.warn(`[WebSearch] Tavily HTTP ${response.status}: ${errBody.slice(0, 200)}`);
+      if (!response.ok) {
+        const errBody = await response.text().catch(() => "");
+        logger.warn(`[WebSearch] Tavily HTTP ${response.status}: ${errBody.slice(0, 200)}`);
+        span?.setAttribute("status", `http_${response.status}`);
+        return null;
+      }
+
+      const data = (await response.json()) as any;
+      const answer: string = data?.answer || "";
+      const rawResults: any[] = Array.isArray(data?.results) ? data.results : [];
+
+      const citations: WebSearchCitation[] = rawResults
+        .filter((r) => r?.url)
+        .map((r) => ({
+          url: r.url,
+          title: r.title,
+          content: r.content,
+          score: typeof r.score === "number" ? r.score : undefined,
+        }));
+
+      console.log(`🌐 [WebSearch] 完成 ${Date.now() - startedAt}ms, ${citations.length} 个结果`);
+      span?.setAttributes({ resultsCount: citations.length, durationMs: Date.now() - startedAt });
+
+      return { answer, citations, raw: data };
+    } catch (error) {
+      logger.warn(
+        `[WebSearch] 调用失败: ${error instanceof Error ? error.message : String(error)}`
+      );
       return null;
     }
-
-    const data = (await response.json()) as any;
-    const answer: string = data?.answer || "";
-    const rawResults: any[] = Array.isArray(data?.results) ? data.results : [];
-
-    const citations: WebSearchCitation[] = rawResults
-      .filter((r) => r?.url)
-      .map((r) => ({
-        url: r.url,
-        title: r.title,
-        content: r.content,
-        score: typeof r.score === "number" ? r.score : undefined,
-      }));
-
-    console.log(`🌐 [WebSearch] 完成 ${Date.now() - startedAt}ms, ${citations.length} 个结果`);
-
-    return { answer, citations, raw: data };
-  } catch (error) {
-    logger.warn(
-      `[WebSearch] 调用失败: ${error instanceof Error ? error.message : String(error)}`
-    );
-    return null;
-  }
+  });
 }

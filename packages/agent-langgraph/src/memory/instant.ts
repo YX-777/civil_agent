@@ -45,7 +45,6 @@ export class InstantMemoryManager {
    * 这样确保 Agent 总是能看到最近的对话上下文。
    */
   trimMessages(messages: Message[]): InstantMemorySlice {
-    console.log("=".repeat(60));
     console.log("[InstantMemory] 开始滑动窗口裁剪");
     console.log(`[InstantMemory] 输入消息数: ${messages.length}`);
     console.log(`[InstantMemory] 配置: maxMessages=${this.config.maxMessages}, maxTokens=${this.config.maxTokens}`);
@@ -93,7 +92,6 @@ export class InstantMemoryManager {
     console.log(`[InstantMemory] 输出消息数: ${trimmedMessages.length}`);
     console.log(`[InstantMemory] 总 tokens: ${totalTokens}`);
     console.log(`[InstantMemory] 窗口起始索引: ${windowStartIndex}`);
-    console.log("=".repeat(60));
 
     return {
       messages: trimmedMessages,

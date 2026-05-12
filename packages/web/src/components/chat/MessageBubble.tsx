@@ -7,12 +7,13 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeHighlight from "rehype-highlight";
 import { motion, AnimatePresence } from "framer-motion";
-import { Message, UsedSource, ExecutionStep } from "@/types";
+import { Message, UsedSource, ExecutionStep, GuardRailSummary } from "@/types";
 import "highlight.js/styles/github.css";
 
 interface MessageBubbleProps {
   message: Message;
   isStreaming?: boolean;
+  conversationId?: string;
 }
 
 // 时间戳格式化
@@ -301,6 +302,113 @@ function SourcesSection({ sources }: { sources: UsedSource[] }) {
 }
 
 /**
+ * GuardRail 三层防护徽章 —— 在 sources 下方展示
+ * 命中 0 → 绿色 ✅ "已通过 3 层防护"
+ * 命中 1+ → 黄色 ⚠️ 列出层级 + 命中数
+ */
+function GuardRailBadge({ guardrail, traceId, conversationId }: { guardrail: GuardRailSummary; traceId?: string; conversationId?: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const inputPassed = guardrail.input.passed;
+  const outputPassed = guardrail.output.passed;
+  const toolBlockedCount = guardrail.tool?.count ?? 0;
+  const allPassed = inputPassed && outputPassed && toolBlockedCount === 0;
+
+  const bg = allPassed ? "#f0fdf4" : "#fffbeb";
+  const border = allPassed ? "#bbf7d0" : "#fde68a";
+  const color = allPassed ? "#16a34a" : "#d97706";
+  const icon = allPassed ? "🛡️" : "⚠️";
+  const totalIssues = guardrail.input.hits + toolBlockedCount + guardrail.output.hits;
+  const text = allPassed
+    ? "已通过 3 层 GuardRail 防护（L1 输入 · L2 工具 · L3 输出）"
+    : `GuardRail 检测到 ${totalIssues} 项告警`;
+
+  return (
+    <div
+      style={{
+        marginTop: 8,
+        background: bg,
+        border: `1px solid ${border}`,
+        borderRadius: 10,
+        overflow: "hidden",
+      }}
+    >
+      <button
+        onClick={() => setExpanded(!expanded)}
+        style={{
+          width: "100%",
+          padding: "8px 12px",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          fontSize: 12,
+          color,
+        }}
+      >
+        <span style={{ fontWeight: 500 }}>{icon} {text}</span>
+        <span style={{ fontSize: 11, opacity: 0.7 }}>{expanded ? "收起 ▲" : "展开 ▼"}</span>
+      </button>
+      {expanded && (
+        <div style={{ padding: "0 12px 10px", fontSize: 12, color: "#4b5563", display: "flex", flexDirection: "column", gap: 4 }}>
+          <div>
+            <strong>L1 输入注入检测</strong>: {inputPassed ? "✅ 通过" : `⚠️ ${guardrail.input.hits} 项 · 风险 ${guardrail.input.maxRisk}`}
+          </div>
+          <div>
+            <strong>L2 工具参数校验</strong>:{" "}
+            {toolBlockedCount === 0 ? (
+              <span>✅ 通过（Zod schema + 黑名单）</span>
+            ) : (
+              <span style={{ color: "#d97706" }}>⚠️ 拦截 {toolBlockedCount} 次工具调用</span>
+            )}
+          </div>
+          {guardrail.tool?.blocks?.map((b, i) => (
+            <div key={i} style={{ fontSize: 11, color: "#7c2d12", paddingLeft: 16, marginTop: 2 }}>
+              ❌ <code style={{ fontFamily: "monospace" }}>{b.tool}</code> · 风险 {b.maxRisk}
+              {b.hits.slice(0, 2).map((h, j) => (
+                <div key={j} style={{ paddingLeft: 16 }}>
+                  • {h.reason}
+                  {h.matchedText && (
+                    <span style={{ marginLeft: 4, padding: "1px 4px", background: "#fee2e2", borderRadius: 2, fontFamily: "monospace" }}>
+                      &ldquo;{h.matchedText.slice(0, 30)}&rdquo;
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          ))}
+          <div>
+            <strong>L3 输出验证</strong>:{" "}
+            {outputPassed ? "✅ 通过" : `⚠️ ${guardrail.output.hits} 项`}
+            {typeof guardrail.output.similarity === "number" && (
+              <span>· 相关性 {(guardrail.output.similarity * 100).toFixed(0)}%</span>
+            )}
+            {typeof guardrail.output.factCoverage === "number" && (
+              <span> · 事实覆盖 {(guardrail.output.factCoverage * 100).toFixed(0)}%</span>
+            )}
+          </div>
+          {traceId && (
+            <div style={{ fontSize: 11, opacity: 0.7, marginTop: 4, display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
+              <span>Trace:</span>
+              <code style={{ fontFamily: "monospace", fontSize: 11 }}>{traceId}</code>
+              <a
+                href={`/dashboard/trace?conversationId=${encodeURIComponent(conversationId || "")}&traceId=${encodeURIComponent(traceId)}`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: "#8b5cf6" }}
+              >
+                🔍 在 Trace Viewer 中查看 →
+              </a>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
  * 答案正文兜底过滤 — LLM 万一还是输出了 "## 参考来源"，切掉避免重复展示
  */
 function stripReferencesSection(content: string): string {
@@ -500,9 +608,10 @@ function AIAvatar() {
   );
 }
 
-export default function MessageBubble({ message, isStreaming = false }: MessageBubbleProps) {
+export default function MessageBubble({ message, isStreaming = false, conversationId }: MessageBubbleProps) {
   const [copied, setCopied] = useState(false);
   const isUser = message.role === "user";
+  const isGuardRailBlock = message.role === "system" && !!message.guardrailBlock;
 
   const handleCopy = async () => {
     try {
@@ -514,6 +623,67 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
       antdMessage.error("复制失败");
     }
   };
+
+  // 🚫 GuardRail 拦截消息：宽度占满的红色告警卡片
+  if (isGuardRailBlock) {
+    const block = message.guardrailBlock!;
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.2 }}
+        style={{ marginBottom: 16, padding: "0 8px" }}
+      >
+        <div
+          style={{
+            width: "100%",
+            padding: "14px 18px",
+            background: "linear-gradient(180deg, #fef2f2 0%, #ffffff 100%)",
+            border: "1px solid #fecaca",
+            borderLeft: "4px solid #dc2626",
+            borderRadius: 10,
+            color: "#991b1b",
+            boxShadow: "0 1px 2px rgba(220, 38, 38, 0.05)",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 600, marginBottom: 6 }}>
+            🚫 GuardRail L{block.layer === "input" ? "1" : block.layer === "tool" ? "2" : "3"} 拦截
+            <span
+              style={{
+                padding: "1px 8px",
+                borderRadius: 4,
+                background: block.maxRisk === "high" || block.maxRisk === "critical" ? "#dc2626" : "#d97706",
+                color: "#fff",
+                fontSize: 11,
+                fontWeight: 500,
+              }}
+            >
+              {block.maxRisk}
+            </span>
+          </div>
+          <div style={{ fontSize: 13, marginBottom: 8 }}>{message.content}</div>
+          {block.hits.length > 0 && (
+            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginTop: 6, paddingTop: 8, borderTop: "1px dashed #fecaca" }}>
+              <div style={{ fontSize: 12, fontWeight: 500, color: "#991b1b" }}>命中规则：</div>
+              {block.hits.map((h, i) => (
+                <div key={i} style={{ fontSize: 12, color: "#7f1d1d", paddingLeft: 8 }}>
+                  • <code style={{ fontFamily: "monospace", fontSize: 11 }}>{h.ruleId}</code> — {h.reason}
+                  {h.matchedText && (
+                    <span style={{ marginLeft: 6, padding: "1px 4px", background: "#fee2e2", borderRadius: 3, fontFamily: "monospace", fontSize: 11 }}>
+                      &ldquo;{h.matchedText.slice(0, 30)}&rdquo;
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+          <div style={{ marginTop: 8, fontSize: 11, color: "#9f1239", opacity: 0.8 }}>
+            💡 这条消息未进入 Agent 处理，已被前置 GuardRail 直接拦截。所有命中规则已记录到 OTel trace。
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
 
   // 用户消息：右侧灰色小气泡
   if (isUser) {
@@ -582,6 +752,11 @@ export default function MessageBubble({ message, isStreaming = false }: MessageB
         {/* 参考来源（流式结束后） */}
         {!isStreaming && message.sources && message.sources.length > 0 && (
           <SourcesSection sources={message.sources} />
+        )}
+
+        {/* 🛡️ GuardRail 三层防护徽章（流式结束后） */}
+        {!isStreaming && message.guardrail && (
+          <GuardRailBadge guardrail={message.guardrail} traceId={message.traceId} conversationId={conversationId} />
         )}
 
         {/* 操作栏 */}
