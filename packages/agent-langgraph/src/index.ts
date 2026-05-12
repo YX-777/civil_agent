@@ -9,7 +9,7 @@ export { getMCPToolClient } from "./tools/mcp-tools";
 export { getEmotionDetector } from "./middleware/emotion-detector";
 export { getContextEnhancer } from "./middleware/context-enhancer";
 export { retrieveWithFallback, inferCategoryFromQuery } from "./utils/rag-fallback";
-export { extractAndPersistFacts, matchExplicitFacts, persistTaskCompletionFact } from "./memory/fact-extractor";
+export { extractAndPersistFacts, matchExplicitFacts, persistTaskCompletionFact, persistFocusCompletionFact } from "./memory/fact-extractor";
 
 // GuardRail 三层防护
 export {

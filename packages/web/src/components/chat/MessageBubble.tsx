@@ -462,6 +462,16 @@ function normalizeMarkdown(content: string): string {
   // 5. 行首 # 后紧贴内容 → 加空格："###Header" → "### Header"
   text = text.replace(/(^|\n)(#{1,6})(?![#\s])/g, "$1$2 ");
 
+  // 5b. 行末紧贴内容的残留 # 全部删除（模型常输出 "中文###\n" 这种带尾随 # 的脏内容）
+  //     仅当 # 前是非空白非 # 字符（避免误伤 ATX closed heading "### Title ###"）
+  text = text.replace(/([^\s#])#{1,6}(?=$|\n)/gm, "$1");
+
+  // 5c. 单 \n 紧贴 heading → 强制升级为空行 \n\n（确保标题不会被解析为段落延续 / 视觉上贴紧上一段）
+  text = text.replace(/([^\n#])\n(#{1,6}[ \t])/g, "$1\n\n$2");
+
+  // 5d. heading 行后单 \n 紧跟内容 → 升级为空行（确保标题和正文/列表之间始终留 blank line）
+  text = text.replace(/(^|\n)(#{1,6}[ \t][^\n]+)\n(?=[^\n])/g, "$1$2\n\n");
+
   // 6. 行首 `-` 后紧贴内容 → 加空格："-关键点" / "-**bold**" → "- xxx"
   //    排除：`-` 后又跟 `-`（避免 `---` 水平线被误拆）
   text = text.replace(/(^|\n)-(?=[^\s\-\n])/g, "$1- ");
@@ -686,13 +696,15 @@ export default function MessageBubble({ message, isStreaming = false, conversati
   }
 
   // 用户消息：右侧灰色小气泡
+  // data-msg-id：让 page.tsx 的滚动 effect 能定位到这条消息，scroll-margin-top 留出 Navbar 高度
   if (isUser) {
     return (
       <motion.div
+        data-msg-id={message.id}
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
-        style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16, paddingRight: 8 }}
+        style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16, paddingRight: 8, scrollMarginTop: 72 }}
       >
         <div style={{ padding: "10px 14px", borderRadius: 12, background: "#f3f4f6", maxWidth: "70%" }}>
           <div style={{ fontSize: 15, lineHeight: 1.6, color: "#374151" }}>{message.content}</div>

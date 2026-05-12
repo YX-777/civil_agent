@@ -3,11 +3,11 @@
 import { Tabs } from "antd";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { MessageOutlined, ClockCircleOutlined, DashboardOutlined, CheckSquareOutlined, UserOutlined } from "@ant-design/icons";
+import { MessageOutlined, BranchesOutlined, DashboardOutlined, CheckSquareOutlined, UserOutlined } from "@ant-design/icons";
 
 const navItems = [
   { key: "/", label: "对话", icon: <MessageOutlined />, href: "/" },
-  { key: "/focus", label: "专注", icon: <ClockCircleOutlined />, href: "/focus" },
+  { key: "/dashboard/trace", label: "Trace", icon: <BranchesOutlined />, href: "/dashboard/trace" },
   { key: "/dashboard", label: "看板", icon: <DashboardOutlined />, href: "/dashboard" },
   { key: "/tasks", label: "任务", icon: <CheckSquareOutlined />, href: "/tasks" },
   { key: "/profile", label: "我的", icon: <UserOutlined />, href: "/profile" },

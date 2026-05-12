@@ -220,7 +220,7 @@ importers:
         version: 1.16.0
       llamaindex:
         specifier: ^0.11.0
-        version: 0.11.29(@llama-flow/core@0.4.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))(hono@4.12.18)(p-retry@6.2.1)(zod@3.25.76))(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))(hono@4.12.18)(p-retry@6.2.1)(tree-sitter@0.22.4)(web-tree-sitter@0.24.7)(zod@3.25.76)
+        version: 0.11.29(@llama-flow/core@0.4.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(hono@4.12.18)(p-retry@6.2.1)(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(hono@4.12.18)(p-retry@6.2.1)(tree-sitter@0.22.4)(web-tree-sitter@0.24.7)(zod@4.4.3)
       natural:
         specifier: ^6.10.0
         version: 6.12.0
@@ -289,6 +289,9 @@ importers:
       '@ant-design/icons':
         specifier: ^6.1.0
         version: 6.2.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@ant-design/nextjs-registry':
+        specifier: ^1.3.0
+        version: 1.3.0(@ant-design/cssinjs@2.1.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(antd@6.3.7(luxon@3.7.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(next@14.0.4(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
       '@ant-design/x':
         specifier: ^2.1.3
         version: 2.7.0(antd@6.3.7(luxon@3.7.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -439,6 +442,15 @@ packages:
     resolution: {integrity: sha512-zlJtE7AMbG12TeYVPhtBXwNpFInNy8mjLzcIm+0BPw16/b8ODG87YJ1G37VIF5VFscdgfsf6EweAFPTobu/3iQ==}
     engines: {node: '>=8'}
     peerDependencies:
+      react: '>=16.0.0'
+      react-dom: '>=16.0.0'
+
+  '@ant-design/nextjs-registry@1.3.0':
+    resolution: {integrity: sha512-lHlg5bnj3LPYHUD+iZsO1k11NhIrx1mLWh2DXQ0m3Ly3OSaYfgeHX0WoVXxdVjEGjjYnPTe+OUY7YvU/p1aPZw==}
+    peerDependencies:
+      '@ant-design/cssinjs': '>=1.0.0'
+      antd: '>=5.0.0'
+      next: '>=14.0.0'
       react: '>=16.0.0'
       react-dom: '>=16.0.0'
 
@@ -4951,6 +4963,14 @@ snapshots:
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
 
+  '@ant-design/nextjs-registry@1.3.0(@ant-design/cssinjs@2.1.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(antd@6.3.7(luxon@3.7.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(next@14.0.4(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
+    dependencies:
+      '@ant-design/cssinjs': 2.1.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      antd: 6.3.7(luxon@3.7.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      next: 14.0.4(@opentelemetry/api@1.9.0)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      react: 18.3.1
+      react-dom: 18.3.1(react@18.3.1)
+
   '@ant-design/react-slick@2.0.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
       '@babel/runtime': 7.29.2
@@ -5444,9 +5464,24 @@ snapshots:
       p-retry: 6.2.1
       zod: 3.25.76
 
+  '@llama-flow/core@0.4.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(hono@4.12.18)(p-retry@6.2.1)(zod@4.4.3)':
+    optionalDependencies:
+      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)
+      hono: 4.12.18
+      p-retry: 6.2.1
+      zod: 4.4.3
+
   '@llamaindex/cloud@4.1.3(@llama-flow/core@0.4.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))(hono@4.12.18)(p-retry@6.2.1)(zod@3.25.76))(@llamaindex/core@0.6.21)(@llamaindex/env@0.1.30)':
     dependencies:
       '@llama-flow/core': 0.4.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))(hono@4.12.18)(p-retry@6.2.1)(zod@3.25.76)
+      '@llamaindex/core': 0.6.21
+      '@llamaindex/env': 0.1.30
+      p-retry: 6.2.1
+      zod: 3.25.76
+
+  '@llamaindex/cloud@4.1.3(@llama-flow/core@0.4.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(hono@4.12.18)(p-retry@6.2.1)(zod@4.4.3))(@llamaindex/core@0.6.21)(@llamaindex/env@0.1.30)':
+    dependencies:
+      '@llama-flow/core': 0.4.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(hono@4.12.18)(p-retry@6.2.1)(zod@4.4.3)
       '@llamaindex/core': 0.6.21
       '@llamaindex/env': 0.1.30
       p-retry: 6.2.1
@@ -5484,11 +5519,31 @@ snapshots:
       p-retry: 6.2.1
       zod: 3.25.76
 
+  '@llamaindex/workflow-core@1.3.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(hono@4.12.18)(p-retry@6.2.1)(zod@4.4.3)':
+    optionalDependencies:
+      '@modelcontextprotocol/sdk': 1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)
+      hono: 4.12.18
+      p-retry: 6.2.1
+      zod: 4.4.3
+
   '@llamaindex/workflow@1.1.23(@llamaindex/core@0.6.21)(@llamaindex/env@0.1.30)(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))(hono@4.12.18)(p-retry@6.2.1)(zod@3.25.76)':
     dependencies:
       '@llamaindex/core': 0.6.21
       '@llamaindex/env': 0.1.30
       '@llamaindex/workflow-core': 1.3.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@3.25.76))(hono@4.12.18)(p-retry@6.2.1)(zod@3.25.76)
+    transitivePeerDependencies:
+      - '@modelcontextprotocol/sdk'
+      - hono
+      - next
+      - p-retry
+      - rxjs
+      - zod
+
+  '@llamaindex/workflow@1.1.23(@llamaindex/core@0.6.21)(@llamaindex/env@0.1.30)(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(hono@4.12.18)(p-retry@6.2.1)(zod@4.4.3)':
+    dependencies:
+      '@llamaindex/core': 0.6.21
+      '@llamaindex/env': 0.1.30
+      '@llamaindex/workflow-core': 1.3.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(hono@4.12.18)(p-retry@6.2.1)(zod@4.4.3)
     transitivePeerDependencies:
       - '@modelcontextprotocol/sdk'
       - hono
@@ -5530,6 +5585,31 @@ snapshots:
       '@cfworker/json-schema': 4.1.1
     transitivePeerDependencies:
       - supports-color
+
+  '@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3)':
+    dependencies:
+      '@hono/node-server': 1.19.14(hono@4.12.18)
+      ajv: 8.20.0
+      ajv-formats: 3.0.1(ajv@8.20.0)
+      content-type: 1.0.5
+      cors: 2.8.6
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.8
+      express: 5.2.1
+      express-rate-limit: 8.5.1(express@5.2.1)
+      hono: 4.12.18
+      jose: 6.2.3
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 4.4.3
+      zod-to-json-schema: 3.25.2(zod@4.4.3)
+    optionalDependencies:
+      '@cfworker/json-schema': 4.1.1
+    transitivePeerDependencies:
+      - supports-color
+    optional: true
 
   '@mongodb-js/saslprep@1.4.11':
     dependencies:
@@ -7696,6 +7776,30 @@ snapshots:
       - web-tree-sitter
       - zod
 
+  llamaindex@0.11.29(@llama-flow/core@0.4.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(hono@4.12.18)(p-retry@6.2.1)(zod@4.4.3))(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(hono@4.12.18)(p-retry@6.2.1)(tree-sitter@0.22.4)(web-tree-sitter@0.24.7)(zod@4.4.3):
+    dependencies:
+      '@llamaindex/cloud': 4.1.3(@llama-flow/core@0.4.4(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(hono@4.12.18)(p-retry@6.2.1)(zod@4.4.3))(@llamaindex/core@0.6.21)(@llamaindex/env@0.1.30)
+      '@llamaindex/core': 0.6.21
+      '@llamaindex/env': 0.1.30
+      '@llamaindex/node-parser': 2.0.21(@llamaindex/core@0.6.21)(@llamaindex/env@0.1.30)(tree-sitter@0.22.4)(web-tree-sitter@0.24.7)
+      '@llamaindex/workflow': 1.1.23(@llamaindex/core@0.6.21)(@llamaindex/env@0.1.30)(@modelcontextprotocol/sdk@1.29.0(@cfworker/json-schema@4.1.1)(zod@4.4.3))(hono@4.12.18)(p-retry@6.2.1)(zod@4.4.3)
+      '@types/lodash': 4.17.24
+      '@types/node': 24.12.3
+      lodash: 4.18.1
+      magic-bytes.js: 1.13.0
+    transitivePeerDependencies:
+      - '@huggingface/transformers'
+      - '@llama-flow/core'
+      - '@modelcontextprotocol/sdk'
+      - gpt-tokenizer
+      - hono
+      - next
+      - p-retry
+      - rxjs
+      - tree-sitter
+      - web-tree-sitter
+      - zod
+
   load-esm@1.0.3: {}
 
   load-tsconfig@0.2.5: {}
@@ -9446,6 +9550,11 @@ snapshots:
   zod-to-json-schema@3.25.2(zod@3.25.76):
     dependencies:
       zod: 3.25.76
+
+  zod-to-json-schema@3.25.2(zod@4.4.3):
+    dependencies:
+      zod: 4.4.3
+    optional: true
 
   zod@3.25.76: {}
 

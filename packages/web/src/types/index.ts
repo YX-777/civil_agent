@@ -112,23 +112,6 @@ export interface Task {
   source?: "manual" | "agent";
 }
 
-export interface CalendarDay {
-  date: string;
-  learningHours: number;
-  completed: boolean;
-}
-
-export interface FocusSession {
-  id: string;
-  duration: number;
-  module: string;
-  completed: boolean;
-  startTime: Date;
-  endTime?: Date;
-  userId?: string;
-  createdAt?: string;
-}
-
 export interface UserProfile {
   nickname: string;
   totalStudyDays: number;

@@ -74,7 +74,7 @@ body {
 .message-content-wrapper h6 {
   font-weight: 600;
   line-height: 1.4;
-  margin: 18px 0 8px;
+  margin: 22px 0 12px;
   color: #1f2937;
 }
 .message-content-wrapper h1 { font-size: 22px; }
@@ -83,6 +83,34 @@ body {
 .message-content-wrapper h4 { font-size: 15px; }
 .message-content-wrapper h5,
 .message-content-wrapper h6 { font-size: 14px; color: #4b5563; }
+
+/* 标题紧跟列表/段落/表格 → 额外间距，避免视觉上贴在一起 */
+.message-content-wrapper h1 + ul,
+.message-content-wrapper h1 + ol,
+.message-content-wrapper h1 + p,
+.message-content-wrapper h1 + table,
+.message-content-wrapper h2 + ul,
+.message-content-wrapper h2 + ol,
+.message-content-wrapper h2 + p,
+.message-content-wrapper h2 + table,
+.message-content-wrapper h3 + ul,
+.message-content-wrapper h3 + ol,
+.message-content-wrapper h3 + p,
+.message-content-wrapper h3 + table,
+.message-content-wrapper h4 + ul,
+.message-content-wrapper h4 + ol,
+.message-content-wrapper h4 + p,
+.message-content-wrapper h4 + table,
+.message-content-wrapper h5 + ul,
+.message-content-wrapper h5 + ol,
+.message-content-wrapper h5 + p,
+.message-content-wrapper h5 + table,
+.message-content-wrapper h6 + ul,
+.message-content-wrapper h6 + ol,
+.message-content-wrapper h6 + p,
+.message-content-wrapper h6 + table {
+  margin-top: 10px;
+}
 
 /* 段落 */
 .message-content-wrapper p {

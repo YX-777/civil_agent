@@ -19,12 +19,12 @@ export default function ChatPage() {
   const userId = "default-user";
 
   // ========== 滚动逻辑 ==========
+  // 新策略：用户发完消息后，把"最新一条用户消息"滚到视口顶部（block:start），
+  // 这样用户消息完整可见 + 下方留出整屏空间给 assistant 流式渲染（buffer 充足）。
+  // 旧策略（messagesEndRef block:end）问题：固定底部输入栏 ~100px 会遮住用户消息底边。
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const scrollToBottom = useCallback(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
-  }, []);
+  const lastScrolledUserMsgIdRef = useRef<string | null>(null);
 
   const {
     conversations,
@@ -55,9 +55,25 @@ export default function ChatPage() {
   } = useAgent(currentConversationId || undefined, userId, handleAgentTurnDone);
 
   const handleSendMessage = useCallback(async (text: string) => {
-    scrollToBottom();
     await sendMessage(text);
-  }, [sendMessage, scrollToBottom]);
+  }, [sendMessage]);
+
+  // 监听 messages：新的 user 消息出现时，把它滚到视口顶部
+  // 用 rAF 双层确保 DOM 已 commit；id 通过 dataset 选择避免遍历 ref
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    if (!last || last.role !== "user") return;
+    if (lastScrolledUserMsgIdRef.current === last.id) return;
+    lastScrolledUserMsgIdRef.current = last.id;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        const el = document.querySelector(`[data-msg-id="${last.id}"]`);
+        if (el && (el as HTMLElement).scrollIntoView) {
+          (el as HTMLElement).scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      });
+    });
+  }, [messages]);
 
   const hasInitializedConversationRef = useRef(false);
 
@@ -163,7 +179,7 @@ export default function ChatPage() {
               maxWidth: 800,
               minWidth: 320,
               margin: "0 auto",
-              padding: "24px 24px 120px",
+              padding: "24px 24px 240px",
               minHeight: "calc(100vh - 64px)",
               overflowY: "auto",
             }}
@@ -195,8 +211,8 @@ export default function ChatPage() {
                     <QuickReplies options={quickReplies} onSelect={handleQuickReply} />
                   </div>
                 )}
-                {/* 滚动锚点 + 底部最小留白（不再 100px 大空白） */}
-                <div ref={messagesEndRef} style={{ height: 8 }} />
+                {/* 底部 anchor（保留 ref 以备未来用），padding-bottom 240px 已提供 buffer */}
+                <div ref={messagesEndRef} style={{ height: 8 }} aria-hidden />
               </div>
             )}
 

@@ -254,6 +254,39 @@ export async function persistTaskCompletionFact(
 }
 
 /**
+ * 专注完成回写长期记忆
+ * 闭环用：专注页完成专注 → 写入 long_term_memory → 下次 Chat RAG 检索到学习模块/时长
+ */
+export async function persistFocusCompletionFact(
+  userId: string,
+  info: {
+    module: string;
+    actualMinutes: number;
+    reflection?: string | null;
+  },
+): Promise<void> {
+  try {
+    const parts = [
+      `用户完成了一次专注学习：${info.module} 模块`,
+      `时长 ${info.actualMinutes} 分钟`,
+      info.reflection && info.reflection.trim() && info.reflection !== "专注模式完成"
+        ? `心得：${info.reflection.trim()}`
+        : null,
+    ].filter(Boolean);
+
+    const fact: ExtractedFact = {
+      content: parts.join("，"),
+      topics: ["专注学习", info.module].filter(Boolean) as string[],
+      weight: 0.7,
+      source: "explicit",
+    };
+    await persistFacts(userId, [fact]);
+  } catch (err: any) {
+    console.warn("[FactExtractor] persistFocusCompletionFact failed:", err?.message || err);
+  }
+}
+
+/**
  * 一站式入口：从一条用户消息中提取事实并落库
  * 设计为 fire-and-forget，不抛错、不阻塞主流程
  */

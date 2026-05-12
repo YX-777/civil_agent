@@ -126,24 +126,15 @@ export default function AgentDashboardClient() {
           {/* ===== 标题 + 总览 ===== */}
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
             <Title level={2} style={{ margin: 0, color: "#1f2937" }}>Agent 系统看板</Title>
-            <Space>
-              <Button
-                type="default"
-                href="/dashboard/trace"
-                style={{ color: PURPLE, borderColor: PURPLE }}
-              >
-                🔍 Trace Viewer
-              </Button>
-              <Button
-                type="text"
-                icon={<ReloadOutlined />}
-                onClick={fetchData}
-                loading={loading}
-                style={{ color: PURPLE }}
-              >
-                刷新
-              </Button>
-            </Space>
+            <Button
+              type="text"
+              icon={<ReloadOutlined />}
+              onClick={fetchData}
+              loading={loading}
+              style={{ color: PURPLE }}
+            >
+              刷新
+            </Button>
           </div>
           <Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 24 }}>
             观察 LangGraph + 四阶记忆 + 混合 RAG 的真实运行状态
