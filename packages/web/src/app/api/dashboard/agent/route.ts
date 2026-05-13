@@ -63,13 +63,23 @@ export async function GET(request: NextRequest) {
     const shortRepo = getShortTermMemoryRepository();
     const metaRepo = getMetaMemoryRepository();
 
-    const [shortActive, shortAll, metaRecord, longAllDocs, kbDocs] = await Promise.all([
+    // 瞬时记忆代理指标：最近会话的消息条数
+    // LangGraph 里"瞬时"是运行时的 messages 数组，不落盘；用最近一条会话的 message 数近似展示，
+    // 至少不再永远显示 0
+    const [shortActive, shortAll, metaRecord, longAllDocs, kbDocs, latestConv] = await Promise.all([
       shortRepo.findActiveByUserId(userId, 200).catch(() => [] as any[]),
       prisma.shortTermMemory.count({ where: { userId } }).catch(() => 0),
       metaRepo.findByUserId(userId).catch(() => null),
       vectorService.getAllDocuments("long_term_memory").catch(() => []),
       vectorService.getAllDocuments("tech_knowledge").catch(() => []),
+      prisma.conversation.findFirst({
+        where: { userId },
+        orderBy: { updatedAt: "desc" },
+        select: { id: true, _count: { select: { messages: true } } },
+      }).catch(() => null),
     ]);
+
+    const instantCount = latestConv?._count?.messages ?? 0;
 
     // 长期记忆按 user 过滤
     const longUser = longAllDocs.filter((d: any) => d.metadata?.user_id === userId);
@@ -96,7 +106,11 @@ export async function GET(request: NextRequest) {
     if (longUser.length > 0) avgWeight = avgWeight / longUser.length;
 
     const memoryLayers = {
-      instant: { label: "瞬时记忆", count: 0, note: "实时对话状态（不持久化）" },
+      instant: {
+        label: "瞬时记忆",
+        count: instantCount,
+        note: latestConv ? `最近会话 · ${instantCount} 条消息` : "暂无会话",
+      },
       short: {
         label: "短期记忆",
         count: shortActive.length,
