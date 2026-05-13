@@ -65,6 +65,7 @@ export default function AgentDashboardClient() {
   const [data, setData] = useState<AgentDashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [alertExpanded, setAlertExpanded] = useState(false);
 
   const fetchData = async () => {
     try {
@@ -274,17 +275,39 @@ export default function AgentDashboardClient() {
               </Row>
               {data.guardRailStats.recentHits.length > 0 && (
                 <Card bordered={false} style={{ marginTop: 12, border: "1px solid #fed7aa", background: "#fffbeb", borderRadius: 10 }}>
-                  <Text style={{ fontSize: 13, fontWeight: 500, color: "#d97706" }}>⚠️ 最近告警 ({data.guardRailStats.recentHits.length})</Text>
-                  <div style={{ marginTop: 8, display: "flex", flexDirection: "column", gap: 4 }}>
-                    {data.guardRailStats.recentHits.slice(0, 5).map((h, i) => (
-                      <div key={i} style={{ fontSize: 12, color: "#4b5563", display: "flex", gap: 6 }}>
-                        <Tag color={h.risk === "high" || h.risk === "critical" ? "red" : "orange"} style={{ marginRight: 0, fontSize: 11 }}>
-                          {h.layer} · {h.risk}
-                        </Tag>
-                        <span>{h.reason}</span>
-                      </div>
-                    ))}
+                  <div
+                    onClick={() => setAlertExpanded((v) => !v)}
+                    style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer", userSelect: "none" }}
+                  >
+                    <Text style={{ fontSize: 13, fontWeight: 500, color: "#d97706" }}>
+                      ⚠️ 最近告警 ({data.guardRailStats.recentHits.length})
+                    </Text>
+                    <Text style={{ fontSize: 12, color: "#d97706" }}>
+                      {alertExpanded ? "收起 ▴" : "展开 ▾"}
+                    </Text>
                   </div>
+                  {alertExpanded && (
+                    <div
+                      style={{
+                        marginTop: 8,
+                        display: "flex",
+                        flexDirection: "column",
+                        gap: 4,
+                        maxHeight: 108,           // ~3-4 行（line ~24px）
+                        overflowY: "auto",
+                        paddingRight: 4,
+                      }}
+                    >
+                      {data.guardRailStats.recentHits.map((h, i) => (
+                        <div key={i} style={{ fontSize: 12, color: "#4b5563", display: "flex", gap: 6, alignItems: "baseline" }}>
+                          <Tag color={h.risk === "high" || h.risk === "critical" ? "red" : "orange"} style={{ marginRight: 0, fontSize: 11 }}>
+                            {h.layer} · {h.risk}
+                          </Tag>
+                          <span style={{ flex: 1, wordBreak: "break-word" }}>{h.reason}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </Card>
               )}
             </Section>
