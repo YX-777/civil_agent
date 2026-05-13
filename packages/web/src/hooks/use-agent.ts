@@ -29,21 +29,26 @@ export function useAgent(
   const isInitializedRef = useRef(false);
   const prevConversationIdRef = useRef<string | undefined>(conversationId);
 
-  // 加载用户元记忆中的昵称（一次性）
+  // 加载用户元记忆中的昵称
+  // 关键修正：依赖里加上 conversationId —— 每次新建/切换会话都重新拉一次 profile，
+  // 这样在 /profile 页面改了名字回来再新建会话时，欢迎语能拿到最新昵称。
+  // 单纯 [userId] 依赖会让整个 chat 页面生命周期只 fetch 一次，跨页面更新永远 stale。
+  // cache: "no-store" 断掉浏览器 / Next 14 的 HTTP cache 复用，确保拿到 DB 真实值。
   useEffect(() => {
     let abort = false;
-    fetch(`/api/profile?userId=${encodeURIComponent(userId)}`)
+    fetch(`/api/profile?userId=${encodeURIComponent(userId)}`, { cache: "no-store" })
       .then(r => r.ok ? r.json() : null)
       .then(data => {
         if (abort) return;
         const nick = data?.profile?.nickname;
         // "学习者" 是默认值，等同于未设置
         if (nick && nick !== "学习者") setNickname(nick);
+        else setNickname(null); // 防止上一轮的旧值残留
         setProfileLoaded(true);
       })
       .catch(() => { if (!abort) setProfileLoaded(true); });
     return () => { abort = true; };
-  }, [userId]);
+  }, [userId, conversationId]);
 
   // 监听 conversationId 变化
   useEffect(() => {
@@ -54,6 +59,9 @@ export function useAgent(
       setMessages([]);
       setQuickReplies([]);
       setError(null);
+      // 关键：把 profileLoaded 重置为 false，让 welcome useEffect 等新一轮 profile fetch 完成再触发，
+      // 避免"旧 nickname 先生成无名 welcome → 新 nickname 到达时 messages 已非空被 dedupe 跳过"的竞态。
+      setProfileLoaded(false);
     }
   }, [conversationId]);
 

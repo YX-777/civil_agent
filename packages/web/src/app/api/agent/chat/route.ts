@@ -519,18 +519,22 @@ export async function POST(request: NextRequest) {
         content: message,
         timestamp: new Date(),
       };
-      const assistantContent = [
+      // markdown 渲染：单 \n 会被吞成空格，所以每行单独成段（用 \n\n），
+      // 字段部分用 bullet 列表，视觉上一目了然
+      const headline =
         splitDays > 1
-          ? `好的，已经按 ${splitDays} 天周期为你拆成 ${splitDays} 条子任务并写入任务页。`
-          : `好的，已经根据刚才的计划为你创建真实任务。`,
-        `任务标题：${baseTitle}`,
-        plan.module ? `模块：${plan.module}` : null,
-        plan.periodDays ? `建议周期：${plan.periodDays} 天` : null,
-        ``,
+          ? `✅ 已按 **${splitDays} 天** 周期为你拆成 **${splitDays} 条子任务** 写入任务页。`
+          : `✅ 已根据刚才的计划为你创建真实任务。`;
+      const bullets = [
+        `- **任务标题**：${baseTitle}`,
+        plan.module ? `- **模块**：${plan.module}` : null,
+        plan.periodDays ? `- **周期**：${plan.periodDays} 天` : null,
+      ].filter((s): s is string => s !== null);
+      const assistantContent = [
+        headline,
+        bullets.join("\n"),
         `👉 [前往任务页查看与勾选](/tasks)`,
-      ]
-        .filter((s) => s !== null)
-        .join("\n");
+      ].join("\n\n");
       const assistantMessage = {
         id: generateId(),
         role: "assistant" as const,

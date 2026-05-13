@@ -67,15 +67,14 @@ function formatTaskPlanAsMarkdown(raw: string): string {
     const path: any[] = Array.isArray(parsed.learning_path) ? parsed.learning_path : (Array.isArray(parsed.阶段) ? parsed.阶段 : []);
     const resources: any[] = Array.isArray(parsed.resources) ? parsed.resources : (Array.isArray(parsed.推荐资料) ? parsed.推荐资料 : []);
 
+    // bullet 列表替代 markdown 表格——qwen 流式输出经常把表格行挤碎，bullet 列表每行独立更稳
     const parts: string[] = [
       header,
       "",
-      "| 项目 | 内容 |",
-      "| --- | --- |",
-      `| 🎯 技术栈 | ${tech} |`,
-      `| 📝 练习量 | ${practice} |`,
-      `| 📊 难度 | ${difficulty} |`,
-      `| ⏳ 周期 | ${duration} |`,
+      `- **🎯 技术栈**：${tech}`,
+      `- **📝 练习量**：${practice}`,
+      `- **📊 难度**：${difficulty}`,
+      `- **⏳ 周期**：${duration}`,
       "",
     ];
 

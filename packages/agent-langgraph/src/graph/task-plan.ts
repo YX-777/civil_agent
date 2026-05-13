@@ -14,14 +14,17 @@ export interface ParsedTaskPlan {
 
 function extractLineValue(planText: string, labels: string[]): string | null {
   for (const label of labels) {
-    // 1) 普通形式："模块：React"
-    const colonRe = new RegExp(`${label}[：:]\\s*(.+)`, "i");
+    // 1) 冒号形式："模块：React" / "**技术栈**：xxx" / "- **🎯 技术栈** ：xxx"
+    //    关键：label 和冒号之间允许 markdown 强调符号（**、*、~、`）和空白，
+    //    否则 bullet 列表 prompt 输出的 "- **🎯 技术栈**：AI应用开发" 会 miss
+    //    导致 pendingTaskPlan 丢失，进而让 "确认计划" 快捷回复走错分支
+    const colonRe = new RegExp(`${label}[\\s*_~\`]*[：:]\\s*(.+)`, "i");
     const colonMatch = planText.match(colonRe);
     if (colonMatch?.[1]) {
-      // 如果命中的内容里含 markdown 管道符，说明命中了表格行里的右侧，需要清理
-      return colonMatch[1].trim().replace(/\s*\|.*$/, "").trim();
+      // 兼容老表格遗留：右侧含 `|` 时只取第一段
+      return colonMatch[1].trim().replace(/\s*\|.*$/, "").replace(/\*+$/, "").trim();
     }
-    // 2) markdown 表格形式："| 🎯 模块 | React开发 |" 或 "|模块|React|"
+    // 2) markdown 表格形式（legacy 兼容）："| 🎯 模块 | React开发 |" 或 "|模块|React|"
     //    label 前后允许 emoji + 空格 + 其它修饰；只关心 label 和它右边那一格
     const tableRe = new RegExp(`\\|[^|\\n]*?${label}[^|\\n]*?\\|([^|\\n]+)\\|`, "i");
     const tableMatch = planText.match(tableRe);
