@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Layout, Card, Button, Checkbox, Progress, Row, Col, Spin, Empty, Badge, Typography, Space, message, Modal, Form, Input, Select, InputNumber, DatePicker, Segmented } from "antd";
-import { PlusOutlined, EditOutlined } from "@ant-design/icons";
+import { Layout, Card, Button, Checkbox, Progress, Row, Col, Spin, Empty, Badge, Typography, Space, message, Modal, Form, Input, Select, InputNumber, DatePicker, Popconfirm, Tag } from "antd";
+import { EditOutlined, DeleteOutlined, DownOutlined, RightOutlined } from "@ant-design/icons";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
+import rehypeHighlight from "rehype-highlight";
 import { Task } from "@/types";
 import Navbar from "@/components/shared/Navbar";
 import BottomNav from "@/components/shared/BottomNav";
@@ -28,17 +31,25 @@ interface CreateTaskFormValues {
 
 export default function TasksPage() {
   const [messageApi, contextHolder] = message.useMessage();
-  const [form] = Form.useForm<CreateTaskFormValues>();
   const [editForm] = Form.useForm<CreateTaskFormValues>();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isCreating, setIsCreating] = useState(false);
-  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  // isUpdating 复用之前 isCreating 的语义，专用于编辑 Modal 的 confirmLoading
+  const [isUpdating, setIsUpdating] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [completingTaskId, setCompletingTaskId] = useState<string | null>(null);
-  const [statusFilter, setStatusFilter] = useState<"all" | Task["status"]>("all");
-  const [sourceFilter, setSourceFilter] = useState<"all" | "manual" | "agent">("all");
+  const [deletingTaskId, setDeletingTaskId] = useState<string | null>(null);
+  // 展开/收起：记录哪些 task 当前是展开态，默认全部收起
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
   useEffect(() => {
     fetchTasks();
@@ -98,39 +109,27 @@ export default function TasksPage() {
     }
   };
 
-  const createTask = async (values: CreateTaskFormValues) => {
+  const deleteTask = async (taskId: string) => {
     try {
-      setIsCreating(true);
-
-      const response = await fetch("/api/tasks", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          userId: DEFAULT_USER_ID,
-          title: values.title.trim(),
-          description: values.description?.trim() || "",
-          module: values.module,
-          difficulty: values.difficulty || "medium",
-          estimatedMinutes: values.estimatedMinutes ?? 60,
-          dueDate: values.dueDate?.toDate?.().toISOString() || values.dueDate?.toISOString?.() || new Date().toISOString(),
-        }),
+      setDeletingTaskId(taskId);
+      const response = await fetch(`/api/tasks/${taskId}?userId=${DEFAULT_USER_ID}`, {
+        method: "DELETE",
       });
-
-      if (!response.ok) {
-        throw new Error("任务创建失败");
-      }
-
-      messageApi.success("任务已创建");
-      setIsCreateModalOpen(false);
-      form.resetFields();
+      if (!response.ok) throw new Error("任务删除失败");
+      messageApi.success("任务已删除");
+      // 同步收掉展开态
+      setExpandedIds((prev) => {
+        if (!prev.has(taskId)) return prev;
+        const next = new Set(prev);
+        next.delete(taskId);
+        return next;
+      });
       await fetchTasks();
     } catch (error) {
-      console.error("Failed to create task:", error);
-      messageApi.error("任务创建失败，请稍后重试");
+      console.error("Failed to delete task:", error);
+      messageApi.error("任务删除失败，请稍后重试");
     } finally {
-      setIsCreating(false);
+      setDeletingTaskId(null);
     }
   };
 
@@ -138,7 +137,7 @@ export default function TasksPage() {
     if (!editingTask) return;
 
     try {
-      setIsCreating(true);
+      setIsUpdating(true);
       const response = await fetch(`/api/tasks/${editingTask.id}`, {
         method: "PATCH",
         headers: {
@@ -168,7 +167,7 @@ export default function TasksPage() {
       console.error("Failed to update task:", error);
       messageApi.error("任务更新失败，请稍后重试");
     } finally {
-      setIsCreating(false);
+      setIsUpdating(false);
     }
   };
 
@@ -208,13 +207,7 @@ export default function TasksPage() {
     );
   });
 
-  const inProgressTasks = tasks.filter((task) => task.status === "in_progress");
   const completedTasks = tasks.filter((task) => task.status === "completed");
-  const filteredTasks = tasks.filter((task) => {
-    const statusMatched = statusFilter === "all" ? true : task.status === statusFilter;
-    const sourceMatched = sourceFilter === "all" ? true : task.source === sourceFilter;
-    return statusMatched && sourceMatched;
-  });
 
   const openEditModal = (task: Task) => {
     setEditingTask(task);
@@ -255,7 +248,7 @@ export default function TasksPage() {
           <Title level={2} style={{ marginBottom: 24 }}>任务管理</Title>
 
           <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={12}>
               <Card>
                 <div style={{ fontSize: 32, fontWeight: "bold", color: "#a78bfa", marginBottom: 8 }}>
                   {todayTasks.length}
@@ -263,15 +256,7 @@ export default function TasksPage() {
                 <Text type="secondary">今日任务</Text>
               </Card>
             </Col>
-            <Col xs={24} sm={8}>
-              <Card>
-                <div style={{ fontSize: 32, fontWeight: "bold", color: "#8b5cf6", marginBottom: 8 }}>
-                  {inProgressTasks.length}
-                </div>
-                <Text type="secondary">进行中</Text>
-              </Card>
-            </Col>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={12}>
               <Card>
                 <div style={{ fontSize: 32, fontWeight: "bold", color: "#10b981", marginBottom: 8 }}>
                   {completedTasks.length}
@@ -280,36 +265,6 @@ export default function TasksPage() {
               </Card>
             </Col>
           </Row>
-
-          <Card style={{ marginBottom: 24 }}>
-            <Space direction="vertical" size={16} style={{ width: "100%" }}>
-              <div>
-                <Text strong style={{ display: "block", marginBottom: 8 }}>按状态筛选</Text>
-                <Segmented
-                  value={statusFilter}
-                  onChange={(value) => setStatusFilter(value as "all" | Task["status"])}
-                  options={[
-                    { label: "全部", value: "all" },
-                    { label: "待开始", value: "todo" },
-                    { label: "进行中", value: "in_progress" },
-                    { label: "已完成", value: "completed" },
-                  ]}
-                />
-              </div>
-              <div>
-                <Text strong style={{ display: "block", marginBottom: 8 }}>按来源筛选</Text>
-                <Segmented
-                  value={sourceFilter}
-                  onChange={(value) => setSourceFilter(value as "all" | "manual" | "agent")}
-                  options={[
-                    { label: "全部", value: "all" },
-                    { label: "手动创建", value: "manual" },
-                    { label: "Agent 创建", value: "agent" },
-                  ]}
-                />
-              </div>
-            </Space>
-          </Card>
 
           <Card style={{ marginBottom: 24 }}>
             <Title level={4} style={{ marginBottom: 16 }}>今日任务</Title>
@@ -361,183 +316,151 @@ export default function TasksPage() {
           </Card>
 
           <Card style={{ marginBottom: 24 }}>
-            <Title level={4} style={{ marginBottom: 16 }}>进行中任务</Title>
-            {inProgressTasks.length === 0 ? (
-              <Empty description="没有进行中的任务" />
+            <Title level={4} style={{ marginBottom: 16 }}>
+              全部任务 <Text type="secondary" style={{ fontSize: 14, fontWeight: "normal" }}>（共 {tasks.length} 条 · 点击行展开详情）</Text>
+            </Title>
+            {tasks.length === 0 ? (
+              <Empty description="还没有任务，去聊天页让 Agent 帮你制定一份学习计划吧 ✨" />
             ) : (
-              <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                {inProgressTasks.map((task) => (
-                  <Card key={task.id} size="small" style={{ background: "#faf9ff", border: "1px solid #ede9fe" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
-                      <Text strong style={{ fontSize: 14 }}>{task.title}</Text>
-                      <Badge status="processing" text="进行中" />
-                    </div>
-                    <Progress
-                      percent={task.progress}
-                      strokeColor="#a78bfa"
-                      style={{ marginBottom: 8 }}
-                    />
-                    <div style={{ display: "flex", justifyContent: "space-between" }}>
-                      <Text type="secondary" style={{ fontSize: 12 }}>{task.progress}%</Text>
-                      <Text type="secondary" style={{ fontSize: 12 }}>截止：{task.dueDate}</Text>
-                    </div>
-                    <div style={{ marginTop: 12 }}>
-                      <Button
-                        size="small"
-                        type="primary"
-                        loading={completingTaskId === task.id}
-                        onClick={() => toggleTaskStatus(task.id)}
+              <div style={{ border: "1px solid #f0f0f0", borderRadius: 8, overflow: "hidden" }}>
+                {tasks.map((task, idx) => {
+                  const expanded = expandedIds.has(task.id);
+                  const dueDateLabel = task.dueDate
+                    ? new Date(task.dueDate).toLocaleDateString("zh-CN", { month: "2-digit", day: "2-digit" })
+                    : "未设置";
+                  return (
+                    <div
+                      key={task.id}
+                      style={{
+                        borderBottom: idx === tasks.length - 1 ? "none" : "1px solid #f0f0f0",
+                        background: expanded ? "#faf9ff" : "#fff",
+                        transition: "background 0.15s ease",
+                      }}
+                    >
+                      {/* 行头部：标题 + 关键信息 + 操作 */}
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 12,
+                          padding: "12px 16px",
+                          cursor: "pointer",
+                        }}
+                        onClick={() => toggleExpanded(task.id)}
                       >
-                        标记为完成
-                      </Button>
-                    </div>
-                  </Card>
-                ))}
-              </Space>
-            )}
-          </Card>
-
-          <Card style={{ marginBottom: 24 }}>
-            <Title level={4} style={{ marginBottom: 16 }}>全部任务</Title>
-            {filteredTasks.length === 0 ? (
-              <Empty description="没有符合筛选条件的任务" />
-            ) : (
-              <Space direction="vertical" size={16} style={{ width: "100%" }}>
-                {filteredTasks.map((task) => (
-                  <Card key={task.id} size="small" style={{ background: "#faf9ff", border: "1px solid #ede9fe" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", gap: 16 }}>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, flexWrap: "wrap" }}>
-                          <Text strong>{task.title}</Text>
-                          <Badge status={getStatusColor(task.status)} text={getStatusLabel(task.status)} />
-                          <Badge
-                            color={task.source === "agent" ? "#8b5cf6" : "#a78bfa"}
-                            text={task.source === "agent" ? "Agent 创建" : "手动创建"}
-                          />
+                        <span
+                          style={{ color: "#9ca3af", display: "flex", alignItems: "center", width: 16 }}
+                          aria-label={expanded ? "收起" : "展开"}
+                        >
+                          {expanded ? <DownOutlined /> : <RightOutlined />}
+                        </span>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <Text
+                            strong
+                            style={{
+                              textDecoration: task.status === "completed" ? "line-through" : "none",
+                              color: task.status === "completed" ? "#9ca3af" : "#1f2937",
+                              fontSize: 14,
+                            }}
+                            ellipsis
+                          >
+                            {task.title}
+                          </Text>
                         </div>
-                        {task.description && (
-                          <div style={{ marginBottom: 8 }}>
-                            <Text type="secondary">{task.description}</Text>
-                          </div>
-                        )}
-                        <Space size={12} wrap>
-                          {task.module ? <Text type="secondary">模块：{task.module}</Text> : null}
-                          {task.difficulty ? <Text type="secondary">难度：{task.difficulty}</Text> : null}
-                          <Text type="secondary">预计时长：{task.estimatedMinutes || 0} 分钟</Text>
-                          <Text type="secondary">截止：{task.dueDate || "未设置"}</Text>
+                        <Badge status={getStatusColor(task.status)} text={getStatusLabel(task.status)} />
+                        <Tag color={task.source === "agent" ? "purple" : "default"} style={{ marginRight: 0 }}>
+                          {task.source === "agent" ? "Agent" : "手动"}
+                        </Tag>
+                        <Text type="secondary" style={{ fontSize: 12, whiteSpace: "nowrap" }}>
+                          {dueDateLabel}
+                        </Text>
+                        <Space size={4} onClick={(e) => e.stopPropagation()}>
+                          {task.status !== "completed" && (
+                            <Button
+                              size="small"
+                              type="primary"
+                              loading={completingTaskId === task.id}
+                              onClick={() => toggleTaskStatus(task.id)}
+                            >
+                              完成
+                            </Button>
+                          )}
+                          <Button
+                            size="small"
+                            icon={<EditOutlined />}
+                            onClick={() => openEditModal(task)}
+                          />
+                          <Popconfirm
+                            title="确定删除？"
+                            description="任务删除后无法恢复"
+                            okText="删除"
+                            cancelText="取消"
+                            okButtonProps={{ danger: true }}
+                            onConfirm={() => deleteTask(task.id)}
+                          >
+                            <Button
+                              size="small"
+                              danger
+                              icon={<DeleteOutlined />}
+                              loading={deletingTaskId === task.id}
+                            />
+                          </Popconfirm>
                         </Space>
                       </div>
-                      <Space direction="vertical">
-                        {task.status !== "completed" && (
-                          <Button
-                            type="primary"
-                            loading={completingTaskId === task.id}
-                            onClick={() => toggleTaskStatus(task.id)}
-                          >
-                            完成
-                          </Button>
-                        )}
-                        <Button
-                          icon={<EditOutlined />}
-                          onClick={() => openEditModal(task)}
-                        >
-                          编辑
-                        </Button>
-                      </Space>
+
+                      {/* 展开后的详情区域 */}
+                      {expanded && (
+                        <div style={{ padding: "0 16px 16px 44px", borderTop: "1px dashed #e5e7eb" }}>
+                          <Space size={12} wrap style={{ marginTop: 12 }}>
+                            {task.module && <Tag>模块：{task.module}</Tag>}
+                            {task.difficulty && <Tag>难度：{task.difficulty}</Tag>}
+                            <Tag>预计：{task.estimatedMinutes || 0} 分钟</Tag>
+                            <Tag>截止：{task.dueDate ? new Date(task.dueDate).toLocaleString("zh-CN") : "未设置"}</Tag>
+                          </Space>
+                          {task.progress > 0 && task.status !== "completed" && (
+                            <div style={{ marginTop: 12 }}>
+                              <Progress percent={task.progress} size="small" strokeColor="#a78bfa" />
+                            </div>
+                          )}
+                          {task.description && (
+                            <div
+                              className="message-content-wrapper"
+                              style={{
+                                marginTop: 12,
+                                padding: 12,
+                                background: "#fff",
+                                border: "1px solid #ede9fe",
+                                borderRadius: 6,
+                                fontSize: 13,
+                                lineHeight: 1.7,
+                                color: "#374151",
+                              }}
+                            >
+                              <ReactMarkdown
+                                remarkPlugins={[remarkGfm]}
+                                rehypePlugins={[rehypeHighlight]}
+                              >
+                                {task.description}
+                              </ReactMarkdown>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  </Card>
-                ))}
-              </Space>
+                  );
+                })}
+              </div>
             )}
           </Card>
 
-          <Button
-            type="primary"
-            size="large"
-            icon={<PlusOutlined />}
-            block
-            onClick={() => setIsCreateModalOpen(true)}
-            style={{ height: 48, fontSize: 16, fontWeight: "bold" }}
-          >
-            创建新任务
-          </Button>
         </div>
       </Content>
       <Modal
-        title="创建新任务"
-        open={isCreateModalOpen}
-        confirmLoading={isCreating}
-        onCancel={() => {
-          if (!isCreating) {
-            setIsCreateModalOpen(false);
-          }
-        }}
-        onOk={() => form.submit()}
-        okText="创建任务"
-        cancelText="取消"
-        destroyOnClose
-      >
-        <Form<CreateTaskFormValues>
-          form={form}
-          layout="vertical"
-          onFinish={createTask}
-          initialValues={{
-            difficulty: "medium",
-            estimatedMinutes: 60,
-          }}
-        >
-          <Form.Item
-            label="任务标题"
-            name="title"
-            rules={[{ required: true, message: "请输入任务标题" }]}
-          >
-            <Input placeholder="例如：React Hooks 专项练习" maxLength={60} />
-          </Form.Item>
-
-          <Form.Item label="任务描述" name="description">
-            <Input.TextArea
-              placeholder="补充任务目标、要求或复盘重点"
-              rows={3}
-              maxLength={200}
-            />
-          </Form.Item>
-
-          <Form.Item label="模块" name="module">
-            <Select
-              allowClear
-              placeholder="选择对应模块"
-              options={MODULE_OPTIONS.map((item) => ({ label: item, value: item }))}
-            />
-          </Form.Item>
-
-          <Row gutter={12}>
-            <Col span={12}>
-              <Form.Item label="难度" name="difficulty">
-                <Select options={DIFFICULTY_OPTIONS} />
-              </Form.Item>
-            </Col>
-            <Col span={12}>
-              <Form.Item label="预计时长（分钟）" name="estimatedMinutes">
-                <InputNumber min={5} max={600} style={{ width: "100%" }} />
-              </Form.Item>
-            </Col>
-          </Row>
-
-          <Form.Item label="截止时间" name="dueDate">
-            <DatePicker
-              showTime
-              style={{ width: "100%" }}
-              placeholder="不填则默认当前时间"
-            />
-          </Form.Item>
-        </Form>
-      </Modal>
-      <Modal
         title="编辑任务"
         open={isEditModalOpen}
-        confirmLoading={isCreating}
+        confirmLoading={isUpdating}
         onCancel={() => {
-          if (!isCreating) {
+          if (!isUpdating) {
             setIsEditModalOpen(false);
             setEditingTask(null);
           }

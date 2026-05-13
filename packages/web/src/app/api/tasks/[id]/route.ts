@@ -36,6 +36,26 @@ function serializeTask(task: {
   };
 }
 
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: { id: string } }
+) {
+  try {
+    await getDatabase();
+    const userId =
+      request.nextUrl.searchParams.get("userId")?.trim() || DEFAULT_USER_ID;
+
+    const taskService = getTaskService();
+    await taskService.deleteTask(userId, params.id);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Failed to delete task";
+    const status = message === "Task not found" ? 404 : 500;
+    return NextResponse.json({ error: message }, { status });
+  }
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }

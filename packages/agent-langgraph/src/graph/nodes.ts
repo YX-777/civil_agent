@@ -26,7 +26,7 @@ import {
 } from "./xiaohongshu-rag";
 import { parseTaskPlanFromText } from "./task-plan";
 import { getMemoryFusionRetriever, type Message } from "../memory";
-import { getUserRepository } from "@tech-mate/database";
+import { getUserRepository, getTaskService } from "@tech-mate/database";
 
 /**
  * 从用户消息中抽取姓名（正则方式，覆盖最常见的几种中文表达）
@@ -494,6 +494,18 @@ function ruleBasedIntent(content: string): {
 } | null {
   const text = content.trim();
   if (!text) return null;
+
+  // 当前任务状态查询：优先级最高 —— 必须早于 planKeywords，否则"今天该做什么"
+  // 会被 LLM 判成 create_task 触发追问。这类问题应该走 general_qa 用任务上下文回答。
+  const taskQueryKeywords = [
+    "今天该做什么", "今天做什么", "今天要做什么", "我今天该做", "我今天有",
+    "今日任务", "今天的任务", "还有什么没做", "还剩什么", "我有什么任务", "我的任务",
+  ];
+  for (const kw of taskQueryKeywords) {
+    if (text.includes(kw)) {
+      return { intent: "general_inquiry", reasoning: "命中本地规则：当前任务状态查询", keywords: [kw] };
+    }
+  }
 
   // 学习计划相关（含"调整/重做"，让快捷回复也能命中）
   const planKeywords = [
@@ -1134,6 +1146,15 @@ export async function* generalQANodeStream(
     const enhancedMessage = await contextEnhancer.enhanceUserMessage(state.userId, content);
     const config = getAgentConfig();
 
+    // 任务查询型问题（"我今天该做什么"/"今日任务"等）短路 RAG + web：
+    // 这类问题的"权威答案"在本地 SQLite Task 表里（systemPrompt 已注入），
+    // 跑 RAG / 联网搜索不仅无意义还会引入不相关的参考来源（用户实测：Tavily 返回的
+    // 链接和任务八竿子打不着）。memory 仍跑，因为画像/历史会让回答更有针对性。
+    const isTaskQuery = [
+      "今天该做什么", "今天做什么", "今天要做什么", "我今天该做", "我今天有",
+      "今日任务", "今天的任务", "还有什么没做", "还剩什么", "我有什么任务", "我的任务",
+    ].some((kw) => content.includes(kw));
+
     // ========== Memory + RAG 并行检索（性能优化）==========
     // 两条链路无数据依赖：memory 用 long_term_memory collection，RAG 用 tech_knowledge collection
     // 串行 4-7s → 并行 max ≈ 2-4s，省 ~40-50% 等待时间
@@ -1147,7 +1168,7 @@ export async function* generalQANodeStream(
       stepStatus: "running",
     };
 
-    const ragEnabled = config.features.ragEnabled && shouldRouteToXiaohongshuRag(content);
+    const ragEnabled = !isTaskQuery && config.features.ragEnabled && shouldRouteToXiaohongshuRag(content);
     if (ragEnabled) {
       yield {
         type: "step",
@@ -1217,9 +1238,10 @@ export async function* generalQANodeStream(
 
     // ========== 联网搜索智能路由 ==========
     // 触发条件：RAG tier=fallback/expand 或问题命中时效/显式联网关键词
+    // 任务查询直接跳过——"今天"会被时效关键词命中触发 Tavily，但任务答案在本地 DB
     let webResult: WebSearchResult | null = null;
     const ragTier: string | undefined = ragResults.length > 0 ? "candidates" : undefined;
-    if (shouldUseWebSearch(content, ragTier)) {
+    if (!isTaskQuery && shouldUseWebSearch(content, ragTier)) {
       const webT0 = Date.now();
       yield {
         type: "step",
@@ -1293,6 +1315,37 @@ export async function* generalQANodeStream(
         })
         .join("\n\n");
       enhancedSystemPrompt += `\n\n## 📚 本地知识库检索结果\n${ragBlock}`;
+    }
+
+    // ========== 注入"今日任务"上下文 ==========
+    // 让 Agent 在被问到「我今天该做什么」「我有什么任务」时能直接列出实际的任务，
+    // 而不是说"我不知道你的任务"。任务来自 SQLite Task 表，按截止时间分桶。
+    // best-effort：DB 异常时降级为空（不影响主对话）
+    try {
+      const taskService = getTaskService();
+      const taskSummary = await taskService.getTodaySummary(state.userId);
+      const allLists = [
+        ["⚠️ 已逾期", taskSummary.overdue],
+        ["🔥 今日到期", taskSummary.todayDue],
+        ["📅 明日到期", taskSummary.tomorrowDue],
+      ] as const;
+      const hasAny = allLists.some(([, arr]) => arr.length > 0);
+      if (hasAny) {
+        const block = allLists
+          .filter(([, arr]) => arr.length > 0)
+          .map(([label, arr]) => {
+            const items = arr
+              .slice(0, 5)
+              .map((t: { title: string; module: string | null }) => `  - ${t.title}${t.module ? ` (${t.module})` : ""}`)
+              .join("\n");
+            const more = arr.length > 5 ? `\n  - ...还有 ${arr.length - 5} 条` : "";
+            return `${label}（${arr.length} 条）：\n${items}${more}`;
+          })
+          .join("\n\n");
+        enhancedSystemPrompt += `\n\n## 📋 用户当前的学习任务\n${block}\n\n回答任务相关问题（如"我今天该做什么"、"还有什么没做"）时，必须以上面真实任务为准，不要编造任务。如果用户没问任务，可以不主动提及。`;
+      }
+    } catch (e: any) {
+      console.warn("[general_qa] inject task context failed:", e?.message || e);
     }
 
     if (webResult && webResult.answer) {

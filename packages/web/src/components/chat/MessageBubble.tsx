@@ -821,11 +821,13 @@ export default function MessageBubble({ message, isStreaming = false, conversati
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.2 }}
-      style={{ display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 16, paddingLeft: 8 }}
+      // position:relative 让复制按钮可以 absolute 浮在右上角
+      style={{ position: "relative", display: "flex", alignItems: "flex-start", gap: 16, marginBottom: 16, paddingLeft: 8 }}
     >
       <AIAvatar />
 
-      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%" }}>
+      {/* paddingRight 给右上角按钮留 36px 空间，文字不会被盖住 */}
+      <div style={{ flex: 1, minWidth: 0, maxWidth: "100%", paddingRight: hasContent || hasSteps ? 36 : 0 }}>
         {/* 加载中初始态：没有 step 也没有 content 时 */}
         {showInitialLoading && (
           <div style={{ padding: "4px 0", color: "#9ca3af", fontSize: 14 }}>
@@ -865,33 +867,46 @@ export default function MessageBubble({ message, isStreaming = false, conversati
         {!isStreaming && message.guardrail && (
           <GuardRailBadge guardrail={message.guardrail} traceId={message.traceId} conversationId={conversationId} />
         )}
-
-        {/* 操作栏 */}
-        {(hasContent || hasSteps) && (
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, height: 24 }}>
-            <Tooltip title={copied ? "已复制" : "复制"}>
-              <button
-                onClick={handleCopy}
-                style={{
-                  padding: "4px 10px",
-                  borderRadius: 10,
-                  border: "none",
-                  background: copied ? "#f0fdf4" : "#f5f3ff",
-                  cursor: "pointer",
-                  color: copied ? "#10b981" : "#8b5cf6",
-                  fontSize: 13,
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 4,
-                  transition: "all 0.2s",
-                }}
-              >
-                {copied ? <CheckOutlined style={{ fontSize: 13 }} /> : <CopyOutlined style={{ fontSize: 13 }} />}
-              </button>
-            </Tooltip>
-          </div>
-        )}
       </div>
+
+      {/* 复制按钮：absolute 浮在消息容器右上角，和首行内容平齐，不占布局宽度 */}
+      {(hasContent || hasSteps) && (
+        <Tooltip title={copied ? "已复制" : "复制"} placement="left">
+          <button
+            onClick={handleCopy}
+            style={{
+              position: "absolute",
+              top: 0,
+              right: 0,
+              padding: "4px 8px",
+              borderRadius: 8,
+              border: "none",
+              background: copied ? "#f0fdf4" : "transparent",
+              cursor: "pointer",
+              color: copied ? "#10b981" : "#9ca3af",
+              fontSize: 13,
+              display: "flex",
+              alignItems: "center",
+              transition: "all 0.15s",
+              lineHeight: 1,
+            }}
+            onMouseEnter={(e) => {
+              if (!copied) {
+                e.currentTarget.style.background = "#f5f3ff";
+                e.currentTarget.style.color = "#8b5cf6";
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!copied) {
+                e.currentTarget.style.background = "transparent";
+                e.currentTarget.style.color = "#9ca3af";
+              }
+            }}
+          >
+            {copied ? <CheckOutlined style={{ fontSize: 14 }} /> : <CopyOutlined style={{ fontSize: 14 }} />}
+          </button>
+        </Tooltip>
+      )}
     </motion.div>
   );
 }

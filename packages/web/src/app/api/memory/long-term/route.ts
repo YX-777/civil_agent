@@ -32,6 +32,31 @@ function isWorthlessQuestion(content: string): boolean {
   return false;
 }
 
+/**
+ * 判断一段长期记忆是否是"系统内部自动生成"——不应该在「个人记忆」UI 透出。
+ *
+ * 个人记忆面向用户语义：「用户自己透露/同意被记住的事」。
+ * 系统内部生成的"任务完成回执"是闭环用的（下次 RAG 检索召回学习历史），
+ * 它对 Agent 有用，但放到面向用户的「个人记忆」列表里会显得冗余且不友好。
+ *
+ * 判定（任一）：
+ *  - topics 含 "任务完成"
+ *  - content 以 "用户已完成学习任务" 开头
+ */
+function isSystemInternalMemory(content: string, topics: string[]): boolean {
+  if (Array.isArray(topics) && topics.includes("任务完成")) return true;
+  if ((content || "").trimStart().startsWith("用户已完成学习任务")) return true;
+  return false;
+}
+
+function parseTopics(meta: Record<string, any>): string[] {
+  if (Array.isArray(meta.topics)) return meta.topics as string[];
+  if (typeof meta.topics === "string") {
+    try { return JSON.parse(meta.topics); } catch { return [meta.topics]; }
+  }
+  return [];
+}
+
 export async function GET(request: NextRequest) {
   try {
     const userId = request.nextUrl.searchParams.get("userId")?.trim() || DEFAULT_USER_ID;
@@ -53,17 +78,20 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 过滤出当前用户的记忆（同时排除即将被清理的脏数据）
+    // 过滤出当前用户的记忆：
+    //  ① 不是无价值疑问句脏数据
+    //  ② 不是系统内部生成的"任务完成回执"（这类对 Agent 有用但不该面向用户透出）
     const userMemories = all
-      .filter((doc) => doc.metadata?.user_id === userId && !isWorthlessQuestion(doc.content))
+      .filter((doc) => {
+        if (doc.metadata?.user_id !== userId) return false;
+        if (isWorthlessQuestion(doc.content)) return false;
+        const topics = parseTopics(doc.metadata || {});
+        if (isSystemInternalMemory(doc.content, topics)) return false;
+        return true;
+      })
       .map((doc) => {
         const meta = doc.metadata || {};
-        let topics: string[] = [];
-        if (Array.isArray(meta.topics)) topics = meta.topics;
-        else if (typeof meta.topics === "string") {
-          try { topics = JSON.parse(meta.topics); } catch { topics = [meta.topics]; }
-        }
-
+        const topics = parseTopics(meta);
         return {
           id: doc.id,
           content: doc.content,

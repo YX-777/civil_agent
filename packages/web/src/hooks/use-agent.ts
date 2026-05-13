@@ -28,6 +28,8 @@ export function useAgent(
   const currentConversationIdRef = useRef<string | undefined>(conversationId);
   const isInitializedRef = useRef(false);
   const prevConversationIdRef = useRef<string | undefined>(conversationId);
+  // 每个会话只 push 一次任务提醒，避免重渲染时重复追加
+  const taskReminderShownRef = useRef<string | null>(null);
 
   // 加载用户元记忆中的昵称
   // 关键修正：依赖里加上 conversationId —— 每次新建/切换会话都重新拉一次 profile，
@@ -54,6 +56,7 @@ export function useAgent(
   useEffect(() => {
     if (conversationId !== prevConversationIdRef.current) {
       isInitializedRef.current = false;
+      taskReminderShownRef.current = null;
       prevConversationIdRef.current = conversationId;
       currentConversationIdRef.current = conversationId;
       setMessages([]);
@@ -78,21 +81,89 @@ export function useAgent(
     if (!profileLoaded) return;
     if (messages.length === 0 && !isInitializedRef.current) {
       isInitializedRef.current = true;
+
       const greeting = nickname
-        ? `你好，**${nickname}**！欢迎回来 👋 我是 **TechMate**，你的 AI 技术学习助手。`
+        ? `你好，**${nickname}**！欢迎回来 👋 我是 **TechMate**。`
         : "你好！😊 我是 **TechMate**，你的 AI 技术学习助手。";
+      // 长版欢迎附加段：用在"无任务提醒"场景，介绍能力
       const memoryLine = nickname
         ? "- 🧠 跨会话记住你的技能水平和偏好"
         : "- 🧠 跨会话记住你的技能水平和偏好（告诉我你叫什么，我会记住的）";
+      const fullSuffix = `\n\n我可以帮你：\n- 💡 解答前端 / React / Next.js / TypeScript 技术问题\n- 📚 基于本地知识库 + 联网搜索给出有依据的回答\n- 🎯 制定个性化学习计划并追踪进度\n${memoryLine}\n\n说点你想学的吧 👇`;
+
+      // 先用 greeting 立即渲染欢迎语，避免等 fetch 期间空白。fetch 完成后用
+      // setMessages(prev => prev.map(...)) 替换同一条 welcome 的 content：
+      //   - 有任务提醒 → greeting + 任务提醒块（不要"我可以帮你..."避免页面太长）
+      //   - 无任务提醒 → greeting + 长版能力介绍
+      const welcomeId = `welcome-${Date.now()}`;
       const welcomeMessage: Message = {
-        id: `welcome-${Date.now()}`,
+        id: welcomeId,
         role: "assistant",
-        content: `${greeting}\n\n我可以帮你：\n- 💡 解答前端 / React / Next.js / TypeScript 技术问题\n- 📚 基于本地知识库 + 联网搜索给出有依据的回答\n- 🎯 制定个性化学习计划并追踪进度\n${memoryLine}\n\n说点你想学的吧 👇`,
+        content: greeting,
         timestamp: new Date(),
       };
       setMessages([welcomeMessage]);
+
+      const reminderKey = conversationId || "no-conv";
+      if (taskReminderShownRef.current !== reminderKey) {
+        taskReminderShownRef.current = reminderKey;
+        fetch(`/api/tasks/today-summary?userId=${encodeURIComponent(userId)}`, { cache: "no-store" })
+          .then(r => (r.ok ? r.json() : null))
+          .then((data) => {
+            const overdue: any[] = data?.overdue || [];
+            const todayDue: any[] = data?.todayDue || [];
+            const tomorrowDue: any[] = data?.tomorrowDue || [];
+            const hasReminder =
+              overdue.length > 0 || todayDue.length > 0 || tomorrowDue.length > 0;
+
+            let finalContent: string;
+            if (hasReminder) {
+              const lines: string[] = ["", "### 📌 今日任务提醒"];
+              if (overdue.length) {
+                lines.push("", `**🔴 已逾期 ${overdue.length} 条**`);
+                for (const t of overdue.slice(0, 3)) lines.push(`- ${t.title}`);
+                if (overdue.length > 3) lines.push(`- _…还有 ${overdue.length - 3} 条_`);
+              }
+              if (todayDue.length) {
+                lines.push("", `**🟠 今日到期 ${todayDue.length} 条**`);
+                for (const t of todayDue.slice(0, 3)) lines.push(`- ${t.title}`);
+                if (todayDue.length > 3) lines.push(`- _…还有 ${todayDue.length - 3} 条_`);
+              }
+              if (tomorrowDue.length) {
+                lines.push("", `🟢 明日到期 ${tomorrowDue.length} 条`);
+              }
+              lines.push("", "👉 [前往任务页查看与勾选](/tasks)");
+              finalContent = greeting + lines.join("\n");
+              setQuickReplies([
+                { id: "qr-task-today", text: "我今天该做什么", action: "ask_today" },
+              ]);
+            } else {
+              // 没任务提醒 → 走长版欢迎
+              finalContent = greeting + fullSuffix;
+            }
+
+            setMessages((prev) =>
+              prev.map((m) => (m.id === welcomeId ? { ...m, content: finalContent } : m)),
+            );
+          })
+          .catch(() => {
+            // fetch 失败 → fallback 长版欢迎，至少介绍能力
+            setMessages((prev) =>
+              prev.map((m) =>
+                m.id === welcomeId ? { ...m, content: greeting + fullSuffix } : m,
+              ),
+            );
+          });
+      } else {
+        // 同一会话已经处理过提醒 fetch 了（不该走到这里，防御性兜底）→ 给长版欢迎
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === welcomeId ? { ...m, content: greeting + fullSuffix } : m,
+          ),
+        );
+      }
     }
-  }, [profileLoaded, nickname, messages.length, conversationId]);
+  }, [profileLoaded, nickname, messages.length, conversationId, userId]);
 
   // 发送消息（支持快捷回复的上下文处理）
   const sendMessage = useCallback(async (text: string, displayText?: string) => {
