@@ -476,6 +476,11 @@ function normalizeMarkdown(content: string): string {
   // 5d. heading 行后单 \n 紧跟内容 → 升级为空行（确保标题和正文/列表之间始终留 blank line）
   text = text.replace(/(^|\n)(#{1,6}[ \t][^\n]+)\n(?=[^\n])/g, "$1$2\n\n");
 
+  // 5e. 表格 header 和 separator 之间多余空行 → 移除
+  //     "| 项目 | 内容 |\n\n| --- | --- |" 这种空行会让 CommonMark 不认表格
+  //     处理后：header 与 separator 紧贴成合法表格
+  text = text.replace(/(\|[^\n]+\|)\n\n+(?=\|[ \t]*[-:][^\n]*\|)/g, "$1\n");
+
   // 6. 行首 `-` 后紧贴内容 → 加空格："-关键点" / "-**bold**" → "- xxx"
   //    排除：`-` 后又跟 `-`（避免 `---` 水平线被误拆）
   text = text.replace(/(^|\n)-(?=[^\s\-\n])/g, "$1- ");
@@ -504,6 +509,19 @@ function normalizeMarkdown(content: string): string {
   // 9c. 行首 ### 后直接跟非空白（如 "###混合架构"）→ 加空格
   //     补充规则 5 的覆盖：规则 5 只在行首 ^ 或 \n 后触发，而 9b 拆出来后新行是裸 ###X，此时再加空格
   text = text.replace(/(^|\n)(#{1,6})(?=[^\s#\n])/g, "$1$2 ");
+
+  // 9d. heading 行紧贴有序/无序列表标记 → 拆出独立行
+  //     e.g. "### 学习路径1. 作用域..." → "### 学习路径\n\n1. 作用域..."
+  //     e.g. "### 推荐资料- MDN" → "### 推荐资料\n\n- MDN"
+  //     条件：heading 内容以中文/中文标点结尾（避免误伤 "### Day 1." / "### Part-3" 这类技术编号）
+  text = text.replace(
+    /((?:^|\n)#{1,6}[ \t][^\n]{1,200}?[一-龥》】」』）)])(\d{1,3})\.(?!\d)(?=[ \t]?\S)/g,
+    "$1\n\n$2.",
+  );
+  text = text.replace(
+    /((?:^|\n)#{1,6}[ \t][^\n]{1,200}?[一-龥》】」』）)])-(?=[ \t]+\S)/g,
+    "$1\n\n-",
+  );
 
   // 10. 列表项前已经有换行但缺空行 → 补空行
   //     e.g. "上一段内容\n- 第一项" → "上一段内容\n\n- 第一项"
@@ -539,6 +557,27 @@ function normalizeMarkdown(content: string): string {
     if (text === before) break;
   }
 
+  // 12b. 一行内多个表格行被 `| <space> |` 合并（qwen 流式输出的另一种 bug）
+  //      e.g. "| --- | --- | | 🎯 技术栈 | xxx | | 📝 练习量 | yyy |"
+  //      触发条件：以 | 开头、pipe 数 ≥ 6（至少两行表格数据）
+  //      切分点：`|<空白>+|` 视为行边界
+  //      副作用：会把"空 cell"（`| col1 |  | col3 |`）也切开，但 LLM 实际输出几乎不产空 cell，可接受
+  {
+    const lines = text.split("\n");
+    const out: string[] = [];
+    for (const line of lines) {
+      const trimmed = line.trimStart();
+      if (!trimmed.startsWith("|")) { out.push(line); continue; }
+      const pipeCount = (line.match(/\|/g) || []).length;
+      if (pipeCount < 6) { out.push(line); continue; }
+      const split = line
+        .replace(/\|[ \t]+\|/g, "|\n|")
+        .replace(/\|\|/g, "|\n|");
+      out.push(split);
+    }
+    text = out.join("\n");
+  }
+
   // 13. 内联 ordered list 拆分：中文/英文标点 + 数字. + 内容 → 拆行 + 加空格
   //     e.g. "...旧值。2.**无限循环**" → "...旧值。\n\n2. **无限循环**"
   //     要求：prev 是结束类标点，next 不是数字（避免 "3.14" 被误拆）
@@ -549,6 +588,21 @@ function normalizeMarkdown(content: string): string {
   //     注意 lookahead 排除 `*` 避免命中 `**bold**` 的连续 `*`
   text = text.replace(/([。！？!?；;])[ \t]*([-])(?=[ \t]+\S)/g, "$1\n\n$2");
   text = text.replace(/([。！？!?；;])[ \t]*(\*)(?=[ \t]+[^*\s])/g, "$1\n\n$2");
+
+  // 14b. 中文字符 + 数字-句号-内容 → 拆分有序列表（无须前导标点，覆盖 qwen 把列表挤一行的 bug）
+  //      e.g. "...实际应用2. 原型与继承：..." → "...实际应用\n\n2. 原型与继承：..."
+  //      排除：`(?!\d)` 防止 `3.14` 这类小数被误拆；`(?=[ \t]?\S)` 确保 `.` 后有内容
+  text = text.replace(/([一-龥])(\d{1,3})\.(?!\d)(?=[ \t]?\S)/g, "$1\n\n$2.");
+
+  // 14c. 水平分割线 `---` 紧贴内容 → 拆出独立行
+  //      e.g. "---👉确认..." → "---\n\n👉确认..."
+  //      条件：`---` 后既不是空白也不是 `-`（避免破坏 setext 风格 heading underline）
+  text = text.replace(/(^|\n)(-{3,})(?=[^\s\-\n])/g, "$1$2\n\n");
+
+  // 14d. 中文字符 + dash + 空格 + 内容 → 拆分无序列表（覆盖 "推荐资料后面接 - MDN" 的 bug）
+  //      e.g. "推荐资料- MDN指南" → "推荐资料\n\n- MDN指南"
+  //      条件：dash 后必须有空格（避免破坏 "中-英" 之类的复合词）
+  text = text.replace(/([一-龥])-(?=[ \t]+\S)/g, "$1\n\n-");
 
   // ===== 兜底：流式期间未闭合的代码块 =====
   const fenceCount = (text.match(/```/g) || []).length;

@@ -131,11 +131,18 @@ export async function checkOutput(input: OutputGuardInput): Promise<GuardResult>
   const hits: GuardHit[] = [];
 
   // ---- 1) 相关性检查 ----
-  const sim = input.computeSim
-    ? await input.computeSim(input.question, input.answer)
-    : jaccardSimilarity(input.question, input.answer);
+  // 关键修正：用户问题过短时（如快捷回复 "确认计划" / "继续" / "好的"），
+  //          embedding/jaccard 相似度天然失真，会把合理回答误判为低相关。
+  //          短问题直接跳过相关性检查，sim 仍记录但不计入 hits。
+  const questionLen = input.question.trim().length;
+  const skipRelevance = questionLen < 8;
+  const sim = skipRelevance
+    ? 1
+    : input.computeSim
+      ? await input.computeSim(input.question, input.answer)
+      : jaccardSimilarity(input.question, input.answer);
 
-  if (sim < policies.relevanceThreshold) {
+  if (!skipRelevance && sim < policies.relevanceThreshold) {
     hits.push({
       ruleId: "out-low-relevance",
       ruleName: "low-relevance",
