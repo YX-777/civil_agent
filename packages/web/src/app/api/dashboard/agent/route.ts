@@ -208,7 +208,10 @@ export async function GET(request: NextRequest) {
             scoreCount++;
           }
         } catch { /* ignore */ }
-      } else if (e.eventType === "intent" || e.eventType === "node") {
+      } else if (e.eventType === "node") {
+        // 只统计真实跑过的 node（4 个：general_qa / task_generation / progress_query / emotion_support）。
+        // 不再混入 eventType=intent —— 那是"上游分类"维度，混进来会导致同一轮被双计
+        // 且 eventName 不同（intent=general_inquiry vs node=general_qa）造成假重复条目。
         const name = e.eventName || "unknown";
         nodeStatsMap.set(name, (nodeStatsMap.get(name) || 0) + 1);
       }

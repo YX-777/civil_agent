@@ -474,16 +474,14 @@ function EmptyHint({ text }: { text: string }) {
 }
 
 function prettyNodeName(name: string): string {
+  // 当前 graph 只有 4 个真实 node（graph.ts:388-455），dashboard 路由也只数 eventType=node。
+  // 旧表里 create_task / general_inquiry / emotional_support / progress_tracking 是意图键，
+  // 已不会再出现，移除避免误导。
   const m: Record<string, string> = {
-    create_task: "🎯 制定学习计划",
-    progress_tracking: "📊 查询学习进度",
-    emotional_support: "💜 情绪支持",
-    general_inquiry: "💬 通用问答",
-    general_qa: "💬 通用问答 (general_qa)",
-    intent_recognition: "🧭 意图识别",
     task_generation: "🎯 任务生成",
     progress_query: "📊 进度查询",
     emotion_support: "💜 情绪支持",
+    general_qa: "💬 通用问答",
   };
   return m[name] || name;
 }
