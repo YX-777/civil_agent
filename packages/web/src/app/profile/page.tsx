@@ -226,6 +226,13 @@ export default function ProfilePage() {
                       <Text type="secondary" style={{ fontSize: 13 }}>
                         累计学习 {profile.totalStudyDays} 天
                       </Text>
+                      {profile.nickname === "学习者" && (
+                        <div style={{ marginTop: 6 }}>
+                          <Text type="secondary" style={{ fontSize: 12, color: "#a78bfa" }}>
+                            👋 这是默认昵称 —— 点击右侧 ✏️ 修改，或在对话里说「我叫 XXX」自动同步
+                          </Text>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>

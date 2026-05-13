@@ -13,6 +13,25 @@ import { getVectorDBService } from "@tech-mate/database";
 const COLLECTION = "long_term_memory";
 const DEFAULT_USER_ID = "default-user";
 
+/**
+ * 判断一段长期记忆是否为"无价值疑问句" —— 历史脏数据兜底。
+ *
+ * 触发条件（任一）：
+ *  - 文本含问号（? / ？）
+ *  - 文本以高频疑问引导词开头（什么/啥/谁/哪/怎么/如何/为什么/多少/几）
+ *  - 文本是孤立的"我叫什么 / 我是谁 / 我叫啥"这类自查式问句
+ *
+ * 这些都是没有信息量的对话噪声，不应该出现在「个人记忆」展示里。
+ */
+function isWorthlessQuestion(content: string): boolean {
+  const text = (content || "").trim();
+  if (!text) return true;
+  if (/[?？]/.test(text)) return true;
+  if (/^(?:我叫(?:什么|啥)|我是谁|我的名字(?:是什么|叫什么|是啥))/.test(text)) return true;
+  if (/^(?:什么|啥|谁|哪|怎么|如何|为什么|多少|几)/.test(text) && text.length < 30) return true;
+  return false;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const userId = request.nextUrl.searchParams.get("userId")?.trim() || DEFAULT_USER_ID;
@@ -22,9 +41,21 @@ export async function GET(request: NextRequest) {
 
     const all = await vectorService.getAllDocuments(COLLECTION);
 
-    // 过滤出当前用户的记忆
+    // 自动清理历史归档进来的"我叫什么"等疑问句脏数据（fire-and-forget，不阻塞读取）
+    const toPurge = all.filter(
+      (doc) => doc.metadata?.user_id === userId && isWorthlessQuestion(doc.content),
+    );
+    if (toPurge.length > 0) {
+      void Promise.allSettled(
+        toPurge.map((doc) => vectorService.delete(COLLECTION, doc.id)),
+      ).then(() => {
+        console.log(`[Memory] auto-purged ${toPurge.length} worthless-question entries for ${userId}`);
+      });
+    }
+
+    // 过滤出当前用户的记忆（同时排除即将被清理的脏数据）
     const userMemories = all
-      .filter((doc) => doc.metadata?.user_id === userId)
+      .filter((doc) => doc.metadata?.user_id === userId && !isWorthlessQuestion(doc.content))
       .map((doc) => {
         const meta = doc.metadata || {};
         let topics: string[] = [];

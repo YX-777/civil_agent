@@ -101,6 +101,18 @@ async function runDecayAndArchive() {
 
     for (const memory of toArchive) {
       try {
+        // 过滤无价值疑问句（"我叫什么"/"我是谁"/带问号的查询等），避免污染长期记忆展示
+        const c = (memory.content || "").trim();
+        const isQuestion =
+          /[?？]/.test(c) ||
+          /^(?:我叫(?:什么|啥)|我是谁|我的名字(?:是什么|叫什么|是啥))/.test(c) ||
+          (/^(?:什么|啥|谁|哪|怎么|如何|为什么|多少|几)/.test(c) && c.length < 30);
+        if (isQuestion) {
+          console.log(`   ⏭️ 跳过疑问句: ${c.slice(0, 30)}`);
+          await shortRepo.markArchived(memory.id);
+          continue;
+        }
+
         // 生成 embedding
         const vector = await embeddingService.generateEmbedding(memory.content);
 
