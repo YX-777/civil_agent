@@ -549,6 +549,24 @@ export async function intentRecognitionNode(
   const lastMessage = state.messages[state.messages.length - 1];
   const content = lastMessage.content as string;
 
+  // Fast path 0：上一轮 task_generation 触发了追问（state.clarificationNeeded=true），
+  // 本轮用户的输入就是在回答这个追问（点了方向快捷回复 或 直接打字回答方向）。
+  // 此时绝不能走 LLM 意图识别 —— LLM 看不到上下文，会把"AI 应用开发"这种短语识别成
+  // general_inquiry，最后路由进 general_qa，但 RAG 会命中相关知识库再"伪装"成学习计划，
+  // 导致 quickReplies 是技术追问而不是"确认计划"。
+  // 强制 create_task，下游 shouldClarifyTaskPlan 已能正确判定为"信息充足"继续生成计划。
+  if (state.clarificationNeeded === true) {
+    logger.info("Intent fast-path: 继续上一轮 task_generation 追问的回答");
+    return {
+      userIntent: "create_task",
+      intentDecision: {
+        reasoning: "上一轮已发起 clarification，本轮是用户对方向的回答",
+        keywords: [],
+      },
+      clarificationNeeded: false, // 一次性消费，避免下一轮还卡在 task 路径
+    };
+  }
+
   // Fast path: 本地规则命中直接返回（0 LLM 调用）
   const ruleHit = ruleBasedIntent(content);
   if (ruleHit) {

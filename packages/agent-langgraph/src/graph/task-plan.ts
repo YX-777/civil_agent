@@ -74,8 +74,28 @@ function buildTaskTitle(module: string | null, dailyQuestionCount: number | null
   return `${moduleLabel}${questionPart}${periodPart}`;
 }
 
+/**
+ * 解析前归一化：qwen3.6-plus 经常把多个 bullet 挤在同一行，
+ * 例如 "案例-**📊难度**：入门" / "3 天- **💡 推荐理由**：..." / "案例-📊难度：入门"。
+ *
+ * 这种合并会让后面 `${label}[...]：(.+)` 的 `(.+)` 把下一段 label 一并吞进来。
+ * 在 parser 入口补齐换行，让每个 bullet 独占一行，下游正则才能精确截断。
+ *
+ * 两条规则配合：
+ *   a) `-` 后跟 `**`：标准 bullet 头
+ *   b) `-` 后跟 emoji + 中文 label + `：`：qwen 丢 `**` 的弱化情形
+ */
+function preNormalizeForParse(text: string): string {
+  return text
+    .replace(/([^\n\s])-\s*(?=\*\*)/g, "$1\n- ")
+    .replace(
+      /([^\n\s])-[ \t]*(?=[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{1F900}-\u{1F9FF}][^\n]{0,12}[：:])/gu,
+      "$1\n- "
+    );
+}
+
 export function parseTaskPlanFromText(planText: string): ParsedTaskPlan | null {
-  const trimmedPlan = planText.trim();
+  const trimmedPlan = preNormalizeForParse(planText.trim());
   if (!trimmedPlan) return null;
 
   // 实际 Agent 输出常见 label：技术栈 / 练习量 / 推荐理由
