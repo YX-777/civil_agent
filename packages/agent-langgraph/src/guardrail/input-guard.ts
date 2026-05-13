@@ -6,7 +6,6 @@
  *   - 多条规则命中合并，maxRisk = 最高风险
  *   - HIGH/CRITICAL → action=block；MEDIUM → action=sanitize（删伪角色头）；LOW → 仅 log
  *
- * 面试讲法：
  *   "L1 是 cheapest first：先用正则挡掉 80% 的常见注入（DAN/忽略以上/伪角色），
  *    剩下 20% 的边角情况让 L3 输出层兜底。如果上 LLM 二次判断每次至少 +500ms，
  *    在流式场景里是不可接受的成本。"

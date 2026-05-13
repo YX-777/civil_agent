@@ -5,7 +5,6 @@
  * 改造说明：
  * - 从手动 switch-case 编排改为标准 StateGraph
  * - edges.ts 中定义的路由函数现在被真正使用
- * - 面试讲法："就像地铁线路图，每个节点是站，边是线路"
  */
 
 import { logger } from "@tech-mate/core";
@@ -109,12 +108,11 @@ function formatTaskPlanAsMarkdown(raw: string): string {
 /**
  * 创建 Agent StateGraph
  *
- * 面试讲法：
- * "StateGraph 就像地铁线路图：
- *  - START → intent_recognition（入口站）
- *  - intent_recognition → 根据意图换乘（条件边）
- *  - 各意图节点 → generate_response → END（终点站）
- *  - 状态（乘客信息）在每个站自动更新和传递"
+ * 结构：
+ * - START → intent_recognition
+ * - intent_recognition → 根据意图分发到各业务节点（条件边）
+ * - 各业务节点 → generate_response → END
+ * - 状态在每个节点之间自动累积传递
  */
 export function createAgentGraph() {
   logger.info("Creating agent graph with StateGraph");
@@ -292,7 +290,7 @@ export function createAgentGraph() {
                 "React 开发",
                 "Vue 开发",
                 "TypeScript 进阶",
-                "前端面试",
+                "前端进阶",
                 "AI 应用开发",
                 "刷算法",
               ]),
@@ -484,7 +482,7 @@ export function createAgentGraph() {
 
     /**
      * Workflow 定义（新增）
-     * 用于面试展示 Graph 结构
+     * 用于外部可视化 / 调试 Graph 结构
      */
     workflow,
   };

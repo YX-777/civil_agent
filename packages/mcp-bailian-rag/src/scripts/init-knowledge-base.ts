@@ -47,8 +47,8 @@ async function initKnowledgeBase(): Promise<void> {
     const createResponse = await axios.post(
       `${bailianConfig.apiEndpoint}/knowledge-base`,
       {
-        name: "考公备考知识库",
-        description: "包含用户学习历史和备考经验的知识库",
+        name: "技术学习知识库",
+        description: "包含用户学习历史和技术资料的知识库",
         embedding_model: "text-embedding-v2",
         chunk_size: 1000,
         chunk_overlap: 200,
@@ -90,8 +90,8 @@ async function createCollections(knowledgeBaseId: string): Promise<void> {
       description: "用户学习历史记录",
     },
     {
-      name: "exam_experience",
-      description: "备考经验文档",
+      name: "tech_articles",
+      description: "技术文章与最佳实践",
     },
   ];
 
@@ -123,20 +123,20 @@ async function uploadSampleDocuments(): Promise<void> {
 
   const sampleDocuments = [
     {
-      category: "exam_experience",
-      content: "行测数量关系是公务员考试的重点模块，需要掌握数学基础知识和解题技巧。建议每天练习20道题目，重点突破比例问题、行程问题、工程问题等常见题型。",
+      category: "tech_articles",
+      content: "React Hooks 是函数组件中复用状态逻辑的核心机制。常用 Hook 包括 useState（状态）、useEffect（副作用）、useMemo（记忆化）、useCallback（缓存函数）、useRef（可变引用）。Hook 必须在组件顶层调用，不能在循环或条件分支中使用。",
       metadata: {
         source: "示例文档",
-        tags: ["行测", "数量关系", "备考经验"],
+        tags: ["React", "Hooks", "前端"],
         author: "系统",
       },
     },
     {
-      category: "exam_experience",
-      content: "申论写作需要注意文章结构和逻辑性。通常包括：提出问题、分析问题、解决问题三个部分。建议多阅读人民日报评论文章，学习官方表达方式。",
+      category: "tech_articles",
+      content: "TypeScript 中条件类型与类型推断的组合可以实现复杂的类型体操。常见模式：infer 关键字提取类型片段、distributive conditional 处理联合类型、Mapped Types 改写对象类型。这些机制是大型库（如 React Query / tRPC）类型安全的基础。",
       metadata: {
         source: "示例文档",
-        tags: ["申论", "写作", "备考经验"],
+        tags: ["TypeScript", "类型体操", "进阶"],
         author: "系统",
       },
     },

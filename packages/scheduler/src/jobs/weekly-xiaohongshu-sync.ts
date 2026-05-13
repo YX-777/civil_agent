@@ -21,7 +21,7 @@ export interface WeeklyXhsSyncJobData {
   page?: number;
 }
 
-const DEFAULT_KEYWORDS = ["Agent开发", "前端面试", "LangChain"];
+const DEFAULT_KEYWORDS = ["Agent开发", "前端进阶", "LangChain"];
 const DETAIL_RETRY_DELAYS_MS = [4000, 8000];
 // 搜索操作耗时较长（headless browser），设置更长的 timeout
 const SEARCH_TIMEOUT_MS = 180000;

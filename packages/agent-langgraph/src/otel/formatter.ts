@@ -3,14 +3,14 @@
  *
  * 功能：
  * 1. 格式化 Trace 报告
- * 2. 面试展示美观输出
+ * 2. 可读性更好输出
  */
 
 import { TraceContext } from "./context";
 import { Span } from "./span";
 
 /**
- * 格式化 Trace 报告（面试展示用）
+ * 格式化 Trace 报告
  */
 export function formatTraceReport(context: TraceContext): string {
   const lines: string[] = [];

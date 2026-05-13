@@ -234,7 +234,7 @@ function extractTopicTags(content: string): string[] {
   const techKeywords = [
     "React", "Vue", "Angular", "JavaScript", "TypeScript", "Node",
     "Agent", "LangChain", "RAG", "LLM", "GPT", "大模型",
-    "前端", "后端", "面试", "学习", "计划", "任务",
+    "前端", "后端", "学习", "计划", "任务",
     "hooks", "组件", "状态", "性能", "优化",
   ];
 

@@ -35,7 +35,7 @@ export interface MetaMemoryData {
 
 export class MetaMemoryAggregator {
   /**
-   * 聚合用户元记忆（面试可讲）
+   * 聚合用户元记忆
    *
    * 技术流程：
    * 1. 从各 Repository 获取数据
@@ -120,7 +120,7 @@ export class MetaMemoryAggregator {
   }
 
   /**
-   * 构建技能图谱（面试可讲）
+   * 构建技能图谱
    *
    * 技术原理：
    * 每个模块的熟练度 = 正确率 / 100（转换为 0-1 范围）
@@ -135,7 +135,7 @@ export class MetaMemoryAggregator {
   }
 
   /**
-   * 推断学习风格（面试可讲）
+   * 推断学习风格
    *
    * 技术原理：
    * 分析用户的学习记录，推断偏好：
@@ -169,7 +169,7 @@ export class MetaMemoryAggregator {
   }
 
   /**
-   * 推断偏好的学习时间（面试可讲）
+   * 推断偏好的学习时间
    *
    * 技术原理：
    * 分析用户的学习记录时间分布：

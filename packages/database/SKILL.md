@@ -13,11 +13,11 @@
 
 ## 包概述
 
-`@tech-mate/database` 是考公Agent项目的数据库核心包，实现了三层分离存储架构：
+`@tech-mate/database` 是TechMate项目的数据库核心包，实现了三层分离存储架构：
 
 1. **第一层**：SQLite关系型数据库（用户数据、会话、任务、统计）
 2. **第二层**：Chroma向量数据库（消息向量、用户偏好、知识掌握）
-3. **第三层**：阿里云百炼知识库（备考经验、知识点、题目解析）
+3. **第三层**：阿里云百炼知识库（学习经验、知识点、题目解析）
 
 ### 主要职责
 
@@ -524,7 +524,7 @@ export { ExampleRepository } from './repositories/example.repository';
 ### 测试
 
 ```bash
-# 运行测试
+# 运学习试
 pnpm test
 
 # 类型检查

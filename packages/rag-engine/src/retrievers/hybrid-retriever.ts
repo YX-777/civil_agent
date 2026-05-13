@@ -178,7 +178,7 @@ export class HybridRetriever {
       body: JSON.stringify({
         model: "qwen3.6-plus",
         messages: [
-          { role: "system", content: "你是 TechMate 技术学习助手，专注于前端开发技术。必须使用技术词汇：React、TypeScript、JavaScript、CSS、Node.js。禁止使用考公、行测、申论等词汇。" },
+          { role: "system", content: "你是 TechMate 技术学习助手，专注于前端开发技术。必须使用技术词汇：React、TypeScript、JavaScript、CSS、Node.js。" },
           { role: "user", content: prompt },
         ],
         temperature: 0.2,

@@ -6,7 +6,6 @@
  *   - 每行一个 span（含 traceId / spanId / parentId / 属性 / 耗时 / 状态）
  *   - 写入失败 silently 降级，不影响主流程
  *
- * 面试讲法：
  *   "用 JSONL 是因为它能 grep / 流式追加 / 兼容 OTLP-JSON 格式，
  *    比直接接 Jaeger / Tempo 部署成本低，但格式上一致，可平滑迁移。"
  */

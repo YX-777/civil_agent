@@ -108,9 +108,10 @@ if [ -d "$PROJECT_DIR" ]; then
     echo "   项目目录已存在: $PROJECT_DIR"
 else
     echo "   克隆项目..."
-    # 如果是本地运行此脚本，使用当前目录
-    if [ -f "$(dirname "$0")/start-all.sh" ]; then
-        PROJECT_DIR="$(dirname "$0")"
+    # 如果是本地运行此脚本，使用项目根目录（脚本位于 scripts/deploy/）
+    LOCAL_ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+    if [ -f "$LOCAL_ROOT/scripts/dev/start.sh" ]; then
+        PROJECT_DIR="$LOCAL_ROOT"
         echo "   使用本地目录: $PROJECT_DIR"
     else
         # 否则克隆 GitHub 仓库（需要用户提供仓库地址）
@@ -134,9 +135,9 @@ echo "   - SQLite: 已安装"
 echo ""
 echo "下一步："
 echo "   cd $PROJECT_DIR"
-echo "   bash init-first-run.sh   # 首次运行初始化（安装依赖、构建项目）"
-echo "   bash start-all.sh        # 启动所有服务"
+echo "   bash scripts/dev/init-first-run.sh    # 首次运行初始化"
+echo "   bash scripts/dev/start.sh             # 启动所有服务"
 echo ""
 echo "或者使用一键部署："
-echo "   bash deploy-linux.sh     # 完整部署（环境 + 项目初始化 + 启动）"
+echo "   bash scripts/deploy/deploy-linux.sh   # 完整部署（环境 + 项目初始化 + 启动）"
 echo ""

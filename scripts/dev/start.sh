@@ -2,9 +2,9 @@
 
 set -euo pipefail
 
-# 使用脚本所在目录作为项目根目录（跨平台兼容）
+# 脚本位于 scripts/dev/，项目根目录在上两级
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-ROOT_DIR="$SCRIPT_DIR"
+ROOT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 MCP_DIR="$ROOT_DIR/packages/mcp-bailian-rag"
 WEB_DIR="$ROOT_DIR"
 CHROMA_WEB_UI_DIR="$ROOT_DIR/chroma-web-ui"

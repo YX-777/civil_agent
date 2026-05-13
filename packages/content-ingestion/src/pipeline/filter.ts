@@ -14,7 +14,7 @@ const KEYWORDS = [
   "数据库", "mysql", "postgres", "redis", "mongodb", "sqlite", "orm", "prisma",
   "架构", "微服务", "云", "docker", "kubernetes", "k8s",
   // 算法 & 工程
-  "算法", "数据结构", "leetcode", "面试", "性能优化", "工程",
+  "算法", "数据结构", "leetcode", "性能优化", "工程",
   // AI / Agent / RAG
   "ai", "agent", "llm", "大模型", "向量", "embedding", "rag", "langchain", "langgraph",
   "openai", "claude", "chatgpt", "gpt", "transformer", "fine-tune", "prompt",

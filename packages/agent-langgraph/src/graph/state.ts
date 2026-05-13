@@ -68,7 +68,6 @@ export interface GraphStateType {
  * StateGraph Channels 定义
  * 定义状态合并规则（reducer）
  *
- * 面试讲法：
  * "messages 用 concat 累加（对话历史越来越长），
  *  userIntent 用覆盖（新意图替换旧意图），
  *  这样每个节点只需要关心自己修改的部分，状态管理自动化了"

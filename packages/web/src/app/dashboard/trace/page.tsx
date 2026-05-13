@@ -42,8 +42,8 @@ interface ConversationSummary {
 }
 
 /**
- * Span 字典 —— 把内部 span 名转成中文标签 + 大白话解释
- * 面试时讲："每个 span 对应 Agent 链路的一个步骤，trace 文件 grep 一下就能复盘"
+ * Span 字典 —— 把内部 span 名转成中文标签 + 大白话解释。
+ * 每个 span 对应 Agent 链路的一个步骤，trace 文件 grep 一下就能复盘。
  */
 const SPAN_META: Record<string, { label: string; explain: string; color: string; category: string }> = {
   "api_request": { label: "🚪 请求入口", explain: "整个 HTTP 请求生命周期", color: "#6b7280", category: "infra" },

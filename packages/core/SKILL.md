@@ -23,7 +23,7 @@ allowed-tools: Read Write Edit
 
 ## 📖 模块概述
 
-核心包提供考公 Agent 项目的基础设施，包括：
+核心包提供TechMate 项目的基础设施，包括：
 - **类型定义**：Agent、RAG、MCP 相关的 TypeScript 类型
 - **工具函数**：日志、错误处理等通用工具
 - **常量定义**：提示词模板、配置常量等

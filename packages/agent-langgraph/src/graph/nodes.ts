@@ -687,7 +687,7 @@ function detectTechStackSignal(text: string): { matched: boolean; label: string 
     [/(CSS|布局|Flex|Grid|动画|样式)/i, "CSS 布局"],
     [/(Node\.?js|后端|Express|API 开发)/i, "Node.js 后端"],
     [/(算法|LeetCode|刷题|数据结构)/i, "算法刷题"],
-    [/(面试|大厂|八股|简历|应聘)/i, "前端面试"],
+    [/(进阶|大厂|底层|架构|工程化)/i, "前端进阶"],
     [/(AI|LangChain|Agent|大模型|RAG)/i, "AI 应用开发"],
   ];
   for (const [re, label] of checks) {
@@ -740,7 +740,7 @@ export function buildClarificationMessage(): string {
     "",
     "**你最想专攻哪个方向？**",
     "",
-    "如果不在下面的快捷选项里，也可以直接打字告诉我，比如 _\"想做 Electron 桌面端\"_ / _\"想冲腾讯面试\"_。",
+    "如果不在下面的快捷选项里，也可以直接打字告诉我，比如 _\"想做 Electron 桌面端\"_ / _\"想钻研前端架构\"_。",
   ].join("\n");
 }
 
@@ -764,7 +764,7 @@ export async function taskGenerationNode(
           "React 开发",
           "Vue 开发",
           "TypeScript 进阶",
-          "前端面试",
+          "前端进阶",
           "AI 应用开发",
           "刷算法",
         ]),
@@ -987,7 +987,7 @@ export async function generalQANode(
     const enhancedMessage = await contextEnhancer.enhanceUserMessage(state.userId, content);
     const config = getAgentConfig();
 
-    // ========== 四层记忆融合检索（面试核心亮点）==========
+    // ========== 四层记忆融合检索 ==========
     console.log("\n");
     console.log("🧠 [Memory] 开始四层记忆融合检索");
 
@@ -1425,9 +1425,7 @@ export async function* taskGenerationNodeStream(
 输出格式示例：
 {"tech_stack":"React开发","daily_practice":"每天3个案例","difficulty":"基础","duration":"预计7天完成","reason":"React是前端核心框架"}
 
-技术栈选项：React开发、Next.js实战、TypeScript进阶、JavaScript深入、CSS布局、Node.js后端、算法刷题、前端面试
-
-禁止使用考公、行测、申论等词汇。`;
+技术栈选项：React开发、Next.js实战、TypeScript进阶、JavaScript深入、CSS布局、Node.js后端、算法刷题、前端进阶`;
 
     const planUserPrompt = `用户需求：${userRequest}
 

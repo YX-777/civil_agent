@@ -10,9 +10,9 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# 自动检测项目目录
+# 自动检测项目目录（脚本位于 scripts/deploy/）
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="$SCRIPT_DIR"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 echo "=========================================="
 echo "  TechMate systemd 服务配置"

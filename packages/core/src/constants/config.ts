@@ -8,7 +8,7 @@ export const LEARNING_MODULES = [
   '前端性能优化',
   '前端架构设计',
   '算法刷题',
-  '前端面试',
+  '前端进阶',
   'Vue开发',
   '前端工程化',
 ] as const;

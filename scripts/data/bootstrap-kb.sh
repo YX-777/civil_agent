@@ -13,7 +13,8 @@
 
 set -e
 
-cd "$(dirname "$0")"
+# 切换到项目根目录（脚本位于 scripts/data/）
+cd "$(dirname "$0")/../.."
 
 echo "=========================================="
 echo "  TechMate 知识库 bootstrap"
@@ -24,7 +25,7 @@ echo ""
 echo "1️⃣  检查 ChromaDB..."
 if ! curl -s --max-time 5 http://localhost:8000/api/v1/heartbeat >/dev/null 2>&1; then
   echo "   ❌ ChromaDB 未在 8000 端口运行"
-  echo "      请先启动：systemctl start techmate-chroma 或 bash start-all.sh"
+  echo "      请先启动：systemctl start techmate-chroma 或 bash scripts/dev/start.sh"
   exit 1
 fi
 echo "   ✅ ChromaDB 在线"

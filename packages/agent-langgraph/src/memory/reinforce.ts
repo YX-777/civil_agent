@@ -13,7 +13,7 @@ export type ReinforceTrigger = "topic_match" | "retrieval_hit" | "explicit";
 
 export class ShortMemoryReinforcer {
   /**
-   * 强化记忆（面试可讲）
+   * 强化记忆
    *
    * 强化触发：
    * 1. topic_match：用户消息匹配已有话题 → +0.15 新鲜度
@@ -50,7 +50,7 @@ export class ShortMemoryReinforcer {
   }
 
   /**
-   * 话题关联检测（面试可讲）
+   * 话题关联检测
    *
    * 技术原理：
    * 检测用户新消息是否包含已有话题关键词。

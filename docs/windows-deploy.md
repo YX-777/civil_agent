@@ -71,7 +71,7 @@ EMBEDDING_API_KEY=sk-你的真实API_Key
 
 ```bash
 # Git Bash 中执行完整初始化脚本
-bash init-first-run.sh
+bash scripts/dev/init-first-run.sh
 ```
 
 这个脚本会：
@@ -85,9 +85,9 @@ bash init-first-run.sh
 
 | 报错信息 | 原因 | 解决方案 |
 |----------|------|----------|
-| `Module not found: @tech-mate/agent-langgraph` | 改名后工作区链接失效 | 执行 `bash init-first-run.sh` |
+| `Module not found: @tech-mate/agent-langgraph` | 改名后工作区链接失效 | 执行 `bash scripts/dev/init-first-run.sh` |
 | `PrismaClient is not defined` | Prisma Client 未生成 | 执行 `npx prisma generate` |
-| `/api/conversations 500` | 数据库未初始化 | 执行 `bash init-db.sh` |
+| `/api/conversations 500` | 数据库未初始化 | 执行 `bash scripts/dev/init-db.sh` |
 
 ---
 
@@ -131,7 +131,7 @@ pnpm dev
 在服务器上浏览器访问：
 - `http://localhost:3000`
 
-外部访问（面试官）：
+外部访问（访客）：
 - `http://你的公网IP:3000`
 
 ---
@@ -139,7 +139,7 @@ pnpm dev
 ## 八、常见问题
 
 ### Q: `/api/conversations 500` 报错？
-数据库未初始化。执行 `bash init-db.sh` 初始化数据库
+数据库未初始化。执行 `bash scripts/dev/init-db.sh` 初始化数据库
 
 ### Q: 外部无法访问？
 检查腾讯云安全组是否开放端口 3000

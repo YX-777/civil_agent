@@ -35,7 +35,7 @@ export class LongMemoryArchiver {
   private COLLECTION_NAME = "long_term_memory";
 
   /**
-   * 归档短期记忆到长期记忆（面试可讲）
+   * 归档短期记忆到长期记忆
    *
    * 技术流程：
    * 1. 查询需要归档的短期记忆（新鲜度低于阈值）
@@ -117,7 +117,7 @@ export class LongMemoryArchiver {
   }
 
   /**
-   * 提取精华内容（面试可讲）
+   * 提取精华内容
    *
    * 技术原理：
    * 简单版：直接使用原内容
@@ -135,7 +135,7 @@ export class LongMemoryArchiver {
   /**
    * 强化长期记忆权重
    *
-   * 强化触发（面试可讲）：
+   * 强化触发：
    * 1. 检索命中 → +0.10 权重
    * 2. 话题匹配 → +0.15 权重
    * 3. 用户明确说重要 → +0.30 权重
@@ -175,7 +175,7 @@ export class LongMemoryArchiver {
   /**
    * 检索长期记忆（权重加权）
    *
-   * 技术原理（面试可讲）：
+   * 技术原理：
    * 1. 向量相似检索
    * 2. 权重加权排序
    * 最终分数 = 相似度 × 权重

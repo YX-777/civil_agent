@@ -24,7 +24,7 @@ export class SearchKnowledgeTool {
   static getDefinition(): MCPToolDefinition {
     return {
       name: "search_knowledge",
-      description: "搜索考公知识库，包括用户学习历史和备考经验",
+      description: "搜索技术知识库，包括用户学习历史和技术资料",
       inputSchema: {
         type: "object",
         properties: {

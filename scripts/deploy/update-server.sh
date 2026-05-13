@@ -8,7 +8,7 @@ echo "=========================================="
 echo "  TechMate 服务器更新"
 echo "=========================================="
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/../.."
 
 # 1. 拉取最新代码（带超时+重试，防国内网络卡死）
 echo ""
@@ -108,7 +108,7 @@ for svc in techmate-chroma techmate-web; do
   fi
 done
 if [ $START_ANY -eq 0 ]; then
-  echo "   提示：未检测到 systemd 服务，请手动启动：bash start-all.sh"
+  echo "   提示：未检测到 systemd 服务，请手动启动：bash scripts/dev/start.sh"
 fi
 
 echo ""
@@ -119,5 +119,5 @@ echo ""
 echo "常用命令："
 echo "   查看状态: systemctl status techmate-web techmate-chroma"
 echo "   查看日志: journalctl -u techmate-web -f"
-echo "   手动启动: bash start-all.sh"
+echo "   手动启动: bash scripts/dev/start.sh"
 echo ""

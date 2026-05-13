@@ -4,9 +4,8 @@
  * 把 HybridFusionRetriever（Vector + BM25 + RRF） + BgeM3NodePostprocessor（重排）
  * + ThreeTierSynthesizer（三级响应合成）串成一条标准 RAG 流水线。
  *
- * 这是简历中"基于 LlamaIndex 搭建混合分层 RAG"的代码落点。
+ * 这是项目中"基于 LlamaIndex 搭建混合分层 RAG"的代码落点。
  *
- * 面试讲法：
  * - 整体架构对应 LlamaIndex 的 Retriever → Postprocessor → Synthesizer 三层
  * - 每一层都接的是 LlamaIndex 标准接口，组件可插拔
  * - 单例 + 配置化，避免每次请求重新建索引

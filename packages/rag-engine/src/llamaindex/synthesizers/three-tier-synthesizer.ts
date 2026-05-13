@@ -4,7 +4,6 @@
  * 基于现有 ThreeTierStrategy（precise/candidates/expand/fallback 四个置信档），
  * 把检索到的 NodeWithScore 转成给 LLM 的 prompt，调用 DashScope 生成最终答案。
  *
- * 面试讲法：
  * - 这是 LlamaIndex ResponseSynthesizer 的位置，但我们要求按检索分数做"分级响应"
  * - 高置信(>0.85)直接用知识库内容；中置信(>0.6)多候选合并；低置信告知用户并补充 LLM 知识
  * - 不直接继承 LlamaIndex BaseSynthesizer 是为了避免再写一个 DashScope LLM 适配器
@@ -83,7 +82,7 @@ export class ThreeTierSynthesizer {
               {
                 role: "system",
                 content:
-                  "你是 TechMate 技术学习助手，专注于前端开发技术。必须使用技术词汇：React、TypeScript、JavaScript、CSS、Node.js。禁止使用考公、行测、申论等词汇。",
+                  "你是 TechMate 技术学习助手，专注于前端开发技术。必须使用技术词汇：React、TypeScript、JavaScript、CSS、Node.js。禁止使用技术学习、学习、写作等词汇。",
               },
               { role: "user", content: prompt },
             ],

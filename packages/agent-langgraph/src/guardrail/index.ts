@@ -11,9 +11,9 @@
  *   - 每一层结果都附带 OTel span + AgentEvent，可 Dashboard / JSONL 回溯
  *   - 没有 LLM 二次调用，0 token 0 等待延迟
  *
- * 面试讲法（一句话）：
- *   "harness-engineering 思路就是在 Agent 的每个边界放一个守门员：
- *    输入挡注入，工具挡危险参数，输出做相关性+幻觉抽样验证，全部接入 OTel。"
+ * 设计思路（一句话）：
+ *   harness-engineering — 在 Agent 的每个边界放一个守门员：
+ *   输入挡注入，工具挡危险参数，输出做相关性 + 幻觉抽样验证，全部接入 OTel。
  */
 
 export * from "./types";

@@ -13,7 +13,7 @@ export interface GuardHit {
   ruleName: string;
   layer: GuardLayer;
   risk: RiskLevel;
-  reason: string;          // 大白话说明为啥命中（面试演示时直接展示）
+  reason: string;          // 大白话说明为啥命中
   matchedText?: string;    // 命中的具体片段
   suggestion?: string;     // 给业务侧的处理建议
 }

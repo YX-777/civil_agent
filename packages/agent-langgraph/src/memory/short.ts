@@ -34,7 +34,7 @@ export class ShortMemoryDecayCalculator {
   private ARCHIVE_THRESHOLD = 0.1;
 
   /**
-   * 计算新鲜度分数（面试可讲）
+   * 计算新鲜度分数
    *
    * 衰减公式：
    * 新鲜度 = 0.5^(天数/半衰期) + 访问强化 + 最近访问奖励
@@ -112,7 +112,7 @@ export class ShortMemoryDecayCalculator {
   }
 
   /**
-   * 获取衰减配置（面试可讲）
+   * 获取衰减配置
    */
   getConfig(): { halfLifeDays: number; archiveThreshold: number } {
     return {

@@ -4,7 +4,7 @@
  * 功能：
  * 1. Trace ID 生成 + Span 管理
  * 2. 操作耗时记录 + 状态追踪
- * 3. 结构化日志输出（面试展示）
+ * 3. 结构化日志输出
  * 4. AsyncLocalStorage 上下文传递 + JSONL 持久化（GuardRail 联动）
  *
  * 使用方法：

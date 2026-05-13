@@ -27,7 +27,7 @@ allowed-tools: Read Write Edit Bash(pnpm:*:)
 
 **核心功能**:
 - 搜索用户学习历史
-- 检索备考经验
+- 检索学习经验
 - 上传文档到知识库
 
 **技术特点**:
@@ -41,14 +41,14 @@ allowed-tools: Read Write Edit Bash(pnpm:*:)
 
 ### 功能1: 搜索知识库
 
-**功能描述**: 搜索用户学习历史和备考经验。
+**功能描述**: 搜索用户学习历史和学习经验。
 
 **MCP 工具名称**: `search_knowledge`
 
 **参数**:
 ```json
 {
-  "query": "行测数量关系怎么提高",
+  "query": "学习数量关系怎么提高",
   "category": "all",  // "user_history" | "exam_experience" | "all"
   "topK": 3
 }
@@ -61,7 +61,7 @@ allowed-tools: Read Write Edit Bash(pnpm:*:)
   "data": {
     "results": [
       {
-        "content": "数量关系是行测的重点模块...",
+        "content": "数量关系是学习的重点模块...",
         "metadata": {
           "source": "知乎",
           "category": "exam_experience",
@@ -88,7 +88,7 @@ allowed-tools: Read Write Edit Bash(pnpm:*:)
   "filePath": "/path/to/document.pdf",
   "category": "exam_experience",
   "metadata": {
-    "tags": ["行测", "数量关系"],
+    "tags": ["学习", "数量关系"],
     "author": "知乎用户"
   }
 }
@@ -124,7 +124,7 @@ src/
 ├── retrievers/
 │   ├── base-retriever.ts    # 检索器基类
 │   ├── user-history-retriever.ts     # 用户历史检索器
-│   └── exam-experience-retriever.ts  # 备考经验检索器
+│   └── exam-experience-retriever.ts  # 学习经验检索器
 ├── tools/
 │   ├── search-knowledge.ts  # 搜索工具
 │   └── upload-document.ts   # 上传工具
@@ -144,8 +144,8 @@ src/
 - 支持按时间、模块过滤
 
 **ExamExperienceRetriever**:
-- 检索备考经验文档
-- 支持按类别（行测/申论/面试）过滤
+- 检索学习经验文档
+- 支持按类别（前端/进阶/工程化）过滤
 
 ---
 
@@ -243,7 +243,7 @@ BAILIAN_MIN_SCORE=0.6
 - [x] 搭建 MCP 服务器框架 (0.5天)
 - [x] 实现百炼搜索工具 (0.5天)
 - [x] 实现用户历史检索器 (0.5天)
-- [x] 实现备考经验检索器 (0.5天)
+- [x] 实现学习经验检索器 (0.5天)
 
 ---
 
@@ -256,9 +256,9 @@ import { SearchKnowledgeTool } from "@tech-mate/mcp-bailian-rag";
 
 const tool = new SearchKnowledgeTool();
 
-// 搜索备考经验
+// 搜索学习经验
 const result = await tool.execute({
-  query: "行测数量关系怎么提高",
+  query: "学习数量关系怎么提高",
   category: "exam_experience",
   topK: 3
 });
@@ -281,7 +281,7 @@ import axios from "axios";
 
 const bailianRAGTool = new DynamicTool({
   name: "bailian_rag_search",
-  description: "检索考公备考经验和用户学习历史",
+  description: "检索技术学习经验和用户学习历史",
   func: async (input: string) => {
     const params = JSON.parse(input);
     const response = await axios.post(
@@ -320,7 +320,7 @@ LOG_LEVEL=DEBUG pnpm start
 # 使用 curl 测试
 curl -X POST http://localhost:3000/api/mcp/bailian/search \
   -H "Content-Type: application/json" \
-  -d '{"query":"行测备考","topK":3}'
+  -d '{"query":"学习学习","topK":3}'
 ```
 
 ### LangSmith 跟踪

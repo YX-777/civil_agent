@@ -8,7 +8,7 @@ export interface UsedSource {
 
 /**
  * 执行轨迹（思考过程）：基于 LangGraph 节点真实执行步骤生成。
- * 比模型 reasoning_content 简洁可控，对应面试讲法"Agent 调用链路实时可观测"。
+ * 比模型 reasoning_content 更简洁可控，是 Agent 调用链路的实时可观测视图。
  */
 export interface ExecutionStep {
   id: string;                                     // memory / rag / web / generate

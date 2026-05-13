@@ -3,7 +3,7 @@
 > 状态说明（2026-03-26）：
 > 本文档保留的是“小红书 MCP 集成 + Agent RAG 增强”的总体方案设计，当前仓库里其中一部分已经真实落地，包括：
 > 1. 基于关键词搜索的小红书同步链路（搜索 -> 详情 -> 正文提取 -> 去重入库）；
-> 2. Agent 命中考公经验类问题时优先查询本地知识库；
+> 2. Agent 命中技术学习经验类问题时优先查询本地知识库；
 > 3. Web 侧小红书同步看板与失败样本手动重试。
 > 若需要看“当前真实代码状态和未完成项”，请优先参考根目录的 `0318.md` 增量记录，而不要仅依据本文的规划描述判断进度。
 
@@ -70,8 +70,8 @@
 ```
 1. 定时触发 (Scheduler)
    ↓
-2. 搜索考公内容 (mcp-xiaohongshu)
-   - 关键词：["考公经验", "行测技巧", "申论写作", "备考心得"]
+2. 搜索技术学习内容 (mcp-xiaohongshu)
+   - 关键词：["技术学习经验", "学习技巧", "写作", "学习心得"]
    ↓
 3. 数据去重 (Database)
    - 检查postId是否已存在
@@ -111,14 +111,14 @@
 
 **主要功能**：
 - **登录管理**：处理小红书登录状态
-- **内容搜索**：按关键词搜索考公相关内容
+- **内容搜索**：按关键词搜索技术学习相关内容
 - **帖子详情**：获取帖子完整信息（含评论）
 - **内容清洗**：去除广告、提取关键信息
 
 **关键接口**：
 ```typescript
 interface IXiaohongshuService {
-  // 搜索考公相关内容
+  // 搜索技术学习相关内容
   searchExamPosts(keyword: string, limit: number): Promise<XiaohongshuPost[]>;
   
   // 获取帖子详情
@@ -168,7 +168,7 @@ class XiaohongshuSyncService {
 **主要功能**：
 - **文档上传**：将小红书内容上传到百炼
 - **✅ 自动向量化**：百炼自动处理分块和向量化
-- **内容分类**：标记为考公经验类别
+- **内容分类**：标记为技术学习经验类别
 - **文档管理**：查询和删除文档
 
 **关键接口**：
@@ -192,8 +192,8 @@ class BailianXiaohongshuService {
 ```typescript
 // 百炼知识库配置
 {
-  name: "考公备考知识库",
-  description: "包含小红书考公经验的知识库",
+  name: "技术学习知识库",
+  description: "包含小红书技术学习经验的知识库",
   embedding_model: "text-embedding-v2",  // ✅ 百炼自动向量化
   chunk_size: 1000,                   // ✅ 百炼自动分块
   chunk_overlap: 200,                   // ✅ 百炼自动重叠
@@ -225,7 +225,7 @@ await axios.post(
 #### 4. 定时任务 (`scheduler` 包)
 
 **主要功能**：
-- **定时抓取**：每天定时搜索考公内容
+- **定时抓取**：每天定时搜索技术学习内容
 - **增量更新**：只抓取新内容
 - **失败重试**：处理失败自动重试
 - **监控告警**：异常情况告警
@@ -413,7 +413,7 @@ XIAOHONGSHU_MCP_ENABLED=true
 XIAOHONGSHU_MCP_SERVER=http://localhost:3001
 
 # 搜索关键词配置
-XIAOHONGSHU_SEARCH_KEYWORDS=考公经验,行测技巧,申论写作,备考心得,国考经验,省考经验
+XIAOHONGSHU_SEARCH_KEYWORDS=技术学习经验,学习技巧,写作,学习心得,进阶经验,前端经验
 
 # 抓取频率配置
 XIAOHONGSHU_SCRAPE_SCHEDULE="0 8 * * *"  # 每天8点
@@ -624,7 +624,7 @@ async searchKnowledge(params: {
 {
   "toolName": "search_knowledge",
   "parameters": {
-    "query": "行测数量关系技巧",
+    "query": "学习数量关系技巧",
     "category": "exam_experience",
     "topK": 3
   }
@@ -636,7 +636,7 @@ async searchKnowledge(params: {
   "data": {
     "results": [
       {
-        "content": "行测数量关系是公务员考试的重点模块...",
+        "content": "学习数量关系是技术学习的重点模块...",
         "metadata": {
           "source": "xiaohongshu",
           "post_id": "xxx",
@@ -717,10 +717,10 @@ export async function emotionSupportNode(
     emotionResult.intensity
   );
 
-  // RAG检索：情绪相关的考公经验
+  // RAG检索：情绪相关的技术学习经验
   const mcpClient = getMCPToolClient();
   const ragResult = await mcpClient.searchKnowledge({
-    query: `${emotionResult.emotion} 备考经验 解决方案`,
+    query: `${emotionResult.emotion} 学习经验 解决方案`,
     category: "exam_experience",
     topK: 3,
   });
@@ -746,7 +746,7 @@ export async function emotionSupportNode(
 ```
 
 **RAG作用**：
-- 检索与用户情绪相关的备考经验
+- 检索与用户情绪相关的学习经验
 - 提供针对性的心理支持
 - 基于真实经验给出建议
 
@@ -863,7 +863,7 @@ const strategies = {
   
   // 情绪支持：检索相关经验
   emotionSupport: {
-    query: `${emotion} 备考经验 解决方案`,
+    query: `${emotion} 学习经验 解决方案`,
     category: "exam_experience",
     topK: 3,
   },
@@ -943,7 +943,7 @@ class IntelligentRetriever {
     message: string,
     mcpClient: MCPToolClient
   ): Promise<RAGContext> {
-    // 同时检索用户历史和考公经验
+    // 同时检索用户历史和技术学习经验
     const [userHistory, examExperience] = await Promise.all([
       mcpClient.searchKnowledge({
         query: `用户 ${userId} 的相关学习记录`,
@@ -1110,8 +1110,8 @@ class SmartRetrievalRouter {
   ): boolean {
     const xiaohongshuKeywords = [
       "经验", "技巧", "心得", "方法", "攻略",
-      "失败", "成功", "上岸", "备考", "复习",
-      "行测", "申论", "面试", "岗位"
+      "失败", "成功", "上岸", "学习", "复习",
+      "学习", "前端", "进阶", "工程化"
     ];
     
     return xiaohongshuKeywords.some(keyword => query.includes(keyword)) ||
@@ -1233,10 +1233,10 @@ class EnhancedContextBuilder {
     ↓
 并行检索
     ├─ 小红书MCP (如果需要)
-    │   └─ 搜索考公经验
+    │   └─ 搜索技术学习经验
     └─ 百炼MCP
         ├─ 用户历史数据
-        └─ 官方备考资料
+        └─ 官方学习资料
     ↓
 结果融合 (SmartRetrievalRouter)
     ├─ 按相关性排序
@@ -1426,8 +1426,8 @@ LLM生成
 
 标准处理步骤：
 
-1. 执行 `./stop-all.sh` 停止服务。
-2. 执行 `./start-all.sh` 启动服务（脚本会自动检查 3000/3002 可达性以及 `_next` 静态资源）。
+1. 执行 `bash scripts/dev/stop.sh` 停止服务。
+2. 执行 `bash scripts/dev/start.sh` 启动服务（脚本会自动检查 3000/3002 可达性以及 `_next` 静态资源）。
 3. 查看日志：
    - `tail -f /tmp/web-service.log`
    - `tail -f /tmp/mcp-service.log`
@@ -1435,7 +1435,7 @@ LLM生成
 
 脚本要求（已落地）：
 
-1. `start-all.sh` 将 Web/MCP 日志分别写入 `/tmp/web-service.log` 与 `/tmp/mcp-service.log`。
+1. `scripts/dev/start.sh` 将 Web/MCP 日志分别写入 `/tmp/web-service.log` 与 `/tmp/mcp-service.log`。
 2. 启动脚本必须在成功提示前完成 `_next` 资源可访问校验。
 3. 退出时通过 `trap` 清理 PID 文件与子进程，保证下一次启动干净。
 

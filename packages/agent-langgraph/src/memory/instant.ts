@@ -101,7 +101,7 @@ export class InstantMemoryManager {
   }
 
   /**
-   * Token 估算（面试可讲）
+   * Token 估算
    *
    * 技术原理：
    * - 中文约 2 字/token

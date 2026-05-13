@@ -6,7 +6,6 @@
  * - 返回结构化结果 + 综合 answer + score
  * - 免费额度 1000 次/月，足够单人项目使用
  *
- * 面试讲法：
  * - 选择 Tavily 而非 Perplexity / Serper 是基于"AI Agent 友好"+"国内连通性"两个维度
  * - 智能路由：本地 RAG tier=fallback/expand 或问题命中时效词时才调，避免无谓调用
  * - 失败静默降级，不阻塞主流程

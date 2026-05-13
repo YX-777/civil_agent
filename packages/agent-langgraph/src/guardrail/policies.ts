@@ -3,7 +3,7 @@
  *
  * 设计原则：
  *   1. 规则可枚举（黑名单 / 模式），不依赖 LLM 二次判断 → 0 token 0 延迟
- *   2. 中英文双语覆盖（前端面试场景多语种）
+ *   2. 中英文双语覆盖（多语种）
  *   3. 分级触发，HIGH 直接拒绝，MEDIUM 脱敏，LOW 仅记录
  */
 
@@ -78,5 +78,5 @@ export const DEFAULT_POLICIES: GuardRailPolicies = {
 
   // ============ L3 输出验证 ============
   relevanceThreshold: 0.25,    // < 0.25 标记 LOW relevance
-  factVerificationRatio: 0.3,  // 30% 的事实需要有 RAG 来源对应（前端面试场景宽松些）
+  factVerificationRatio: 0.3,  // 30% 的事实需要有 RAG 来源对应（技术问答场景宽松些）
 };

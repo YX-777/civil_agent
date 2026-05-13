@@ -7,7 +7,7 @@ services:
       dockerfile: docker/Dockerfile
     container_name: techmate
     ports:
-      - "80:80"       # Nginx 入口（面试官访问这个）
+      - "80:80"       # Nginx 入口（访客访问这个）
       - "3000:3000"   # Web 服务（备用）
       - "3001:3001"   # ChromaDB Web UI
       - "8000:8000"   # ChromaDB API（备用）

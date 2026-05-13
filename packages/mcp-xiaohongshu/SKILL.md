@@ -12,15 +12,15 @@
 
 ## 当前项目内的实际使用口径（2026-03-26）
 
-当前项目接入这个包时，核心目标已经明确为“按关键词搜索考公/事业编相关内容”，而不是抓首页推荐流。
+当前项目接入这个包时，核心目标已经明确为“按关键词搜索技术学习相关内容”，而不是抓首页推荐流。
 
 当前真实用法更接近：
 
 1. 以 `search_feeds` 为主入口：
-   - `杭州考公`
+   - `前端进阶`
    - `浙江省考`
    - `杭州事业单位考试`
-   - 以及同类备考经验词
+   - 以及同类学习经验词
 2. 命中结果后再调用 `get_feed_detail` 获取正文与评论。
 3. 详情抓取失败时，会在 `scheduler` 层按错误类别决定是否重试。
 4. MCP 调用之间会保留固定间隔，避免高频触发风控。
@@ -160,7 +160,7 @@ import { getXiaohongshuMCPClient } from '@tech-mate/mcp-xiaohongshu';
 const client = getXiaohongshuMCPClient();
 
 // 搜索内容
-const searchResult = await client.searchFeeds("考公经验");
+const searchResult = await client.searchFeeds("技术学习经验");
 
 // 获取推荐列表
 const listResult = await client.listFeeds(1);
@@ -204,7 +204,7 @@ const modelWithTools = model.bindTools(tools);
 
 // 使用工具
 const response = await modelWithTools.invoke([
-  new HumanMessage("搜索小红书上关于考公经验的内容")
+  new HumanMessage("搜索小红书上关于技术学习经验的内容")
 ]);
 ```
 
@@ -303,7 +303,7 @@ packages/
 
 ## 测试
 
-### 运行测试脚本
+### 运学习试脚本
 
 ```bash
 # 在 mcp-xiaohongshu 目录下

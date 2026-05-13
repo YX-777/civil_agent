@@ -4,7 +4,6 @@
  * 把现有 EmbeddingService 包装成 LlamaIndex 的 BaseEmbedding，
  * 让向量化能力以标准接口接入 QueryEngine。
  *
- * 面试讲法：
  * - 阿里云 text-embedding-v2 默认 1536 维
  * - 区分 document 和 query 两种 text_type，提高检索精度
  * - 实现 LlamaIndex BaseEmbedding 接口后，未来换 OpenAI / Cohere 只需替换实现类

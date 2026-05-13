@@ -3,7 +3,6 @@
  *
  * 实现 BaseRetriever 接口，内部委托现有的 VectorRetriever（chromadb SDK）。
  *
- * 面试讲法：
  * - 这是"Vector 检索这一路"在 LlamaIndex 标准接口下的实现
  * - 用 TextNode + NodeWithScore 作为统一中间数据格式
  * - 未来想换成 LlamaIndex 自带 ChromaVectorStore 只要替换这一个类

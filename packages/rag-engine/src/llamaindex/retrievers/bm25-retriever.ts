@@ -7,7 +7,6 @@
  * 建立，HybridRetriever 长期跑在 vector_only 模式。这里在首次检索前 lazy 从
  * ChromaDB 拉取全量文档调用 buildIndex，让 BM25 真正干活。
  *
- * 面试讲法：
  * - LlamaIndex TS 版本没有内置中文 BM25 支持，所以自实现并接入 BaseRetriever
  * - 索引构建走 lazy 模式：首次调用时从 ChromaDB collection 拉全量数据
  * - 单例 + ensureIndexReady 保证只 build 一次

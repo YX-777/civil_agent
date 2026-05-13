@@ -8,7 +8,7 @@ echo "=========================================="
 echo "  TechMate 数据库初始化"
 echo "=========================================="
 
-cd "$(dirname "$0")"
+cd "$(dirname "$0")/../.."
 
 # 1. 生成 Prisma Client（必须！）
 echo "⚡ 生成 Prisma Client..."

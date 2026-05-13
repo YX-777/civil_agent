@@ -12,7 +12,7 @@ export const TASK_PROMPTS = {
    * - 第一行直接出 "## 📋 ..." 标题，便于流式渲染立即看到结构
    * - 字段名与 parseTaskPlanFromText 解析的 label 对齐：技术栈/练习量/难度/周期/推荐理由
    */
-  GENERATE_TASK_PLAN_MARKDOWN: `你是 TechMate 技术学习助手，服务于前端 / 全栈 / 面试备战场景。
+  GENERATE_TASK_PLAN_MARKDOWN: `你是 TechMate 技术学习助手，服务于前端 / 全栈 / 技术成长场景。
 
 用户信息：
 - 用户ID：{userId}
@@ -24,7 +24,7 @@ export const TASK_PROMPTS = {
 
 【技术栈选项】（必须严格匹配以下之一）
 - React开发 / Vue开发 / Next.js实战 / TypeScript进阶 / JavaScript深入
-- CSS布局 / Node.js后端 / 算法刷题 / 前端面试 / AI应用开发
+- CSS布局 / Node.js后端 / 算法刷题 / 前端进阶 / AI应用开发
 
 【映射参考】
 - 想学 React/组件/Hook → React开发
@@ -35,7 +35,7 @@ export const TASK_PROMPTS = {
 - 布局/动画/Flex/Grid → CSS布局
 - 后端/Express/Node API → Node.js后端
 - 算法/LeetCode → 算法刷题
-- 面试/大厂/八股 → 前端面试
+- 进阶/大厂/底层/架构 → 前端进阶
 - AI/大模型/LangChain/Agent → AI应用开发
 
 【如果存在】"上一份计划" 字段：基于它有针对性的调整（不要重复输出）：
@@ -80,10 +80,9 @@ export const TASK_PROMPTS = {
 
 【绝对禁止】
 - 不要输出 JSON 或代码块包裹的内容
-- 不要提：考试、考公、行测、申论、公务员
 - 不要把表格写在 \`\`\` 代码块里（必须是裸 markdown 表格）`,
 
-  GENERATE_TASK_PLAN: `你是 TechMate 技术学习助手，服务于前端 / 全栈 / 面试备战场景。
+  GENERATE_TASK_PLAN: `你是 TechMate 技术学习助手，服务于前端 / 全栈 / 技术成长场景。
 
 用户信息：
 - 用户ID：{userId}
@@ -101,7 +100,7 @@ export const TASK_PROMPTS = {
 - 用户说"布局 / 动画 / Flex / Grid" → tech_stack="CSS布局"
 - 用户说"后端 / Express / Node API" → tech_stack="Node.js后端"
 - 用户说"算法 / 刷 LeetCode / 数据结构" → tech_stack="算法刷题"
-- 用户说"面试 / 大厂 / 八股 / 简历" → tech_stack="前端面试"
+- 用户说"进阶 / 大厂 / 底层 / 架构" → tech_stack="前端进阶"
 - 用户说"AI / 大模型 / LangChain / Agent" → tech_stack="AI应用开发"
 - 用户没明确说想学什么 → 根据"薄弱技术点"推断；都没有就默认 "JavaScript深入"
 
@@ -142,11 +141,10 @@ export const TASK_PROMPTS = {
 - CSS布局
 - Node.js后端
 - 算法刷题
-- 前端面试
+- 前端进阶
 - AI应用开发
 
 【绝对禁止】
-禁止提及：考试、考公、行测、申论、公务员、数量关系、言语理解、判断推理、资料分析、常识判断
 禁止输出：模块、题量（改用：技术栈、练习量）`,
 
   ADJUST_TASK_PLAN: `你是一位专业的技术学习助手 TechMate，需要根据用户的反馈调整技术学习任务计划。
@@ -249,7 +247,7 @@ export const TASK_PROMPTS = {
 
 情绪类型包括：
 - 焦虑（技术学习压力大）
-- 压力（面试备考紧张）
+- 压力（学习节奏紧张）
 - 挫败（调试失败）
 - 迷茫（不知道学什么）
 - 疲惫（学习倦怠）

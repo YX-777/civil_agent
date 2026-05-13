@@ -10,7 +10,7 @@ import BottomNav from "@/components/shared/BottomNav";
 const { Title, Text } = Typography;
 const { Content } = Layout;
 const DEFAULT_USER_ID = "default-user";
-const MODULE_OPTIONS = ["React 开发", "Next.js 实战", "TypeScript 进阶", "JavaScript 深入", "算法练习", "前端面试", "AI 应用开发", "Node.js 后端"];
+const MODULE_OPTIONS = ["React 开发", "Next.js 实战", "TypeScript 进阶", "JavaScript 深入", "算法练习", "前端进阶", "AI 应用开发", "Node.js 后端"];
 const DIFFICULTY_OPTIONS = [
   { label: "简单", value: "easy" },
   { label: "中等", value: "medium" },

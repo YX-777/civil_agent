@@ -8,7 +8,7 @@ import { MessageOutlined, BranchesOutlined, DashboardOutlined, CheckSquareOutlin
 
 const { Header } = Layout;
 
-// Trace Viewer 入口：把面试演示用的 OTel 调用链查看器放到主导航
+// Trace Viewer 入口：把演示用的 OTel 调用链查看器放到主导航
 // pathname.startsWith 检测让 /dashboard/trace 子路由也命中高亮
 const navItems = [
   { key: "/", icon: <MessageOutlined />, label: "对话", href: "/" },

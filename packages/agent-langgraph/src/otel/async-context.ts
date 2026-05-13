@@ -4,7 +4,6 @@
  * 用途：让节点 / 工具 / LLM 调用不必显式接收 TraceContext 参数，
  *      自动从 async 调用栈里拿。这样 withSpan() 可以零侵入式包装任意 async 函数。
  *
- * 面试讲法：
  *   "OpenTelemetry 标准的 context propagation 在 Node 里靠 AsyncLocalStorage 实现，
  *    它能让一个 trace 贯穿整条异步调用链，不需要手动透传上下文。"
  */

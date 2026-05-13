@@ -10,7 +10,7 @@ const XIAOHONGSHU_RAG_KEYWORDS = [
   "前端性能优化",
   "算法题解",
   "LeetCode刷题",
-  "前端面试",
+  "前端进阶",
   "JavaScript深入",
   "CSS布局技巧",
   "Node.js实战",

@@ -4,7 +4,6 @@
  * 实现 LlamaIndex BaseNodePostprocessor 接口，把现有 BGEM3Reranker（阿里云
  * 百炼 gte-rerank API）接入 QueryEngine 流水线作为"二次筛选"环节。
  *
- * 面试讲法：
  * - LlamaIndex 的 NodePostprocessor 是检索后的可插拔加工层
  * - 实际调用阿里云百炼 gte-rerank 模型做相关性重排
  * - 失败自动降级到原始向量分数（不影响主流程）

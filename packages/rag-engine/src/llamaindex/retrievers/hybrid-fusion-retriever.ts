@@ -4,7 +4,6 @@
  * 实现 BaseRetriever 接口，组合 LlamaVectorRetriever 和 LlamaBM25Retriever，
  * 用 Reciprocal Rank Fusion (RRF) 把两路结果融合为一个排序列表。
  *
- * 面试讲法：
  * - RRF 公式：rrf_score = 1 / (k + rank + 1)，k=60 是业界常用值
  * - 优点：不需要调权重，分数自动归一化，对不同尺度分数容错
  * - 与直接加权对比：直接加权要解决两路分数尺度不同的问题（Vector 0-1，BM25 可能 10+），RRF 只看排名规避了这点

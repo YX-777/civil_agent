@@ -33,7 +33,7 @@ export interface FusedMemoryContext {
 
 export class MemoryFusionRetriever {
   /**
-   * 四层记忆融合检索（面试可讲）
+   * 四层记忆融合检索
    *
    * 技术流程：
    * 1. 瞬时记忆：当前对话最近的 N 条消息（滑动窗口）
@@ -185,7 +185,7 @@ export class MemoryFusionRetriever {
   }
 
   /**
-   * 融合上下文（面试可讲）
+   * 融合上下文
    *
    * 技术原理：
    * 按权重拼接各层记忆，构建 Agent 能理解的上下文：

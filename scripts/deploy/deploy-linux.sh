@@ -12,9 +12,9 @@ if [ "$EUID" -ne 0 ]; then
     exit 1
 fi
 
-# 自动检测项目目录（优先使用脚本所在目录）
+# 自动检测项目目录（脚本位于 scripts/deploy/）
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PROJECT_DIR="${SCRIPT_DIR}"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 echo "项目目录：$PROJECT_DIR"
 
@@ -159,5 +159,5 @@ echo "常用命令："
 echo "   查看状态: systemctl status techmate-web techmate-chroma"
 echo "   查看日志: journalctl -u techmate-web -f"
 echo "   重启服务: systemctl restart techmate-web"
-echo "   更新代码: bash update-server.sh"
+echo "   更新代码: bash scripts/deploy/update-server.sh"
 echo ""
