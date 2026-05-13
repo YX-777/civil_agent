@@ -131,11 +131,15 @@ export async function checkOutput(input: OutputGuardInput): Promise<GuardResult>
   const hits: GuardHit[] = [];
 
   // ---- 1) 相关性检查 ----
-  // 关键修正：用户问题过短时（如快捷回复 "确认计划" / "继续" / "好的"），
-  //          embedding/jaccard 相似度天然失真，会把合理回答误判为低相关。
-  //          短问题直接跳过相关性检查，sim 仍记录但不计入 hits。
+  // 关键修正：以下场景直接跳过相关性检查（sim 仍计算并记录，但不计 hit）：
+  //  a) 用户问题过短（< 8 字符，如快捷回复 "确认计划" / "继续" / "好的"）
+  //     —— embedding/jaccard 在超短 query 上失真，会把合理回答误判低相关
+  //  b) 没有 RAG 上下文（对话/创意/任务规划场景）
+  //     —— 这类回答天然不与问题词面共现，相关性判定既无 ground truth 也无意义
+  //  这样 L3 在"无 RAG"场景下基本只对真正的离题输出报警，避免一直冒 ⚠️
   const questionLen = input.question.trim().length;
-  const skipRelevance = questionLen < 8;
+  const hasRagContext = (input.ragSources ?? []).length > 0;
+  const skipRelevance = questionLen < 8 || !hasRagContext;
   const sim = skipRelevance
     ? 1
     : input.computeSim
@@ -156,7 +160,6 @@ export async function checkOutput(input: OutputGuardInput): Promise<GuardResult>
   // 关键修正：若用户问题根本没走 RAG（web 搜索 / 普通对话 / 创意任务），
   //          没有 ground truth 可对照，不应该判幻觉。只在有 RAG 来源时才做这一步。
   const claims = extractFactualClaims(input.answer);
-  const hasRagContext = (input.ragSources ?? []).length > 0;
   const { ratio, uncoveredClaims } = hasRagContext
     ? computeFactCoverage(claims, input.ragSources ?? [])
     : { ratio: 1, uncoveredClaims: [] as string[] };

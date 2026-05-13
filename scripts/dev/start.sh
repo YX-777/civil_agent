@@ -95,8 +95,14 @@ sleep 2
 
 echo "💾 启动 ChromaDB Server (端口 8000)..."
 cd "$ROOT_DIR"
-# 使用 Python 模块启动（跨平台兼容）
-python3 -m chromadb run --host localhost --port 8000 --path ./data/chroma >"$CHROMA_LOG" 2>&1 &
+# 优先 chroma CLI（macOS pip user 安装路径），回退到 python3 -m chromadb（Linux/服务器）
+if command -v chroma >/dev/null 2>&1; then
+    chroma run --host localhost --port 8000 --path ./data/chroma >"$CHROMA_LOG" 2>&1 &
+elif [ -x "/Users/sxh/Library/Python/3.9/bin/chroma" ]; then
+    /Users/sxh/Library/Python/3.9/bin/chroma run --host localhost --port 8000 --path ./data/chroma >"$CHROMA_LOG" 2>&1 &
+else
+    python3 -m chromadb run --host localhost --port 8000 --path ./data/chroma >"$CHROMA_LOG" 2>&1 &
+fi
 CHROMA_PID=$!
 echo "$CHROMA_PID" >"$CHROMA_PID_FILE"
 echo "   ChromaDB Server PID: $CHROMA_PID"

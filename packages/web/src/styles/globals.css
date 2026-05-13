@@ -32,6 +32,20 @@ body {
   display: none;
 }
 
+/* ========== 用户消息发送动效 ==========
+   新发送的 user bubble 在 mount 时跑一次紫色光环淡出，
+   让"消息已发出并滚到顶部"这件事在视觉上有明确反馈。
+   只动 box-shadow（paint-only），绝不动 transform —— transform 会影响 getBoundingClientRect，
+   和 page.tsx 的 window.scrollTo(targetY) 计算打架。 */
+@keyframes user-bubble-land {
+  0%   { box-shadow: 0 0 0 6px rgba(167, 139, 250, 0.35); }
+  35%  { box-shadow: 0 0 0 5px rgba(167, 139, 250, 0.25); }
+  100% { box-shadow: 0 0 0 0   rgba(167, 139, 250, 0); }
+}
+.user-bubble-just-sent {
+  animation: user-bubble-land 1.2s ease-out;
+}
+
 /* ========== 流式光标 ========== */
 .streaming-cursor {
   display: inline-block;

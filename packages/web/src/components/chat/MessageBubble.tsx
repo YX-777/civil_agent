@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useRef } from "react";
 import { Tooltip, message as antdMessage } from "antd";
 import { CopyOutlined, CheckOutlined } from "@ant-design/icons";
 import ReactMarkdown from "react-markdown";
@@ -381,7 +381,12 @@ function GuardRailBadge({ guardrail, traceId, conversationId }: { guardrail: Gua
             <strong>L3 输出验证</strong>:{" "}
             {outputPassed ? "✅ 通过" : `⚠️ ${guardrail.output.hits} 项`}
             {typeof guardrail.output.similarity === "number" && guardrail.output.similarity > 0 && (
-              <span> · 相关性 {(guardrail.output.similarity * 100).toFixed(0)}%</span>
+              <span>
+                {" "}· 相关性 {(guardrail.output.similarity * 100).toFixed(0)}%
+                {guardrail.output.similarity === 1 && (
+                  <span style={{ fontSize: 11, opacity: 0.7, marginLeft: 4 }}>（短问题/无 RAG 时跳过此检查）</span>
+                )}
+              </span>
             )}
             {typeof guardrail.output.factCoverage === "number" && (
               <span>
@@ -754,17 +759,31 @@ export default function MessageBubble({ message, isStreaming = false, conversati
   }
 
   // 用户消息：右侧灰色小气泡
-  // data-msg-id：让 page.tsx 的滚动 effect 能定位到这条消息，scroll-margin-top 留出 Navbar 高度
+  // 关键点：
+  //  - data-msg-id：让 page.tsx 的滚动 effect 能定位到这条消息
+  //  - scrollMarginTop：滚到顶部时 Navbar 高度的 safe area
+  //  - 入场动画**只用 opacity**，绝不动 transform/y/scale —— 这些会改变 getBoundingClientRect，
+  //    会和 page.tsx 的 window.scrollTo(targetY) 计算打架，导致滚动看起来"没反应"
+  //  - 视觉反馈交给 .user-bubble-just-sent 的 box-shadow 关键帧（不影响 layout）
+  //  - justSent 用 useRef 锁定首帧判定：流式响应会让 messages 数组更新触发全部 bubble re-render，
+  //    若直接 Date.now()-timestamp 重算，2.5s 后类名会被摘掉，动画就观察不到
+  const justSentRef = useRef(
+    isUser && Date.now() - new Date(message.timestamp).getTime() < 2500,
+  );
   if (isUser) {
+    const justSent = justSentRef.current;
     return (
       <motion.div
         data-msg-id={message.id}
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.2 }}
-        style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16, paddingRight: 8, scrollMarginTop: 72 }}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ duration: 0.18 }}
+        style={{ display: "flex", justifyContent: "flex-end", marginBottom: 16, paddingRight: 8, scrollMarginTop: 80 }}
       >
-        <div style={{ padding: "10px 14px", borderRadius: 12, background: "#f3f4f6", maxWidth: "70%" }}>
+        <div
+          className={justSent ? "user-bubble-just-sent" : undefined}
+          style={{ padding: "10px 14px", borderRadius: 12, background: "#f3f4f6", maxWidth: "70%" }}
+        >
           <div style={{ fontSize: 15, lineHeight: 1.6, color: "#374151" }}>{message.content}</div>
           <div style={{ marginTop: 4, fontSize: 12, color: "#9ca3af" }}>
             {formatTimestamp(message.timestamp)}
