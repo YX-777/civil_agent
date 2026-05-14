@@ -1,17 +1,14 @@
 /**
- * Tavily Web Search 工具
+ * Web Search 工具 —— 支持 Serper.dev / Tavily 两个 provider
  *
- * Tavily 是专为 AI Agent 设计的搜索 API，特点：
- * - 在国内可直连，无需代理
- * - 返回结构化结果 + 综合 answer + score
- * - 免费额度 1000 次/月，足够单人项目使用
+ * 选择规则（按优先级）：
+ *  1. 显式指定 SEARCH_PROVIDER=serper|tavily
+ *  2. 否则：有 SERPER_API_KEY 走 Serper（中文 + 速度更优），否则回退 Tavily
  *
- * - 选择 Tavily 而非 Perplexity / Serper 是基于"AI Agent 友好"+"国内连通性"两个维度
- * - 智能路由：本地 RAG tier=fallback/expand 或问题命中时效词时才调，避免无谓调用
- * - 失败静默降级，不阻塞主流程
+ * Serper.dev：基于 Google 实时索引，150-500ms，中文覆盖好
+ * Tavily：自家爬虫 + 一句话 answer，覆盖窄，偶尔抽到 8-10s
  *
- * 环境变量：
- *   TAVILY_API_KEY     - 必填，从 https://tavily.com 申请，免费 1000 次/月
+ * 失败静默降级，不阻塞主流程
  */
 
 import { logger } from "@tech-mate/core";
@@ -28,6 +25,7 @@ export interface WebSearchCitation {
 export interface WebSearchResult {
   answer: string;
   citations: WebSearchCitation[];
+  provider: "serper" | "tavily";
   raw?: any;
 }
 
@@ -57,13 +55,136 @@ export function shouldUseWebSearch(query: string, ragTier?: string): boolean {
 }
 
 /**
- * 调用 Tavily Search API。
- * 失败返回 null，调用方自行兜底。
+ * 决定当前实际使用的 provider。
+ */
+function resolveProvider(): "serper" | "tavily" | null {
+  const forced = (process.env.SEARCH_PROVIDER || "").trim().toLowerCase();
+  if (forced === "serper" && process.env.SERPER_API_KEY) return "serper";
+  if (forced === "tavily" && process.env.TAVILY_API_KEY) return "tavily";
+  if (forced) {
+    logger.warn(`[WebSearch] SEARCH_PROVIDER=${forced} 但缺失对应 API_KEY，按可用 key 自动选择`);
+  }
+  if (process.env.SERPER_API_KEY) return "serper";
+  if (process.env.TAVILY_API_KEY) return "tavily";
+  return null;
+}
+
+/**
+ * Serper.dev — Google 实时索引检索。
+ * Endpoint: https://google.serper.dev/search
+ */
+async function serperSearch(query: string): Promise<WebSearchResult | null> {
+  const apiKey = process.env.SERPER_API_KEY!;
+  const startedAt = Date.now();
+  try {
+    console.log(`🌐 [WebSearch] 调用 Serper: "${query}"`);
+
+    const response = await fetch("https://google.serper.dev/search", {
+      method: "POST",
+      headers: {
+        "X-API-KEY": apiKey,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        q: query,
+        num: 5,
+        hl: "zh-cn",
+        gl: "cn",
+      }),
+      signal: AbortSignal.timeout(5_000),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => "");
+      logger.warn(`[WebSearch] Serper HTTP ${response.status}: ${errBody.slice(0, 200)}`);
+      return null;
+    }
+
+    const data = (await response.json()) as any;
+    const organic: any[] = Array.isArray(data?.organic) ? data.organic : [];
+
+    // 优先用 answerBox / knowledgeGraph 作为合成 answer，否则拼接前 2 条 snippet
+    const answer: string =
+      data?.answerBox?.answer ||
+      data?.answerBox?.snippet ||
+      data?.knowledgeGraph?.description ||
+      organic.slice(0, 2).map((r) => r.snippet).filter(Boolean).join(" ");
+
+    const citations: WebSearchCitation[] = organic
+      .filter((r) => r?.link)
+      .map((r) => ({
+        url: r.link,
+        title: r.title,
+        content: r.snippet,
+        // Serper 没有 score，用 position 反向归一化（1 → 1.0, 5 → 0.2）
+        score: typeof r.position === "number" ? Math.max(0, 1 - (r.position - 1) * 0.2) : undefined,
+      }));
+
+    console.log(`🌐 [WebSearch] Serper 完成 ${Date.now() - startedAt}ms, ${citations.length} 个结果`);
+    return { answer: answer || "", citations, provider: "serper", raw: data };
+  } catch (error) {
+    logger.warn(`[WebSearch] Serper 调用失败: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
+}
+
+/**
+ * Tavily —— 保留作为 fallback provider。
+ */
+async function tavilySearch(query: string): Promise<WebSearchResult | null> {
+  const apiKey = process.env.TAVILY_API_KEY!;
+  const startedAt = Date.now();
+  try {
+    console.log(`🌐 [WebSearch] 调用 Tavily: "${query}"`);
+
+    const response = await fetch("https://api.tavily.com/search", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        api_key: apiKey,
+        query,
+        max_results: 5,
+        search_depth: "basic",
+        include_answer: true,
+        include_raw_content: false,
+      }),
+      signal: AbortSignal.timeout(5_000),
+    });
+
+    if (!response.ok) {
+      const errBody = await response.text().catch(() => "");
+      logger.warn(`[WebSearch] Tavily HTTP ${response.status}: ${errBody.slice(0, 200)}`);
+      return null;
+    }
+
+    const data = (await response.json()) as any;
+    const answer: string = data?.answer || "";
+    const rawResults: any[] = Array.isArray(data?.results) ? data.results : [];
+
+    const citations: WebSearchCitation[] = rawResults
+      .filter((r) => r?.url)
+      .map((r) => ({
+        url: r.url,
+        title: r.title,
+        content: r.content,
+        score: typeof r.score === "number" ? r.score : undefined,
+      }));
+
+    console.log(`🌐 [WebSearch] Tavily 完成 ${Date.now() - startedAt}ms, ${citations.length} 个结果`);
+    return { answer, citations, provider: "tavily", raw: data };
+  } catch (error) {
+    logger.warn(`[WebSearch] Tavily 调用失败: ${error instanceof Error ? error.message : String(error)}`);
+    return null;
+  }
+}
+
+/**
+ * 统一入口：根据 provider 路由到具体实现。失败返回 null。
  */
 export async function webSearch(query: string): Promise<WebSearchResult | null> {
-  const apiKey = process.env.TAVILY_API_KEY;
-  if (!apiKey) {
-    logger.warn("[WebSearch] TAVILY_API_KEY 未配置，跳过联网搜索");
+  const provider = resolveProvider();
+  if (!provider) {
+    logger.warn("[WebSearch] 未配置 SERPER_API_KEY 或 TAVILY_API_KEY，跳过联网搜索");
     return null;
   }
 
@@ -71,60 +192,15 @@ export async function webSearch(query: string): Promise<WebSearchResult | null> 
   const guard = checkToolInvocation("web_search", { query });
   if (!guard.passed) {
     logger.warn(`[WebSearch] GuardRail 拦截: ${guard.hits.map(h => h.reason).join("；")}`);
-    return null; // 静默降级，主流程仍可基于本地知识库回答
+    return null;
   }
 
-  return withSpan("tool.web_search", async (span) => {
-    span?.setAttributes({ queryLength: query.length });
-    const startedAt = Date.now();
-    try {
-      console.log(`🌐 [WebSearch] 调用 Tavily: "${query}"`);
-
-      const response = await fetch("https://api.tavily.com/search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          api_key: apiKey,
-          query,
-          max_results: 5,
-          search_depth: "basic",      // basic 速度快，advanced 更精确（贵 2x）
-          include_answer: true,        // Tavily 会综合一段答案，省一次 LLM 调用
-          include_raw_content: false,
-        }),
-        // 5s 上限：Tavily 偶尔抽到 8-10s，会把整条 Chat 链路拖死
-        // 失败/超时 → null，调用方有兜底（LLM 仍然能基于本地知识库回答）
-        signal: AbortSignal.timeout(5_000),
-      });
-
-      if (!response.ok) {
-        const errBody = await response.text().catch(() => "");
-        logger.warn(`[WebSearch] Tavily HTTP ${response.status}: ${errBody.slice(0, 200)}`);
-        span?.setAttribute("status", `http_${response.status}`);
-        return null;
-      }
-
-      const data = (await response.json()) as any;
-      const answer: string = data?.answer || "";
-      const rawResults: any[] = Array.isArray(data?.results) ? data.results : [];
-
-      const citations: WebSearchCitation[] = rawResults
-        .filter((r) => r?.url)
-        .map((r) => ({
-          url: r.url,
-          title: r.title,
-          content: r.content,
-          score: typeof r.score === "number" ? r.score : undefined,
-        }));
-
-      console.log(`🌐 [WebSearch] 完成 ${Date.now() - startedAt}ms, ${citations.length} 个结果`);
-      span?.setAttributes({ resultsCount: citations.length, durationMs: Date.now() - startedAt });
-
-      return { answer, citations, raw: data };
-    } catch (error) {
-      logger.warn(
-        `[WebSearch] 调用失败: ${error instanceof Error ? error.message : String(error)}`
-      );
-      return null;
+  return withSpan(`tool.web_search.${provider}`, async (span) => {
+    span?.setAttributes({ queryLength: query.length, provider });
+    const result = provider === "serper" ? await serperSearch(query) : await tavilySearch(query);
+    if (result) {
+      span?.setAttributes({ resultsCount: result.citations.length });
     }
+    return result;
   });
 }

@@ -1261,6 +1261,7 @@ export async function* generalQANodeStream(
         payload: {
           webCount: webResult?.citations.length ?? 0,
           success: !!webResult,
+          provider: webResult?.provider,
           ragTier,
           query: content.slice(0, 80),
         },
@@ -1274,8 +1275,8 @@ export async function* generalQANodeStream(
         stepIcon: "🌐",
         stepStatus: webResult ? "done" : "skip",
         stepDetail: webResult
-          ? `Tavily · ${webResult.citations.length} 个来源 · ${webDuration}ms`
-          : "Tavily 调用失败，跳过",
+          ? `${webResult.provider === "serper" ? "Serper" : "Tavily"} · ${webResult.citations.length} 个来源 · ${webDuration}ms`
+          : "联网搜索调用失败，跳过",
       };
     } else {
       yield {
