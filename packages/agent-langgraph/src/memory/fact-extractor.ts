@@ -23,7 +23,7 @@ import {
   getEmbeddingService,
   getUserRepository,
 } from "@tech-mate/database";
-import { ChatOpenAI } from "@langchain/openai";
+import { getChatModel } from "../llm";
 
 const COLLECTION = "long_term_memory";
 
@@ -140,18 +140,8 @@ export async function extractFactsViaLLM(
 ): Promise<ExtractedFact[]> {
   if (userMessage.length < 10 || userMessage.length > 800) return [];
 
-  const apiKey = process.env.DASHSCOPE_API_KEY;
-  if (!apiKey) return [];
-
-  const llm = new ChatOpenAI({
-    modelName: "qwen-turbo-latest",
-    apiKey,
-    configuration: {
-      baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    },
-    temperature: 0,
-    maxTokens: 300,
-  });
+  // 事实抽取是典型 T1 轻任务（短 prompt、短输出、对模型质量不敏感）
+  const llm = getChatModel({ task: "fact_extraction" }, { temperature: 0, maxTokens: 300 });
 
   const prompt = `你是一个用户事实提取助手。从下面的用户消息中提取「值得长期记忆」的事实。
 

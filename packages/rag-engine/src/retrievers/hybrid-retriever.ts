@@ -168,15 +168,18 @@ export class HybridRetriever {
   // 直接调用百炼 API 的简化版 LLM 调用
   async generateAnswer(query: string, prompt: string): Promise<string> {
     const apiKey = this.config.reranker.apiKey;
+    // 与 agent-langgraph 的 T2 主力对齐（env LLM_MODEL_T2，默认 qwen-plus）
+    const model = process.env.LLM_MODEL_T2 || "qwen-plus";
+    const baseURL = process.env.LLM_BASE_URL_T2 || "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
-    const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
+    const response = await fetch(`${baseURL}/chat/completions`, {
       method: "POST",
       headers: {
         "Authorization": `Bearer ${apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        model: "qwen3.6-plus",
+        model,
         messages: [
           { role: "system", content: "你是 TechMate 技术学习助手，专注于前端开发技术。必须使用技术词汇：React、TypeScript、JavaScript、CSS、Node.js。" },
           { role: "user", content: prompt },

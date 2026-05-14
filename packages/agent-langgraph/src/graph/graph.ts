@@ -363,7 +363,8 @@ export function createAgentGraph() {
           const fullUserPrompt = `用户具体需求：${userRequest}${adjustmentContext}\n\n${promptBase}`;
 
           let fullContent = "";
-          for await (const chunk of streamDashscopeAPIWithThinking(systemPrompt, fullUserPrompt)) {
+          // 任务计划生成（含 markdown 结构化输出）→ T3
+          for await (const chunk of streamDashscopeAPIWithThinking(systemPrompt, fullUserPrompt, { hint: { task: "task_generation" } })) {
             if (chunk.type === "content") {
               fullContent += chunk.text;
               yield chunk;

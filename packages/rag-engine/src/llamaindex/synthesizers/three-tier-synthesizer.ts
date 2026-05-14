@@ -57,8 +57,9 @@ export class ThreeTierSynthesizer {
   }
 
   /**
-   * 调用 DashScope (qwen3.6-plus) 生成答案。
+   * 调用 LLM 生成答案。
    * 直接用 fetch 而不是接 LlamaIndex BaseLLM，避免再写一层适配器。
+   * 模型与 agent-langgraph 的 T2 主力共享（env LLM_MODEL_T2，默认 qwen-plus）。
    */
   private async callLLM(prompt: string): Promise<string> {
     const apiKey = this.config.reranker.apiKey;
@@ -67,9 +68,11 @@ export class ThreeTierSynthesizer {
       return "抱歉，模型服务未配置。";
     }
 
+    const model = process.env.LLM_MODEL_T2 || "qwen-plus";
+    const baseURL = process.env.LLM_BASE_URL_T2 || "https://dashscope.aliyuncs.com/compatible-mode/v1";
     try {
       const response = await fetch(
-        "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions",
+        `${baseURL}/chat/completions`,
         {
           method: "POST",
           headers: {
@@ -77,7 +80,7 @@ export class ThreeTierSynthesizer {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({
-            model: "qwen3.6-plus",
+            model,
             messages: [
               {
                 role: "system",

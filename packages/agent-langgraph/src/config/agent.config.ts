@@ -40,7 +40,9 @@ export interface AgentConfig {
 
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   llm: {
-    model: "qwen3.6-plus",  // 前端编程能力增强的模型（思考过程为英文）
+    // 兼容字段 —— 实际模型路由由 llm/router.ts 按 tier 决定（T1/T2/T3）
+    // 这里保留只是为了 validateConfig 不报错，新代码请勿读取该字段
+    model: process.env.LLM_MODEL_T2 || "qwen-plus",
     temperature: 0.2,  // 低温度提高 prompt 遵循度
     maxTokens: 4096,
     apiKey: process.env.DASHSCOPE_API_KEY,

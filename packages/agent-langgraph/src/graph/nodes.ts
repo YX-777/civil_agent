@@ -4,9 +4,9 @@
  */
 
 import { HumanMessage, AIMessage, SystemMessage } from "@langchain/core/messages";
-import { ChatOpenAI } from "@langchain/openai";
 import { logger, QuickReplyOption } from "@tech-mate/core";
 import type { UserIntent } from "@tech-mate/core";
+import { getChatModel, startStreamLLM, resolveTierConfig, type LLMTier, type RoutingHint } from "../llm";
 import { SYSTEM_PROMPTS } from "../prompts/system-prompts";
 import { TASK_PROMPTS } from "../prompts/task-prompts";
 import { getMCPToolClient } from "../tools/mcp-tools";
@@ -120,36 +120,8 @@ async function detectAndSaveNickname(userId: string, content: string): Promise<s
 }
 
 /**
- * 直接调用百炼 API (绕过 LangChain 的兼容性问题)
- */
-async function callDashscopeAPI(systemPrompt: string, userPrompt: string): Promise<string> {
-  const config = getAgentConfig();
-  const apiKey = config.llm.apiKey;
-
-  const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "qwen3.6-plus",  // 前端编程能力增强的模型（思考过程为英文）
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.2,
-      max_tokens: config.llm.maxTokens,
-    }),
-  });
-
-  const data = await response.json() as any;
-  return data.choices?.[0]?.message?.content || "";
-}
-
-/**
- * 流式调用百炼 API（带思考过程）
- * 开启 enable_thinking 后，返回 reasoning_content（思考）和 content（回答）
+ * 流式调用 LLM（带思考过程）
+ * 走 llm/client.ts 的 startStreamLLM，按 tier 路由具体模型 + 端点
  */
 export type StreamChunkType = "thought" | "content" | "step";
 
@@ -264,27 +236,15 @@ export async function* streamDashscopeAPIWithThinking(
   userPrompt: string,
   options?: {
     history?: Array<{ role: "user" | "assistant" | "system"; content: string }>;
+    /** 路由提示：默认按 general_qa → T2 */
+    hint?: RoutingHint;
+    /** 强制指定 tier（覆盖 hint） */
+    tier?: LLMTier;
   }
 ): AsyncGenerator<StreamChunk> {
-  const config = getAgentConfig();
-  const apiKey = config.llm.apiKey;
-
-  // ========== OTel：LLM 调用 span（包含 first-byte/total token 计数）==========
-  const trace = getCurrentTrace();
-  const span = trace?.startSpan("llm.stream");
-  span?.setAttributes({
-    model: "qwen3.6-plus",
-    systemPromptLen: systemPrompt.length,
-    userPromptLen: userPrompt.length,
-    historyLen: options?.history?.length ?? 0,
-  });
-  const llmStartedAt = Date.now();
-  let firstByteAt: number | null = null;
-  let spanChunkCount = 0;
-
   // 组装 messages：system + 历史对话 + 当前用户消息
   // 历史对话可让模型保持多轮上下文连贯（用户名字、上文提及的话题等）
-  const messages: Array<{ role: string; content: string }> = [
+  const messages: Array<{ role: "system" | "user" | "assistant"; content: string }> = [
     { role: "system", content: systemPrompt },
   ];
   if (options?.history?.length) {
@@ -296,29 +256,28 @@ export async function* streamDashscopeAPIWithThinking(
   }
   messages.push({ role: "user", content: userPrompt });
 
-  const response = await fetch("https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions", {
-    method: "POST",
-    headers: {
-      "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({
-      model: "qwen3.6-plus",  // 前端编程能力增强的模型
-      messages,
-      temperature: 0.2,
-      max_tokens: config.llm.maxTokens,
-      stream: true,
-      // 关闭思考模式：qwen3.6-plus 的 reasoning_content 是英文 self-talk，
-      // 不仅冗长还会在思考过程里把答案预演一遍，UX 极差。直接输出正式答案。
-      enable_thinking: false,
-    }),
+  // ========== 路由：hint/tier → 具体 model + endpoint + key ==========
+  const { model, tier, reader } = await startStreamLLM({
+    messages,
+    hint: options?.hint ?? { task: "general_qa" },
+    tier: options?.tier,
+    // qwen3.6-plus 的 reasoning_content 是英文 self-talk，关掉直接出答案
+    enableThinking: false,
   });
 
-  const reader = response.body?.getReader();
-  if (!reader) {
-    logger.error('[DashScope] No reader available');
-    return;
-  }
+  // ========== OTel：LLM 调用 span（包含 first-byte/total token 计数）==========
+  const trace = getCurrentTrace();
+  const span = trace?.startSpan("llm.stream");
+  span?.setAttributes({
+    model,
+    tier,
+    systemPromptLen: systemPrompt.length,
+    userPromptLen: userPrompt.length,
+    historyLen: options?.history?.length ?? 0,
+  });
+  const llmStartedAt = Date.now();
+  let firstByteAt: number | null = null;
+  let spanChunkCount = 0;
 
   const decoder = new TextDecoder();
   let buffer = "";
@@ -379,11 +338,15 @@ export async function* streamDashscopeAPIWithThinking(
 }
 
 /**
- * 流式调用百炼 API（无思考过程，兼容旧版本）
+ * 流式调用 LLM（无思考过程，纯 content）
+ * tier/hint 透传给底层 router，调用方可显式升档（如任务生成走 T3）
  */
-async function* streamDashscopeAPI(systemPrompt: string, userPrompt: string): AsyncGenerator<string> {
-  for await (const chunk of streamDashscopeAPIWithThinking(systemPrompt, userPrompt)) {
-    // 只返回 content，过滤掉 thought
+async function* streamDashscopeAPI(
+  systemPrompt: string,
+  userPrompt: string,
+  options?: { hint?: RoutingHint; tier?: LLMTier }
+): AsyncGenerator<string> {
+  for await (const chunk of streamDashscopeAPIWithThinking(systemPrompt, userPrompt, options)) {
     if (chunk.type === "content") {
       yield chunk.text;
     }
@@ -391,19 +354,11 @@ async function* streamDashscopeAPI(systemPrompt: string, userPrompt: string): As
 }
 
 /**
- * 创建 LLM 实例 (备用)
+ * 主力 LLM —— T2（默认 qwen-plus）
+ * 包装薄壳，所有非显式分流的 invoke 都走这里
  */
-function createLLM() {
-  const config = getAgentConfig();
-  return new ChatOpenAI({
-    modelName: config.llm.model,
-    temperature: config.llm.temperature,
-    maxTokens: config.llm.maxTokens,
-    apiKey: config.llm.apiKey,
-    configuration: {
-      baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    },
-  });
+function createLLM(hint?: RoutingHint) {
+  return getChatModel(hint ?? { task: "general_qa" });
 }
 
 /**
@@ -538,19 +493,14 @@ function ruleBasedIntent(content: string): {
 }
 
 /**
- * 轻量 LLM（专用于意图识别），qwen-turbo-latest 比 qwen3.6-plus 快 3-5 倍
+ * 轻量 LLM —— T1（默认 qwen-turbo-latest，比主力快 3-5 倍）
+ * 用于意图识别 / 快捷回复生成 / 事实抽取 等轻任务
  */
 function createLightLLM() {
-  const config = getAgentConfig();
-  return new ChatOpenAI({
-    modelName: "qwen-turbo-latest",
-    temperature: 0,
-    maxTokens: 120,
-    apiKey: config.llm.apiKey,
-    configuration: {
-      baseURL: "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    },
-  });
+  return getChatModel(
+    { task: "intent_classification" },
+    { temperature: 0, maxTokens: 120 }
+  );
 }
 
 export async function intentRecognitionNode(
@@ -803,7 +753,8 @@ export async function taskGenerationNode(
       };
     }
 
-    const llm = createLLM();
+    // 任务生成需要严格结构化输出 + 多约束 → 升档到 T3（默认 qwen-max）
+    const llm = createLLM({ task: "task_generation" });
     const mcpClient = getMCPToolClient();
 
     // 获取用户原始消息
@@ -1395,6 +1346,8 @@ export async function* generalQANodeStream(
     const userPrompt = enhancedMessage;
 
     const genT0 = Date.now();
+    // 解析 T2 当前真实使用的 model 名 → 让 stepDetail 跟着路由变化
+    const t2Model = resolveTierConfig("T2").model;
     yield {
       type: "step",
       text: "",
@@ -1402,7 +1355,7 @@ export async function* generalQANodeStream(
       stepLabel: "生成回答",
       stepIcon: "✨",
       stepStatus: "running",
-      stepDetail: `qwen3.6-plus · 注入 ${historyForLLM.length} 条历史 + ${ragResults.length} 条知识 + ${usedSources.filter(s => s.type === "web").length} 个 web 来源`,
+      stepDetail: `${t2Model} · 注入 ${historyForLLM.length} 条历史 + ${ragResults.length} 条知识 + ${usedSources.filter(s => s.type === "web").length} 个 web 来源`,
     };
 
     // 使用 DashScope API
@@ -1428,7 +1381,7 @@ export async function* generalQANodeStream(
       stepLabel: "生成回答",
       stepIcon: "✨",
       stepStatus: "done",
-      stepDetail: `qwen3.6-plus · ${fullContent.length} 字 · ${Date.now() - genT0}ms`,
+      stepDetail: `${t2Model} · ${fullContent.length} 字 · ${Date.now() - genT0}ms`,
     };
 
     LogTools.logAgentDecision(state.userId, state.userIntent, "General QA Stream");
@@ -1504,7 +1457,8 @@ export async function* taskGenerationNodeStream(
 请生成 JSON 格式的技术学习计划。`;
 
     let planJson = "";
-    for await (const chunk of streamDashscopeAPI(planSystemPrompt, planUserPrompt)) {
+    // 结构化 JSON 输出 → T3（qwen-max 遵循 JSON schema 显著强于 qwen-plus）
+    for await (const chunk of streamDashscopeAPI(planSystemPrompt, planUserPrompt, { hint: { task: "task_generation" } })) {
       planJson += chunk;
       // 不 yield，先收集
     }
