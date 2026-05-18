@@ -39,13 +39,16 @@ export const DEFAULT_POLICIES: GuardRailPolicies = {
     },
     {
       id: "inj-pseudo-role",
-      pattern: /(^|\n)\s*(system|assistant|user)\s*[:：]\s/i,
+      // 行首伪造角色头 + 冒号（中英文冒号）+ 任意载荷。
+      // 原版强制冒号后必须跟空白，漏掉了"assistant：好的"这类中文无空格写法
+      pattern: /(^|\n)\s*(system|assistant|user)\s*[:：]\s*\S/i,
       risk: "medium",
       reason: "伪造 system / assistant / user 角色头",
     },
     {
       id: "inj-prompt-leak",
-      pattern: /(打印|输出|告诉我|reveal|show me|print|输出原始)(.*?)(system\s*prompt|系统提示|系统指令|原始指令)/i,
+      // 覆盖中英文：system prompt / system instruction(s) / 系统提示 / 系统指令 / 原始指令
+      pattern: /(打印|输出|告诉我|reveal|show me|print|输出原始)(.*?)(system\s*(prompt|instructions?)|系统(提示|指令)|原始指令)/i,
       risk: "high",
       reason: "尝试泄露 system prompt",
     },
@@ -77,6 +80,13 @@ export const DEFAULT_POLICIES: GuardRailPolicies = {
   maxToolQueryLength: 500,
 
   // ============ L3 输出验证 ============
-  relevanceThreshold: 0.25,    // < 0.25 标记 LOW relevance
-  factVerificationRatio: 0.3,  // 30% 的事实需要有 RAG 来源对应（技术问答场景宽松些）
+  // relevanceThreshold：现为 **embedding 余弦** 阈值（DashScope text-embedding-v2）。
+  //   经验上中文"问题↔相关答案"余弦多在 0.4~0.7，明显跑题 < 0.3。取 0.30 作为
+  //   保守下限：仅对"明显离题"报 ⚠️。L3 永远 allow（只观测、不拦截），阈值偏差
+  //   只影响一个咨询性 ⚠️、不改变行为，故无需过度精调。
+  //   （旧值 0.25 是 Jaccard 词面时代的，对 embedding 余弦无意义，已重标定。）
+  relevanceThreshold: 0.30,
+  // factVerificationRatio：事实覆盖率门槛。注意此项当前仍是**词面 token 覆盖**
+  //   （非语义），偏宽松取 0.3；升级为 embedding/NLI 语义核验是已记录的路线图项。
+  factVerificationRatio: 0.3,
 };

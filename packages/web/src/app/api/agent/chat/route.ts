@@ -740,8 +740,11 @@ export async function POST(request: NextRequest) {
             // ========== GuardRail L3：输出验证（先跑，再持久化，保证 traceId 和 guardrail 一起入库）==========
             // 关键：corpus 用 detail（真实文档内容）+ title 拼接，不要只传 title，
             //      否则 factCoverage 永远算不到知识库正文，长期 0% 误报。
+            // P1 修复：web 来源也要喂进 L3 事实交叉验证。
+            // 之前只取 kb（"rag" 这个 type 根本不存在），导致联网回答永远 hasRagContext=false，
+            // L3 直接跳过、factCoverage 写死 1.0 —— 面试官实测到的"摆设"根因就在这。
             const ragSnippets = (sources || [])
-              .filter((s: any) => s?.type === "kb" || s?.type === "rag")
+              .filter((s: any) => s?.type === "kb" || s?.type === "web")
               .map((s: any) => ({
                 content: [s.detail, s.title].filter(Boolean).join("\n") || "",
                 title: s.title,
@@ -771,6 +774,7 @@ export async function POST(request: NextRequest) {
               output: {
                 passed: l3.passed,
                 hits: l3.hits.length,
+                applied: l3.metadata?.applied,
                 similarity: l3.metadata?.similarity,
                 factCoverage: l3.metadata?.factCoverage,
               },

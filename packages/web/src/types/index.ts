@@ -28,7 +28,7 @@ export interface GuardRailSummary {
       hits: Array<{ ruleId: string; reason: string; risk: string; matchedText?: string }>;
     }>;
   };
-  output: { passed: boolean; hits: number; similarity?: number; factCoverage?: number };
+  output: { passed: boolean; hits: number; similarity?: number; factCoverage?: number; applied?: boolean };
 }
 
 export interface GuardRailBlockInfo {
